@@ -8,7 +8,6 @@
  */
 import { db } from "./db";
 import { ONE, toUsd } from "./chain";
-import { currentMarket } from "./market";
 import { exchange, ASSET } from "./chain";
 import { MAX_ENTRY_PRICE_PCT } from "./orders";
 
@@ -89,23 +88,14 @@ const CAP = Number(MAX_ENTRY_PRICE_PCT) / 100;
 export async function getTableState(): Promise<TableState> {
   const round = await db.round.findFirst({ orderBy: { index: "desc" } });
 
-  // Live book. Cheap — watchMarket keeps a local store, so this is zero RTT
-  // once the market is being watched.
-  let up: number | null = null;
-  let down: number | null = null;
-  let strike: number | null = null;
-  let oracleQuestionId: string | null = null;
-  try {
-    const market = await currentMarket(0);
-    if (market && round && market.marketId === round.marketId) {
-      if (market.yesAsk !== undefined) up = Number(market.yesAsk) / Number(ONE);
-      if (market.yesBid !== undefined) down = 1 - Number(market.yesBid) / Number(ONE);
-      strike = market.strike || null;
-      oracleQuestionId = market.oracleQuestionId;
-    }
-  } catch {
-    // A book read failing must never blank the table.
-  }
+  // The book, the line and the oracle link all come from the row the executor
+  // mirrors each tick. The web app never touches the chain: a second
+  // SomniaMarkets instance means a second WebSocket, and when that one died
+  // silently the whole table went blank while the game itself was fine.
+  const up = round?.yesAsk ?? null;
+  const down = round?.yesBid != null ? 1 - round.yesBid : null;
+  const strike = round?.strike ?? null;
+  const oracleQuestionId = round?.oracleQuestionId ?? null;
 
   const runs = await db.run.findMany({
     include: {

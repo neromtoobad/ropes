@@ -30,8 +30,17 @@ export async function openRound() {
   const market = await currentMarket(MIN_ENTRY_SECONDS);
   if (!market) return null;
 
+  const book = {
+    yesBid: market.yesBid ? Number(market.yesBid) / 1e6 : null,
+    yesAsk: market.yesAsk ? Number(market.yesAsk) / 1e6 : null,
+  };
+
   const existing = await db.round.findUnique({ where: { marketId: market.marketId } });
-  if (existing) return { round: existing, market };
+  if (existing) {
+    // Keep the mirrored book fresh — the web app renders from this, not the chain.
+    const updated = await db.round.update({ where: { id: existing.id }, data: book });
+    return { round: updated, market };
+  }
 
   const last = await db.round.findFirst({ orderBy: { index: "desc" } });
   const round = await db.round.create({
@@ -43,6 +52,8 @@ export async function openRound() {
       expiresAt: market.expiresAt,
       status: "open",
       strike: market.strike || null,
+      oracleQuestionId: market.oracleQuestionId,
+      ...book,
     },
   });
   log(`ROUND ${round.index} open  market=${market.marketId.slice(0, 10)}…  ` +

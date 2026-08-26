@@ -1,51 +1,159 @@
 @import "tailwindcss";
 
+/*
+ * LAST CANDLE — the look.
+ *
+ * One rule above all: things are either HUGE or tiny. A screen where everything
+ * is 14px reads as a dashboard no matter what the numbers say. The countdown,
+ * the price and the multipliers are the only things allowed to be big, and
+ * everything else gets out of their way.
+ */
 :root {
-  --bg: #08090c;
-  --panel: #101218;
-  --edge: #1e222c;
-  --dim: #6b7280;
-  --up: #22c55e;
-  --down: #ef4444;
-  --gold: #f5c451;
+  --bg: #050608;
+  --panel: #0c0e14;
+  --panel-2: #11141c;
+  --edge: #1c212c;
+  --dim: #5d6675;
+  --text: #eef1f6;
+
+  --up: #00e58a;
+  --up-glow: #00e58a55;
+  --down: #ff2f52;
+  --down-glow: #ff2f5255;
+  --gold: #ffc94d;
+  --gold-glow: #ffc94d55;
 }
 
 html,
 body {
   background: var(--bg);
-  color: #e7e9ee;
+  color: var(--text);
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   -webkit-font-smoothing: antialiased;
+  overscroll-behavior: none;
+}
+
+/* A vignette stops the flat-black page reading as an empty div. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background: radial-gradient(120% 90% at 50% 0%, #10141d 0%, transparent 60%);
 }
 
 .tabular {
   font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
 }
 
-/* The bell. Half the table dies at once and the whole screen should feel it. */
-@keyframes bell-flash {
-  0% { opacity: 0; }
-  8% { opacity: 1; }
-  70% { opacity: 1; }
-  100% { opacity: 0; }
+/* Numbers that matter get a glow, so the eye lands on them first. */
+.glow-up { color: var(--up); text-shadow: 0 0 24px var(--up-glow); }
+.glow-down { color: var(--down); text-shadow: 0 0 24px var(--down-glow); }
+.glow-gold { color: var(--gold); text-shadow: 0 0 24px var(--gold-glow); }
+
+/* ── the clock ─────────────────────────────────────────────────────────── */
+
+@keyframes clock-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.06); opacity: 0.82; }
 }
-.bell {
-  animation: bell-flash 2.6s ease-out forwards;
+.clock-urgent {
+  animation: clock-pulse 1s ease-in-out infinite;
+  color: var(--down);
+  text-shadow: 0 0 40px var(--down-glow), 0 0 80px var(--down-glow);
 }
+
+/* The last ten seconds should be felt at the edge of vision, not read. */
+@keyframes danger-edge {
+  0%, 100% { box-shadow: inset 0 0 0 0 transparent; }
+  50% { box-shadow: inset 0 0 140px -40px var(--down); }
+}
+.danger {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 40;
+  animation: danger-edge 1s ease-in-out infinite;
+}
+
+/* ── the bell ──────────────────────────────────────────────────────────── */
+
+@keyframes bell-in {
+  0% { opacity: 0; transform: scale(1.35); filter: blur(12px); }
+  12% { opacity: 1; transform: scale(1); filter: blur(0); }
+  78% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(0.96); }
+}
+.bell { animation: bell-in 2.6s cubic-bezier(0.2, 0.9, 0.2, 1) forwards; }
+
+/* Half the table dying should move the whole screen. */
+@keyframes screen-shake {
+  0%, 100% { transform: translate(0, 0); }
+  10% { transform: translate(-9px, 4px); }
+  22% { transform: translate(8px, -5px); }
+  36% { transform: translate(-6px, -3px); }
+  52% { transform: translate(5px, 4px); }
+  70% { transform: translate(-3px, 2px); }
+  86% { transform: translate(2px, -1px); }
+}
+.shake { animation: screen-shake 0.6s cubic-bezier(0.36, 0.07, 0.19, 0.97); }
+
+/* ── seats ─────────────────────────────────────────────────────────────── */
 
 @keyframes seat-die {
-  0% { transform: scale(1); }
-  30% { transform: scale(1.04); }
-  100% { transform: scale(0.97); opacity: 0.35; }
+  0% { transform: scale(1); filter: none; }
+  18% { transform: scale(1.06) rotate(-1.5deg); filter: brightness(2.4) saturate(0); }
+  100% { transform: scale(0.94) rotate(0.5deg); filter: grayscale(1) brightness(0.42); opacity: 0.45; }
 }
-.dying {
-  animation: seat-die 0.9s ease-out forwards;
+.dying { animation: seat-die 1s cubic-bezier(0.3, 0, 0.2, 1) forwards; }
+
+@keyframes seat-win {
+  0% { transform: scale(1); }
+  30% { transform: scale(1.08); box-shadow: 0 0 44px -6px var(--up-glow); }
+  100% { transform: scale(1); }
+}
+.winning { animation: seat-win 0.9s ease-out; }
+
+/* A live seat should breathe, so the table never looks like a static list. */
+@keyframes alive-breathe {
+  0%, 100% { border-color: var(--edge); }
+  50% { border-color: #2a3140; }
+}
+.alive { animation: alive-breathe 3.4s ease-in-out infinite; }
+
+/* ── side buttons ──────────────────────────────────────────────────────── */
+
+.side {
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.12s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+.side:not(:disabled):hover { transform: translateY(-2px); }
+.side:not(:disabled):active { transform: translateY(0); }
+.side-up.picked { border-color: var(--up); box-shadow: 0 0 50px -12px var(--up); }
+.side-down.picked { border-color: var(--down); box-shadow: 0 0 50px -12px var(--down); }
+
+/* A sweep across the button makes a static panel feel powered. */
+@keyframes sweep {
+  0% { transform: translateX(-120%); }
+  100% { transform: translateX(220%); }
+}
+.side::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 40%;
+  background: linear-gradient(90deg, transparent, #ffffff0d, transparent);
+  animation: sweep 4.5s linear infinite;
 }
 
-@keyframes pulse-edge {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(245, 196, 81, 0); }
-  50% { box-shadow: 0 0 0 3px rgba(245, 196, 81, 0.25); }
+/* ── the feed ──────────────────────────────────────────────────────────── */
+
+@keyframes feed-in {
+  0% { opacity: 0; transform: translateX(-14px); }
+  100% { opacity: 1; transform: translateX(0); }
 }
-.urgent {
-  animation: pulse-edge 1s ease-in-out infinite;
-}
+.feed-row { animation: feed-in 0.35s ease-out backwards; }

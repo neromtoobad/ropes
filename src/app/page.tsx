@@ -113,10 +113,16 @@ export default function Table() {
   }, [bell, sound]);
 
   return (
-    <main className="mx-auto min-h-screen max-w-5xl px-5 py-6">
+    <main className={`relative z-10 mx-auto min-h-screen max-w-5xl px-5 py-6 ${bell ? "shake" : ""}`}>
+      {secs > 0 && secs < 10 && <div className="danger" />}
       <Header state={state} urgent={urgent} sound={sound} />
 
-      <Chart points={points} strike={state?.btc.strike ?? null} price={state?.btc.price ?? null} />
+      <Chart
+        points={points}
+        strike={state?.btc.strike ?? null}
+        price={state?.btc.price ?? null}
+        secondsLeft={secs}
+      />
 
       {state?.round && (
         <Sides
@@ -131,7 +137,13 @@ export default function Table() {
         />
       )}
 
-      <Seats state={state} runId={runId} bellIndex={bell?.index ?? null} killed={bell?.killed ?? []} />
+      <Seats
+        state={state}
+        runId={runId}
+        bellIndex={bell?.index ?? null}
+        killed={bell?.killed ?? []}
+        survived={(bell?.survived ?? []).map((s) => s.name)}
+      />
 
       <div className="mt-6">
         {!runId || !me ? (
@@ -176,36 +188,31 @@ function Header({
   const secs = Math.floor(state?.round?.secondsLeft ?? 0);
   const alive = state?.seats.length ?? 0;
   return (
-    <header className="mb-6 flex items-end justify-between border-b border-[var(--edge)] pb-4">
+    <header className="mb-4 flex items-end justify-between">
       <div>
         <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-black tracking-[0.2em]">LAST CANDLE</h1>
+          <h1 className="text-xl font-black tracking-[0.28em]">LAST CANDLE</h1>
           <button
             onClick={sound.toggle}
             aria-label={sound.on ? "mute" : "unmute"}
-            className="rounded border border-[var(--edge)] px-2 py-1 text-xs text-[var(--dim)] hover:text-[var(--gold)]"
+            className="rounded border border-[var(--edge)] px-2 py-1 text-[10px] text-[var(--dim)] hover:text-[var(--gold)]"
           >
             {sound.on ? "🔊" : "🔇"}
           </button>
         </div>
-        <p className="mt-1 text-xs text-[var(--dim)]">
-          {state?.round ? `round ${state.round.index} · BTC 1m` : "waiting for a window…"}
-          {state?.locked && <span className="ml-2 text-[var(--gold)]">● LOCKED</span>}
+        <p className="mt-1 flex items-center gap-2 text-[10px] font-bold tracking-[0.25em] text-[var(--dim)]">
+          {state?.round ? `ROUND ${state.round.index}` : "WAITING FOR A WINDOW"}
+          {state?.locked && <span className="glow-gold">● LOCKED</span>}
         </p>
       </div>
+
       <div className="text-right">
-        <div
-          className={`tabular text-5xl font-black leading-none ${urgent ? "text-[var(--gold)]" : ""}`}
-        >
-          0:{String(secs).padStart(2, "0")}
+        {/* The clock is the loudest object on the page on purpose. */}
+        <div className={`tabular text-8xl font-black leading-[0.85] ${urgent ? "clock-urgent" : ""}`}>
+          {String(secs).padStart(2, "0")}
         </div>
-        <p className="mt-1 text-xs text-[var(--dim)]">
-          {alive} {alive === 1 ? "player" : "players"} alive
-          {state?.btc.strike && state?.btc.price !== null && (
-            <span className="tabular ml-2">
-              to beat {state.btc.strike.toLocaleString(undefined, { maximumFractionDigits: 2 })}
-            </span>
-          )}
+        <p className="mt-1 text-[10px] font-bold tracking-[0.25em] text-[var(--dim)]">
+          {alive} ALIVE
         </p>
       </div>
     </header>
@@ -224,59 +231,68 @@ function Sides({
   const canPick = me && !me.inRound;
   return (
     <>
-      <div className="mt-4 mb-2 flex items-baseline justify-between text-[11px] tracking-widest text-[var(--dim)]">
-        <span>
-          {state.locked ? "THIS ROUND IS LOCKED — WATCH IT PLAY OUT" : "PICK YOUR SIDE"}
+      <div className="mt-4 mb-2 flex items-baseline justify-between text-[10px] font-bold tracking-[0.25em] text-[var(--dim)]">
+        <span className={state.locked ? "glow-gold" : ""}>
+          {state.locked ? "LOCKED — WATCH IT PLAY OUT" : canPick ? "PICK YOUR SIDE" : "NEXT ROUND"}
         </span>
         <span className="tabular">
           {(state.crowd.liveStake.up + state.crowd.liveStake.down).toFixed(2)} IN PLAY
         </span>
       </div>
-    <div className="grid grid-cols-2 gap-3">
-      {(["UP", "DOWN"] as const).map((side) => {
-        const price = side === "UP" ? state.price.up : state.price.down;
-        const pays = side === "UP" ? state.pays.up : state.pays.down;
-        const capped = side === "UP" ? state.capped.up : state.capped.down;
-        const crowd = side === "UP" ? state.crowd.up : state.crowd.down;
-        const stake = side === "UP" ? state.crowd.liveStake.up : state.crowd.liveStake.down;
-        const calls = side === "UP" ? state.crowd.nextCall.up : state.crowd.nextCall.down;
-        const picked = me?.pick === side;
-        const color = side === "UP" ? "var(--up)" : "var(--down)";
-        return (
-          <button
-            key={side}
-            disabled={!canPick || capped}
-            onClick={() => onPick(side)}
-            className={`rounded-xl border p-4 text-left transition disabled:cursor-not-allowed ${
-              picked ? "border-current" : "border-[var(--edge)]"
-            } ${canPick && !capped ? "hover:border-current" : "opacity-70"}`}
-            style={{ color, background: "var(--panel)" }}
-          >
-            <div className="flex items-baseline justify-between">
-              <span className="text-lg font-bold tracking-widest">{side}</span>
-              <span className="tabular text-xs text-[var(--dim)]">
-                {stake > 0 ? `${stake.toFixed(2)} staked` : `${crowd} in`}
-              </span>
-            </div>
-            <div className="tabular mt-2 text-3xl font-black">
-              {pays ? `${pays.toFixed(2)}×` : "—"}
-            </div>
-            <div className="mt-1 text-xs text-[var(--dim)]">
-              {capped
-                ? "above 90% — not worth the risk"
-                : price
-                  ? `costs ${price.toFixed(3)} per contract`
-                  : "no quotes yet"}
-            </div>
-            {calls > 0 && (
-              <div className="tabular mt-1 text-[11px] text-[var(--dim)] opacity-80">
-                {calls} calling this next round
+
+      <div className="grid grid-cols-2 gap-3">
+        {(["UP", "DOWN"] as const).map((side) => {
+          const isUp = side === "UP";
+          const price = isUp ? state.price.up : state.price.down;
+          const pays = isUp ? state.pays.up : state.pays.down;
+          const capped = isUp ? state.capped.up : state.capped.down;
+          const stake = isUp ? state.crowd.liveStake.up : state.crowd.liveStake.down;
+          const calls = isUp ? state.crowd.nextCall.up : state.crowd.nextCall.down;
+          const picked = me?.pick === side;
+          const c = isUp ? "var(--up)" : "var(--down)";
+
+          return (
+            <button
+              key={side}
+              disabled={!canPick || capped}
+              onClick={() => onPick(side)}
+              className={`side ${isUp ? "side-up" : "side-down"} ${picked ? "picked" : ""} rounded-2xl border p-5 text-left disabled:cursor-not-allowed`}
+              style={{
+                color: c,
+                borderColor: picked ? c : "var(--edge)",
+                background: `linear-gradient(180deg, ${isUp ? "#06170f" : "#1a0810"}, var(--panel))`,
+                opacity: capped ? 0.45 : 1,
+              }}
+            >
+              <div className="flex items-baseline justify-between">
+                <span className="text-2xl font-black tracking-[0.15em]">
+                  {isUp ? "▲ UP" : "▼ DOWN"}
+                </span>
+                <span className="tabular text-[11px] font-bold text-[var(--dim)]">
+                  {stake > 0 ? `${stake.toFixed(2)} STAKED` : calls > 0 ? `${calls} CALLING` : "—"}
+                </span>
               </div>
-            )}
-          </button>
-        );
-      })}
-    </div>
+
+              {/* The payout is the whole proposition. Nothing else competes. */}
+              <div
+                className="tabular mt-3 text-7xl font-black leading-none"
+                style={{ textShadow: `0 0 44px ${c}55` }}
+              >
+                {pays ? pays.toFixed(2) : "—"}
+                <span className="align-super text-2xl opacity-60">×</span>
+              </div>
+
+              <div className="mt-2 text-[11px] font-bold tracking-wider text-[var(--dim)]">
+                {capped
+                  ? "ABOVE 90% — NOT WORTH THE RISK"
+                  : price
+                    ? `${price.toFixed(3)} PER CONTRACT`
+                    : "NO QUOTES YET"}
+              </div>
+            </button>
+          );
+        })}
+      </div>
     </>
   );
 }
@@ -286,50 +302,60 @@ function Seats({
   runId,
   bellIndex,
   killed,
+  survived,
 }: {
   state: TableState | null;
   runId: string | null;
   bellIndex: number | null;
   killed: string[];
+  survived: string[];
 }) {
   const seats = state?.seats ?? [];
+  if (!seats.length) {
+    return (
+      <p className="py-10 text-center text-sm tracking-widest text-[var(--dim)]">
+        THE TABLE IS EMPTY — TAKE A SEAT
+      </p>
+    );
+  }
   return (
-    <section className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
+    <section className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
       {seats.map((s) => {
         const dying = bellIndex !== null && killed.includes(s.name);
+        const winning = bellIndex !== null && survived.includes(s.name);
         const mine = s.runId === runId;
+        const c = s.pick === "UP" ? "var(--up)" : s.pick === "DOWN" ? "var(--down)" : "var(--dim)";
         return (
           <div
             key={s.runId}
-            className={`rounded-lg border p-3 ${dying ? "dying" : ""} ${
-              mine ? "border-[var(--gold)]" : "border-[var(--edge)]"
-            }`}
-            style={{ background: "var(--panel)" }}
+            className={`relative overflow-hidden rounded-xl border p-3 ${dying ? "dying" : winning ? "winning" : "alive"}`}
+            style={{
+              background: "linear-gradient(180deg, var(--panel-2), var(--panel))",
+              borderColor: mine ? "var(--gold)" : undefined,
+            }}
           >
-            <div className="flex items-center justify-between">
-              <span className="truncate text-sm font-semibold">{s.name}</span>
+            {/* A side bar, so you read the table's split without reading words. */}
+            <div className="absolute inset-y-0 left-0 w-1" style={{ background: c, boxShadow: `0 0 16px ${c}` }} />
+            <div className="flex items-center justify-between pl-2">
+              <span className="truncate text-sm font-bold">{s.name}</span>
               {s.pick && (
-                <span
-                  className="text-[10px] font-bold tracking-wider"
-                  style={{ color: s.pick === "UP" ? "var(--up)" : "var(--down)" }}
-                >
+                <span className="text-[10px] font-black tracking-widest" style={{ color: c }}>
                   {s.pick}
                 </span>
               )}
             </div>
-            <div className="tabular mt-1 text-xl font-bold">{s.stack.toFixed(2)}</div>
-            <div className="tabular text-[11px] text-[var(--dim)]">
-              {s.multiple.toFixed(2)}× · {s.rounds}R
-              {s.inRound && s.fillPrice ? ` · in @ ${s.fillPrice.toFixed(3)}` : s.pick ? " · waiting" : ""}
+            <div className="tabular pl-2 text-3xl font-black leading-tight">{s.stack.toFixed(2)}</div>
+            <div className="tabular pl-2 text-[11px] font-bold text-[var(--dim)]">
+              <span style={{ color: s.multiple >= 1 ? "var(--up)" : "var(--down)" }}>
+                {s.multiple.toFixed(2)}×
+              </span>
+              {" · "}
+              {s.rounds}R
+              {s.inRound && s.fillPrice ? ` · @${s.fillPrice.toFixed(3)}` : s.pick ? " · …" : ""}
             </div>
           </div>
         );
       })}
-      {seats.length === 0 && (
-        <p className="col-span-full py-8 text-center text-sm text-[var(--dim)]">
-          the table is empty. take a seat.
-        </p>
-      )}
     </section>
   );
 }
@@ -426,24 +452,28 @@ function YourRun({
 }
 
 function Bell({ result }: { result: NonNullable<TableState["lastResult"]> }) {
+  const c = result.voided ? "var(--gold)" : result.winner === "UP" ? "var(--up)" : "var(--down)";
   return (
-    <div className="bell pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-black/95">
+    <div className="bell pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-black/92">
       <div className="text-center">
-        <p className="text-sm tracking-[0.3em] text-[var(--dim)]">ROUND {result.index}</p>
+        <p className="text-xs font-bold tracking-[0.5em] text-[var(--dim)]">ROUND {result.index}</p>
         <p
-          className="text-7xl font-black tracking-tight"
-          style={{ color: result.voided ? "var(--gold)" : result.winner === "UP" ? "var(--up)" : "var(--down)" }}
+          className="mt-2 text-[9rem] font-black leading-[0.8] tracking-tighter"
+          style={{ color: c, textShadow: `0 0 90px ${c}` }}
         >
           {result.voided ? "VOID" : result.winner}
         </p>
+
         {result.killed.length > 0 && (
-          <p className="mt-3 text-lg font-bold text-[var(--down)]">
-            ☠ {result.killed.join("  ☠ ")}
+          <p className="mt-6 text-3xl font-black glow-down">
+            {result.killed.map((n) => `☠ ${n}`).join("   ")}
           </p>
         )}
         {result.survived.length > 0 && (
-          <p className="tabular mt-2 text-sm text-[var(--up)]">
-            {result.survived.map((s) => `${s.name} ${s.from.toFixed(2)}→${s.to.toFixed(2)}`).join("   ")}
+          <p className="tabular mt-3 text-lg font-bold glow-up">
+            {result.survived
+              .map((s) => `${s.name} ${s.from.toFixed(2)} → ${s.to.toFixed(2)}`)
+              .join("     ")}
           </p>
         )}
       </div>
@@ -463,33 +493,36 @@ function Feed({ state }: { state: TableState | null }) {
   return (
     <section className="mt-8">
       <div className="mb-2 flex items-baseline justify-between">
-        <h2 className="text-xs tracking-[0.2em] text-[var(--dim)]">THE FEED</h2>
+        <h2 className="text-[10px] font-bold tracking-[0.3em] text-[var(--dim)]">THE FEED</h2>
         {record && (
-          <p className="tabular text-xs text-[var(--gold)]">
-            longest run · {record.name} · {record.rounds}R · {record.multiple.toFixed(2)}×
+          <p className="tabular text-[11px] font-bold glow-gold">
+            LONGEST RUN · {record.name.toUpperCase()} · {record.rounds}R · {record.multiple.toFixed(2)}×
           </p>
         )}
       </div>
       <div className="space-y-1">
         {feed.slice(0, 6).map((f, i) => (
           <div
-            key={i}
-            className="flex items-baseline justify-between rounded-md border border-[var(--edge)] px-3 py-2 text-sm"
-            style={{ background: "var(--panel)" }}
+            key={`${f.name}-${f.round}-${i}`}
+            className="feed-row flex items-center justify-between rounded-lg border border-[var(--edge)] px-4 py-2.5 text-sm"
+            style={{ background: "var(--panel)", animationDelay: `${i * 45}ms` }}
           >
-            <span>
-              <span style={{ color: f.kind === "died" ? "var(--down)" : "var(--gold)" }}>
-                {f.kind === "died" ? "☠" : "💰"}
-              </span>{" "}
-              <span className="font-semibold">{f.name}</span>
-              <span className="ml-2 text-xs text-[var(--dim)]">
-                {f.kind === "died" ? `out on round ${f.round}` : `banked on round ${f.round}`}
+            <span className="flex items-center gap-2">
+              <span
+                className="text-lg"
+                style={{ color: f.kind === "died" ? "var(--down)" : "var(--gold)" }}
+              >
+                {f.kind === "died" ? "☠" : "◆"}
+              </span>
+              <span className="font-bold">{f.name}</span>
+              <span className="text-[11px] tracking-wider text-[var(--dim)]">
+                {f.kind === "died" ? `OUT ON ROUND ${f.round}` : `BANKED ON ROUND ${f.round}`}
               </span>
             </span>
-            <span className="tabular text-xs text-[var(--dim)]">
+            <span className="tabular text-[11px] font-bold text-[var(--dim)]">
               {f.rounds}R · {f.multiple.toFixed(2)}×
               {f.missedBy !== null && (
-                <span className="ml-2 text-[var(--down)]">missed by ${f.missedBy.toFixed(2)}</span>
+                <span className="ml-3 glow-down">MISSED BY ${f.missedBy.toFixed(2)}</span>
               )}
             </span>
           </div>

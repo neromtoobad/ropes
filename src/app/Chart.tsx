@@ -51,78 +51,148 @@ export function Chart({
   points,
   strike,
   price,
+  secondsLeft,
 }: {
   points: Point[];
   strike: number | null;
   price: number | null;
+  secondsLeft: number;
 }) {
-  const W = 720;
-  const H = 130;
+  const W = 1000;
+  const H = 260;
 
   if (!strike || price === null || points.length < 2) {
     return (
       <div
-        className="mt-3 flex h-[130px] items-center justify-center rounded-xl border border-[var(--edge)] text-xs text-[var(--dim)]"
+        className="flex h-[260px] items-center justify-center rounded-2xl border border-[var(--edge)] text-xs tracking-widest text-[var(--dim)]"
         style={{ background: "var(--panel)" }}
       >
-        {strike ? "reading the tape…" : "waiting for the line"}
+        {strike ? "READING THE TAPE…" : "WAITING FOR THE LINE"}
       </div>
     );
   }
 
   const prices = points.map((p) => p.p).concat(strike);
-  // Always keep the line in frame, and never let a flat tape divide by zero.
   const lo = Math.min(...prices);
   const hi = Math.max(...prices);
-  const pad = Math.max((hi - lo) * 0.25, 1);
+  // Keep the line in frame and never divide by zero on a flat tape.
+  const pad = Math.max((hi - lo) * 0.35, 2);
   const min = lo - pad;
   const max = hi + pad;
   const y = (v: number) => H - ((v - min) / (max - min)) * H;
   const x = (i: number) => (i / Math.max(points.length - 1, 1)) * W;
 
-  const path = points.map((p, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${y(p.p).toFixed(1)}`).join(" ");
+  const line = points.map((p, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${y(p.p).toFixed(1)}`).join(" ");
+  // Close the path to the strike so the winning territory is filled, not implied.
   const strikeY = y(strike);
+  const area = `${line} L${W},${strikeY} L0,${strikeY} Z`;
+
   const above = price >= strike;
   const colour = above ? "var(--up)" : "var(--down)";
   const delta = price - strike;
+  const cx = x(points.length - 1);
+  const cy = y(price);
 
   return (
-    <div className="relative mt-3 overflow-hidden rounded-xl border border-[var(--edge)]" style={{ background: "var(--panel)" }}>
+    <div
+      className="relative overflow-hidden rounded-2xl border"
+      style={{
+        background: "linear-gradient(180deg, var(--panel-2), var(--panel))",
+        borderColor: above ? "#10331f" : "#3a0f18",
+        boxShadow: `inset 0 0 90px -50px ${colour}`,
+      }}
+    >
       <svg viewBox={`0 0 ${W} ${H}`} className="block w-full" style={{ height: H }} preserveAspectRatio="none">
-        {/* Winning territory: everything above the line belongs to UP. */}
-        <rect x="0" y="0" width={W} height={strikeY} fill="var(--up)" opacity="0.05" />
-        <rect x="0" y={strikeY} width={W} height={H - strikeY} fill="var(--down)" opacity="0.05" />
+        <defs>
+          <linearGradient id="fill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={colour} stopOpacity="0.34" />
+            <stop offset="100%" stopColor={colour} stopOpacity="0.02" />
+          </linearGradient>
+          <filter id="bloom" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="6" result="b" />
+            <feMerge>
+              <feMergeNode in="b" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+        </defs>
+
+        <path d={area} fill="url(#fill)" />
+
+        {/* The line to beat. Everything on the screen is relative to it. */}
         <line
           x1="0"
           x2={W}
           y1={strikeY}
           y2={strikeY}
           stroke="var(--gold)"
-          strokeWidth="1"
-          strokeDasharray="4 4"
-          opacity="0.8"
+          strokeWidth="1.5"
+          strokeDasharray="7 7"
+          opacity="0.75"
           vectorEffect="non-scaling-stroke"
         />
-        <path d={path} fill="none" stroke={colour} strokeWidth="2" vectorEffect="non-scaling-stroke" />
-        <circle cx={x(points.length - 1)} cy={y(price)} r="4" fill={colour} />
+
+        <path
+          d={line}
+          fill="none"
+          stroke={colour}
+          strokeWidth="3"
+          strokeLinejoin="round"
+          strokeLinecap="round"
+          filter="url(#bloom)"
+          vectorEffect="non-scaling-stroke"
+        />
+
+        {/* The head of the tape, pulsing, so the eye knows where "now" is. */}
+        <circle cx={cx} cy={cy} r="16" fill={colour} opacity="0.18">
+          <animate attributeName="r" values="10;22;10" dur="1.6s" repeatCount="indefinite" />
+          <animate attributeName="opacity" values="0.3;0.03;0.3" dur="1.6s" repeatCount="indefinite" />
+        </circle>
+        <circle cx={cx} cy={cy} r="5" fill={colour} filter="url(#bloom)" />
       </svg>
 
-      <div className="pointer-events-none absolute inset-0 flex items-start justify-between p-3">
-        <div>
-          <p className="text-[10px] tracking-widest text-[var(--dim)]">THE LINE</p>
-          <p className="tabular text-sm font-bold text-[var(--gold)]">
-            {strike.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+      <div className="pointer-events-none absolute inset-0 flex flex-col justify-between p-5">
+        <div className="flex items-start justify-between gap-6">
+          <div>
+            <p className="text-[10px] font-bold tracking-[0.3em] text-[var(--dim)]">TO BEAT</p>
+            <p className="tabular text-2xl font-black glow-gold">
+              {strike.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+            </p>
+          </div>
+          <div className="min-w-0 text-right">
+            <p
+              className="tabular truncate text-4xl font-black leading-none sm:text-5xl"
+              style={{ color: colour, textShadow: `0 0 50px ${colour}66` }}
+            >
+              {price.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-end justify-between">
+          <p className="text-[10px] font-bold tracking-[0.3em] text-[var(--dim)]">
+            BTC · 1 MINUTE
+          </p>
+          <p className="tabular text-lg font-black" style={{ color: colour }}>
+            {delta >= 0 ? "▲ +" : "▼ "}
+            {delta.toFixed(2)}
+            <span className="ml-3 text-xs tracking-[0.2em] opacity-80">
+              {above ? "UP IS WINNING" : "DOWN IS WINNING"}
+            </span>
           </p>
         </div>
-        <div className="text-right">
-          <p className="tabular text-2xl font-black" style={{ color: colour }}>
-            {price.toLocaleString(undefined, { maximumFractionDigits: 2 })}
-          </p>
-          <p className="tabular text-xs font-semibold" style={{ color: colour }}>
-            {delta >= 0 ? "+" : ""}
-            {delta.toFixed(2)} · {above ? "UP winning" : "DOWN winning"}
-          </p>
-        </div>
+      </div>
+
+      {/* A thin bar draining to zero — time, felt rather than read. */}
+      <div className="absolute inset-x-0 bottom-0 h-1 bg-[#ffffff08]">
+        <div
+          className="h-full transition-[width] duration-1000 ease-linear"
+          style={{
+            width: `${Math.max(0, Math.min(100, (secondsLeft / 60) * 100))}%`,
+            background: secondsLeft < 10 ? "var(--down)" : "var(--gold)",
+            boxShadow: `0 0 18px ${secondsLeft < 10 ? "var(--down)" : "var(--gold)"}`,
+          }}
+        />
       </div>
     </div>
   );

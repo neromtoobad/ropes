@@ -49,6 +49,14 @@ model Round {
   // Kept so a death can be shown for what it was: "you missed by $3.20".
   strike Float?
   close  Float?
+
+  // The book, mirrored by the executor each tick. The web app reads ONLY the
+  // database: a second SomniaMarkets instance in the Next server means a second
+  // WebSocket that can die silently, and when it did the whole table went blank
+  // while the game carried on fine.
+  yesBid          Float?
+  yesAsk          Float?
+  oracleQuestionId String?
   redeemTx       String? // one redemption tx covers every winner in the round
 
   positions Position[]
