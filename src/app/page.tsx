@@ -29,6 +29,7 @@ export default function Table() {
   const [name, setName] = useState("");
   const [err, setErr] = useState<string | null>(null);
   const [bell, setBell] = useState<TableState["lastResult"]>(null);
+  const [auto, setAuto] = useState(false);
   const lastBellIndex = useRef<number | null>(null);
 
   useEffect(() => {
@@ -138,6 +139,13 @@ export default function Table() {
         ) : (
           <YourRun
             me={me}
+            auto={auto}
+            onAuto={async () => {
+              sound.play("click");
+              const next = !auto;
+              setAuto(next);
+              if (runId) await post("/api/auto", { runId, on: next, side: me.pick });
+            }}
             onBank={async () => {
               const r = await post("/api/bank", { runId });
               if (r?.ok) localStorage.removeItem("lc.runId");
@@ -180,6 +188,7 @@ function Header({
         </div>
         <p className="mt-1 text-xs text-[var(--dim)]">
           {state?.round ? `round ${state.round.index} · BTC 1m` : "waiting for a window…"}
+          {state?.locked && <span className="ml-2 text-[var(--gold)]">● LOCKED</span>}
         </p>
       </div>
       <div className="text-right">
@@ -190,6 +199,11 @@ function Header({
         </div>
         <p className="mt-1 text-xs text-[var(--dim)]">
           {alive} {alive === 1 ? "player" : "players"} alive
+          {state?.btc.strike && state?.btc.price !== null && (
+            <span className="tabular ml-2">
+              to beat {state.btc.strike.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+            </span>
+          )}
         </p>
       </div>
     </header>
@@ -207,12 +221,23 @@ function Sides({
 }) {
   const canPick = me && !me.inRound;
   return (
-    <div className="mt-3 grid grid-cols-2 gap-3">
+    <>
+      <div className="mt-4 mb-2 flex items-baseline justify-between text-[11px] tracking-widest text-[var(--dim)]">
+        <span>
+          {state.locked ? "THIS ROUND IS LOCKED — WATCH IT PLAY OUT" : "PICK YOUR SIDE"}
+        </span>
+        <span className="tabular">
+          {(state.crowd.liveStake.up + state.crowd.liveStake.down).toFixed(2)} IN PLAY
+        </span>
+      </div>
+    <div className="grid grid-cols-2 gap-3">
       {(["UP", "DOWN"] as const).map((side) => {
         const price = side === "UP" ? state.price.up : state.price.down;
         const pays = side === "UP" ? state.pays.up : state.pays.down;
         const capped = side === "UP" ? state.capped.up : state.capped.down;
         const crowd = side === "UP" ? state.crowd.up : state.crowd.down;
+        const stake = side === "UP" ? state.crowd.liveStake.up : state.crowd.liveStake.down;
+        const calls = side === "UP" ? state.crowd.nextCall.up : state.crowd.nextCall.down;
         const picked = me?.pick === side;
         const color = side === "UP" ? "var(--up)" : "var(--down)";
         return (
@@ -227,8 +252,8 @@ function Sides({
           >
             <div className="flex items-baseline justify-between">
               <span className="text-lg font-bold tracking-widest">{side}</span>
-              <span className="text-xs text-[var(--dim)]">
-                {crowd} {crowd === 1 ? "player" : "players"}
+              <span className="tabular text-xs text-[var(--dim)]">
+                {stake > 0 ? `${stake.toFixed(2)} staked` : `${crowd} in`}
               </span>
             </div>
             <div className="tabular mt-2 text-3xl font-black">
@@ -241,10 +266,16 @@ function Sides({
                   ? `costs ${price.toFixed(3)} per contract`
                   : "no quotes yet"}
             </div>
+            {calls > 0 && (
+              <div className="tabular mt-1 text-[11px] text-[var(--dim)] opacity-80">
+                {calls} calling this next round
+              </div>
+            )}
           </button>
         );
       })}
     </div>
+    </>
   );
 }
 
@@ -334,9 +365,13 @@ function Join({
 function YourRun({
   me,
   onBank,
+  onAuto,
+  auto,
 }: {
   me: TableState["seats"][number];
   onBank: () => void;
+  onAuto: () => void;
+  auto: boolean;
 }) {
   return (
     <div className="flex items-center justify-between rounded-xl border border-[var(--gold)] p-4" style={{ background: "var(--panel)" }}>
@@ -354,12 +389,25 @@ function YourRun({
               : "pick a side"}
         </p>
       </div>
-      <button
-        onClick={onBank}
-        className="rounded-lg border border-[var(--gold)] px-6 py-3 text-sm font-bold text-[var(--gold)]"
-      >
-        BANK {me.multiple.toFixed(2)}×
-      </button>
+      <div className="flex items-center gap-2">
+        {me.pick && (
+          <button
+            onClick={onAuto}
+            title="keep calling this side every round"
+            className={`rounded-lg border px-3 py-3 text-xs font-bold ${
+              auto ? "border-[var(--up)] text-[var(--up)]" : "border-[var(--edge)] text-[var(--dim)]"
+            }`}
+          >
+            AUTO {auto ? "ON" : "OFF"}
+          </button>
+        )}
+        <button
+          onClick={onBank}
+          className="rounded-lg border border-[var(--gold)] px-6 py-3 text-sm font-bold text-[var(--gold)]"
+        >
+          BANK {me.multiple.toFixed(2)}×
+        </button>
+      </div>
     </div>
   );
 }

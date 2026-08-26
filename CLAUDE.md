@@ -311,7 +311,7 @@ scripts/spike/       day-0 throwaway. keep it, it is proof
 
 - [x] **phase 0 — spike (26 aug)** buy → settle → redeem, 3 tx hashes in one transcript
 - [x] **phase 1 — the loop (27–29 aug)** executor rolls stacks unattended at 1m cadence
-- [~] **phase 2 — the table (30 aug–2 sep)** seats, pick, bank, countdown, the bell, BTC-vs-line chart, sound — WORKING. still to do: crowd-split bar
+- [~] **phase 2 — the table (30 aug–2 sep)** seats, pick, bank, countdown, the bell, chart, sound, live/next pools, autoplay — WORKING
 - [x] **phase 3 — reactive registry (3–4 sep)** eliminations land on-chain in the same block — DONE 26 aug, proven live
 - [ ] **phase 4 — real run (5 sep)** 8 humans, one full run, recorded
 - [ ] **phase 5 — submission (6–7 sep)** README, 4 slides, <3min video
@@ -441,4 +441,11 @@ lonely side pays a lot. show the crowd's split on screen — that is the strateg
   empty. sample on an interval reading a ref.
 ➠ do not promise a fixed multiple before a round — p is unknown until filled. show live values.
 ➠ do not add squads, insurance, or free-play mode. the table is the product.
+➠ do not copy app.linera.xyz's six magnitude bands (MOON/PUMP/POP/DROP/DUMP/CRASH). dreamDEX event
+  contracts are **binary UP/DOWN only** — there is no magnitude market to trade, so bands could only
+  be faked off-book, which breaks the one claim that makes this project honest: every payout comes
+  from a real order book. their pari-mutuel pool can price six outcomes; a binary CLOB cannot.
+➠ do not restyle the table to look like linera's. they are a competing L1 whose flagship consumer
+  app is also 1-minute BTC calls, somnia's judges may well know it, and "their game on somnia" is a
+  much weaker pitch than elimination + compounding + same-block settlement.
 ➠ do not write the video script before phase 4 exists.

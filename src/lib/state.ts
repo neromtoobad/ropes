@@ -39,7 +39,22 @@ export interface TableState {
   pays: { up: number | null; down: number | null };
   /** True when that side is above the entry cap and the executor will decline. */
   capped: { up: boolean; down: boolean };
-  crowd: { up: number; down: number; undecided: number };
+  /**
+   * Two pools, the way a round actually works. `live` is the locked round
+   * playing out in front of you — those stacks are already committed. `next` is
+   * what you are still choosing into.
+   */
+  crowd: {
+    up: number;
+    down: number;
+    undecided: number;
+    /** Collateral committed to each side of the LIVE round. */
+    liveStake: { up: number; down: number };
+    /** Stacks whose call is already in for the round after this one. */
+    nextCall: { up: number; down: number; undecided: number };
+  };
+  /** True once the executor has filled the live round — no more changing it. */
+  locked: boolean;
   /** BTC against the line. `strike` is fixed for the window; `price` is live. */
   btc: { price: number | null; strike: number | null; oracleQuestionId: string | null };
   seats: SeatView[];
@@ -102,11 +117,23 @@ export async function getTableState(): Promise<TableState> {
       };
     });
 
+  const inRound = runs.filter((r) => r.status === "alive" && (r.positions ?? [])[0]);
   const crowd = {
     up: seats.filter((s) => s.pick === "UP").length,
     down: seats.filter((s) => s.pick === "DOWN").length,
     undecided: seats.filter((s) => !s.pick).length,
+    liveStake: {
+      up: inRound.filter((r) => r.positions![0].side === "UP").reduce((n, r) => n + toUsd(r.positions![0].cost), 0),
+      down: inRound.filter((r) => r.positions![0].side === "DOWN").reduce((n, r) => n + toUsd(r.positions![0].cost), 0),
+    },
+    nextCall: {
+      up: runs.filter((r) => r.status === "alive" && (r.pendingSide ?? r.autoPick) === "UP").length,
+      down: runs.filter((r) => r.status === "alive" && (r.pendingSide ?? r.autoPick) === "DOWN").length,
+      undecided: runs.filter((r) => r.status === "alive" && !(r.pendingSide ?? r.autoPick)).length,
+    },
   };
+  // Once anyone is filled, the live round is committed and on rails.
+  const locked = inRound.length > 0;
 
   // The bell: the most recent settled round and what it did to the table.
   const settled = await db.round.findFirst({
@@ -161,6 +188,7 @@ export async function getTableState(): Promise<TableState> {
     pays: { up: up ? 1 / up : null, down: down ? 1 / down : null },
     capped: { up: up !== null && up > CAP, down: down !== null && down > CAP },
     crowd,
+    locked,
     btc: { price, strike, oracleQuestionId },
     seats,
     lastResult,
