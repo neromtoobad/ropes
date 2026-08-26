@@ -83,7 +83,14 @@ export async function buy(
       : raw > ONE - market.tick ? ONE - market.tick : raw;
     const limit = snap(bounded, market.tick);
 
-    const quantity = snap((remaining * ONE) / sidePrice, market.lot);
+    // Size against the LIMIT, not the touch. We are willing to pay up to
+    // `limit`, so sizing on the touch lets a walk up the book spend more than
+    // the budget — which drove a player's stack negative and made the house eat
+    // the difference. Sizing on the worst price we would accept caps the spend
+    // at the budget; filling better just underspends, and the top-up pass
+    // covers that.
+    const worstPrice = side === "UP" ? limit : ONE - limit;
+    const quantity = snap((remaining * ONE) / worstPrice, market.lot);
     if (quantity === 0n) break;
 
     let res;

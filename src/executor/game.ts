@@ -12,6 +12,7 @@ import { db } from "../lib/db";
 import { fmtUsd, fmtProb } from "../lib/chain";
 import { currentMarket, settlement, type LiveMarket } from "../lib/market";
 import { buy, redeemAll, type Side } from "../lib/orders";
+import * as registry from "../lib/registry";
 
 export { db };
 
@@ -45,6 +46,12 @@ export async function openRound() {
   log(`ROUND ${round.index} open  market=${market.marketId.slice(0, 10)}…  ` +
       `expires ${market.expiresAt.toISOString().slice(11, 19)}  ` +
       `yesBid=${market.yesBid ? fmtProb(market.yesBid) : "-"} yesAsk=${market.yesAsk ? fmtProb(market.yesAsk) : "-"}`);
+
+  // Mirror the window on-chain so the reactive handler has something to settle.
+  // Best-effort: the game does not wait on the public log to be correct.
+  if (registry.enabled) {
+    await registry.openRound(market.pool, BigInt(market.onchain.nonce ?? 0), market.marketId);
+  }
   return { round, market };
 }
 
@@ -110,6 +117,8 @@ export async function enterRound(roundId: string, market: LiveMarket) {
     log(`  ${side} x${group.length} @ ${fmtProb(fill.priceRaw)}  ` +
         `${fmtUsd(fill.contracts)} contracts for ${fmtUsd(fill.cost)}`);
 
+    const rows: registry.EntryRow[] = [];
+
     // Split pro rata by stake. The last run absorbs the rounding residual so
     // the attributed sums equal the fill EXACTLY — attributing more contracts
     // than we hold would over-redeem at settlement.
@@ -120,7 +129,11 @@ export async function enterRound(roundId: string, market: LiveMarket) {
       const { run } = group[i];
       const isLast = i === group.length - 1;
       const contracts = isLast ? contractsLeft : (fill.contracts * run.stack) / totalBudget;
-      const cost = isLast ? costLeft : (fill.cost * run.stack) / totalBudget;
+      // Belt and braces: a run can never be charged more than it staked, even
+      // if the fill somehow overshot the budget. Anything above that is the
+      // house's problem, not the player's.
+      const share = isLast ? costLeft : (fill.cost * run.stack) / totalBudget;
+      const cost = share > run.stack ? run.stack : share;
       contractsLeft -= contracts;
       costLeft -= cost;
 
@@ -142,7 +155,14 @@ export async function enterRound(roundId: string, market: LiveMarket) {
         data: { stack: run.stack - cost, pendingSide: null },
       });
       entered.push(run.player.displayName);
+      rows.push({ runId: run.id, contracts, remainder: run.stack - cost, stackBefore: run.stack });
       log(`      ${run.player.displayName.padEnd(5)} ${fmtUsd(contracts)} contracts, ${fmtUsd(cost)}`);
+    }
+
+    // One transaction for the side, matching how the orders were batched.
+    if (registry.enabled && rows.length) {
+      const ok = await registry.enterMany(market.pool, BigInt(market.onchain.nonce ?? 0), side, rows);
+      log(`      registry ${ok ? "mirrored" : "MIRROR FAILED"} ${side} x${rows.length}`);
     }
   }
   return entered;
@@ -172,6 +192,13 @@ export async function closeRound(roundId: string) {
 
   log(`ROUND ${round.index} SETTLED  ${s.voided ? "VOID" : `winner=${s.winningOutcome === 0 ? "UP" : "DOWN"}`}  ` +
       `redeemed ${fmtUsd(redeemed)}`);
+
+  // The registry settles itself from the settlement block — we never push it.
+  // Reading it back is how we know the reactive path actually ran.
+  if (registry.enabled) {
+    const onchain = await registry.roundState(round.pool as `0x${string}`, BigInt(s.onchain.nonce ?? 0));
+    log(`  registry: ${onchain?.settled ? "already settled itself on-chain ✓" : "not settled on-chain (callback missed?)"}`);
+  }
 
   for (const pos of round.positions) {
     const won = !s.voided && (pos.side === "UP" ? 0 : 1) === s.winningOutcome;
@@ -236,6 +263,7 @@ export async function bank(runId: string, currentRoundIndex: number) {
     // Sits out this round and the next one; eligible the round after.
     data: { eligibleFromRoundIndex: currentRoundIndex + 2 },
   });
+  if (registry.enabled) await registry.bankRun(runId, run.stack);
   log(`  💰 ${run.player.displayName} banked at ${mult.toFixed(2)}x (${fmtUsd(run.stack)})`);
   return mult;
 }

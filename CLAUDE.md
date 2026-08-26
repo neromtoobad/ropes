@@ -113,7 +113,8 @@ the book is just shallow. budget-vs-deployed will diverge and the ledger must ke
 
 ## phase 3 — PROVEN LIVE, 26 aug
 
-`ArenaRegistry` at **`0x2BfC0105Ec5454a85375A03dBaea6566d94BD3D4`** settles the game by itself.
+`ArenaRegistry` at **`0xfb31455b05ea95b7B4cC4c1e98f03219b995456A`** settles the game by itself.
+(set as `REGISTRY` in `.env`; leave it unset and the game runs exactly as before.)
 
 ```
 market   0x...a49f   BTC 1m   pool 0xa763...2718 nonce 176
@@ -130,6 +131,36 @@ SAME BLOCK: YES
 ```
 
 no keeper, no cron, no listener. `scripts/spike/reactive-e2e.ts` re-runs the whole proof.
+
+### wired into normal play
+
+the executor mirrors each round on-chain — `openRound`, then one `enterMany` per side, matching how
+orders are already batched — and reads the registry back after settlement. live over four
+consecutive rounds:
+
+```
+17:23:12  registry mirrored DOWN x2
+17:23:18  registry mirrored UP x2
+17:24:03  registry: already settled itself on-chain ✓
+```
+
+**registry writes are awaited inside the game loop, never queued.** the executor wallet already has
+one nonce manager (the SDK's, for orders); a second concurrent one races it and both sides get
+"nonce too low". one sequential writer — which is why `enterMany` exists, so a round costs three
+transactions instead of one per player.
+
+the registry is a MIRROR, never the source of truth. every write is best-effort: a failure logs and
+the game carries on.
+
+### the mirror caught a real ledger bug
+
+`enterMany` rejected a **negative remainder** (`-95762`), which is how we found that `buy()` could
+overspend: it sized quantity against the touch while being willing to pay up to `limit`, so a walk
+up the book cost 22.5379 against a 22.3464 budget and drove a player's stack negative.
+
+sizing now uses the **worst price we would accept**, so max spend is capped at the budget and a
+better fill simply underspends (the top-up pass covers it). attribution also clamps: a run can
+never be charged more than it staked.
 
 ### the SDK's settlement event ABI is WRONG — this cost the first attempt
 
@@ -386,6 +417,12 @@ lonely side pays a lot. show the crowd's split on screen — that is the strateg
 
 ➠ do not build a per-user escrow contract. house executor, disclosed in the video.
 ➠ do not let the registry contract place orders. it advances game state only.
+➠ do not queue registry writes in the background. the SDK owns the wallet's nonce for orders; a
+  second concurrent writer races it. await them in the loop.
+➠ do not size an order against the touch while accepting a worse limit — that overspends the
+  budget. size against the limit.
+➠ deploys need `forge create --gas-limit 80000000`. `forge script --broadcast` ignores the flag,
+  and this contract needed >20M actual on somnia against a 1.4M foundry estimate.
 ➠ do not add ETH, other cadences, or market selection. one market: BTC 1m.
 ➠ do not fake players on screen. ever. four real humans narrated honestly beats eight fake ones.
 ➠ do not rebuild the SDK's websocket layer. it ships hooks.

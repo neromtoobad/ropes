@@ -220,4 +220,53 @@ contract ArenaRegistryTest is Test {
         assertEq(reg.stackOf(ADA), uint256(contracts) + uint256(remainder));
         assertEq(reg.statusOf(ADA), 0);
     }
+
+    /* ---------------------------------------------------------- enterMany */
+
+    function test_enterMany_seats_a_whole_side_at_one_price() public {
+        reg.openRound(POOL, NONCE, MARKET);
+
+        bytes32[] memory ids = new bytes32[](2);
+        uint128[] memory con = new uint128[](2);
+        uint128[] memory rem = new uint128[](2);
+        uint128[] memory pre = new uint128[](2);
+        ids[0] = ADA; ids[1] = BRAM;
+        con[0] = 16_000_000; con[1] = 8_000_000;
+        rem[0] = 0; rem[1] = 100;
+        pre[0] = 10_000_000; pre[1] = 5_000_000;
+
+        reg.enterMany(POOL, NONCE, UP, ids, con, rem, pre);
+        assertEq(reg.entryCount(POOL, NONCE), 2);
+
+        _fire(POOL, NONCE, false, UP);
+        assertEq(reg.stackOf(ADA), 16_000_000);
+        assertEq(reg.stackOf(BRAM), 8_000_100);
+    }
+
+    /// A dead run in the batch must not cost the rest of the side its entry.
+    function test_enterMany_skips_a_dead_run_without_reverting() public {
+        _openWithTwo();
+        _fire(POOL, NONCE, false, UP); // bram dies
+
+        reg.openRound(POOL, NONCE + 1, MARKET);
+        bytes32[] memory ids = new bytes32[](2);
+        uint128[] memory con = new uint128[](2);
+        uint128[] memory rem = new uint128[](2);
+        uint128[] memory pre = new uint128[](2);
+        ids[0] = BRAM; ids[1] = ADA; // BRAM is eliminated
+        con[0] = 1; con[1] = 9_000_000;
+        pre[0] = 1; pre[1] = 5_000_000;
+
+        reg.enterMany(POOL, NONCE + 1, UP, ids, con, rem, pre);
+        assertEq(reg.entryCount(POOL, NONCE + 1), 1, "only the live run seated");
+    }
+
+    function test_enterMany_rejects_ragged_arrays() public {
+        reg.openRound(POOL, NONCE, MARKET);
+        bytes32[] memory ids = new bytes32[](2);
+        uint128[] memory one = new uint128[](1);
+        uint128[] memory two = new uint128[](2);
+        vm.expectRevert(ArenaRegistry.LengthMismatch.selector);
+        reg.enterMany(POOL, NONCE, UP, ids, one, two, two);
+    }
 }

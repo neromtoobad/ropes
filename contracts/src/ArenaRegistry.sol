@@ -102,6 +102,7 @@ contract ArenaRegistry {
     error RoundNotOpen();
     error RoundAlreadySettled();
     error RunNotAlive();
+    error LengthMismatch();
 
     modifier onlyOwner() {
         if (msg.sender != owner) revert NotOwner();
@@ -163,6 +164,52 @@ contract ArenaRegistry {
         );
         stackOf[runId] = stackBefore;
         emit RunEntered(key, runId, side, contracts, stackBefore);
+    }
+
+    /**
+     * Enter a whole side of the table in one transaction.
+     *
+     * The executor already batches its orders by side (everyone on a side must
+     * get the same fill price), so it has one array per round anyway. This also
+     * keeps the executor's write count flat as the table grows: a round costs
+     * one openRound plus at most two enterMany, whatever the player count —
+     * which matters when the whole window is sixty seconds.
+     */
+    function enterMany(
+        address pool,
+        uint64 nonce,
+        uint8 side,
+        bytes32[] calldata runIds,
+        uint128[] calldata contracts,
+        uint128[] calldata remainders,
+        uint128[] calldata stacksBefore
+    ) external onlyOwner {
+        bytes32 key = roundKey(pool, nonce);
+        Round storage r = rounds[key];
+        if (r.settled) revert RoundAlreadySettled();
+        if (!r.open) revert RoundNotOpen();
+
+        uint256 n = runIds.length;
+        if (contracts.length != n || remainders.length != n || stacksBefore.length != n) {
+            revert LengthMismatch();
+        }
+
+        for (uint256 i; i < n; ++i) {
+            // Skip rather than revert: one dead run must not cost the whole
+            // side its entry, and the executor's ledger is authoritative anyway.
+            if (statusOf[runIds[i]] != ALIVE) continue;
+            _entries[key].push(
+                Entry({
+                    runId: runIds[i],
+                    side: side,
+                    contracts: contracts[i],
+                    remainder: remainders[i],
+                    stackBefore: stacksBefore[i]
+                })
+            );
+            stackOf[runIds[i]] = stacksBefore[i];
+            emit RunEntered(key, runIds[i], side, contracts[i], stacksBefore[i]);
+        }
     }
 
     /// End a run voluntarily. The executor sells the position off-chain and
