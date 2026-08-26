@@ -12,19 +12,22 @@
   /*
    * SYNTH — deep indigo violet.
    *
-   * Chosen over flat black and over navy for one reason: violet sits opposite
-   * BOTH green and red on the wheel, so neither semantic colour has to fight
-   * the surface. On navy the green multiplier washed out to near-white; on
-   * black everything was legible but inert. Here both sides stay vivid and
-   * clearly distinct from each other, which is the entire read of this screen.
+   * Chosen over flat black and over navy for one reason: a violet-leaning
+   * surface sits opposite BOTH green and red on the wheel, so neither semantic
+   * colour has to fight it. On navy the green multiplier washed out to
+   * near-white; on black everything was legible but inert.
+   *
+   * Held at roughly half the chroma of a true synthwave violet: enough hue to
+   * keep that separation and stop the page reading as a terminal, not enough to
+   * make the surface itself something you notice.
    */
-  --bg: #0d0a1c;
-  --panel: #171233;
-  --panel-2: #1e1840;
-  --edge: #322a5c;
-  --dim: #8b82b5;
-  --text: #f3f0ff;
-  --ambient: #241c4d;
+  --bg: #0b0a13;
+  --panel: #14131f;
+  --panel-2: #1a1929;
+  --edge: #2c2a3d;
+  --dim: #85839c;
+  --text: #eeecf5;
+  --ambient: #1e1c2e;
 
   /* Semantic. Identical across every surface palette — UP is always this
      green, DOWN is always this red, and the line to beat is always gold. */

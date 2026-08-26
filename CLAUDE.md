@@ -297,15 +297,18 @@ a resting market maker quotes both sides, ~200 contracts at the touch, ~0.025 sp
 
 ## the look — retro-futurism
 
-**the surface is deep indigo violet (`#0d0a1c`), not black.** black was legible but inert, and navy
+**the surface is a desaturated slate violet (`#0b0a13`), not black.** black was legible but inert, and navy
 washed the green multiplier out to near-white. violet sits opposite BOTH green and red on the wheel,
 so neither semantic colour has to fight the surface — and that contrast between the two sides is the
 entire read of this screen. `data-bg="void"` and `data-bg="arcade"` keep the alternates for
 comparison.
 
-it also fixed the accessibility gap: every pair now clears WCAG AA against the violet —
-text 17.38:1, dim 5.53:1, up 11.67:1, down 5.37:1, gold 12.73:1. `--dim` on near-black was the
-pair that used to fail.
+held at roughly **half the chroma of a true synthwave violet** — enough hue to keep that separation
+and stop the page reading as a terminal, not enough that the surface itself is something you notice.
+a full-strength violet was the surface competing for attention.
+
+it also fixed the accessibility gap: every pair clears WCAG AA — text 16.82:1, dim 5.36:1,
+up 11.78:1, down 5.42:1, gold 12.85:1. `--dim` on near-black was the pair that used to fail.
 
 semantic colours live in the base `:root`, never inside a palette override — UP is always the same
 green whatever the surface is.
