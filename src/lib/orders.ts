@@ -2,8 +2,8 @@
  * Placing and redeeming. Every gotcha we hit in the spike lives here so the
  * game logic never has to think about them.
  */
-import { exchange, ONE, snap, HOUSE, houseCollateral } from "./chain.js";
-import { outcomeBalance, type LiveMarket, type Onchain } from "./market.js";
+import { exchange, ONE, snap, HOUSE, houseCollateral } from "./chain";
+import { outcomeBalance, type LiveMarket, type Onchain } from "./market";
 
 /**
  * 2 = ImmediateOrCancel. Fills what crosses now, cancels the rest.
@@ -20,7 +20,7 @@ const ORDER_TYPE_MARKET = 2;
  * stack for a 1% gain — strictly bad, and it happens often on a 1m window that
  * has already made its mind up. Sitting the round out preserves the stack.
  */
-const MAX_ENTRY_PRICE_PCT = 90n;
+export const MAX_ENTRY_PRICE_PCT = 90n;
 
 /** How far through the touch we're willing to cross, in ticks. */
 const CROSS_TICKS = 20n;

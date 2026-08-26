@@ -6,7 +6,7 @@
  *   2. Key everything by marketId. Pools are recycled between windows, so state
  *      keyed by pool address silently attaches to a market we never traded.
  */
-import { exchange, ASSET, INTERVAL_SEC } from "./chain.js";
+import { exchange, ASSET, INTERVAL_SEC } from "./chain";
 
 export type Onchain = Awaited<ReturnType<typeof exchange.client.getMarketOnchain>>;
 

@@ -8,12 +8,12 @@
  * The executor wallet is pooled. This module is the ledger that decides whose
  * money is whose; never read a player's position off the wallet.
  */
-import { PrismaClient } from "@prisma/client";
-import { fmtUsd, fmtProb } from "../lib/chain.js";
-import { currentMarket, settlement, type LiveMarket } from "../lib/market.js";
-import { buy, redeemAll, type Side } from "../lib/orders.js";
+import { db } from "../lib/db";
+import { fmtUsd, fmtProb } from "../lib/chain";
+import { currentMarket, settlement, type LiveMarket } from "../lib/market";
+import { buy, redeemAll, type Side } from "../lib/orders";
 
-export const db = new PrismaClient();
+export { db };
 
 const log = (...a: unknown[]) => console.log(new Date().toISOString().slice(11, 19), ...a);
 

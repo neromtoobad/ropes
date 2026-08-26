@@ -5,8 +5,8 @@
  *
  * Real players pick through the web app in phase 2; these pick via autoPick.
  */
-import { ONE, fmtUsd } from "../lib/chain.js";
-import { db, joinGame } from "./game.js";
+import { ONE, fmtUsd } from "../lib/chain";
+import { db, joinGame } from "./game";
 
 const BUY_IN = 10n * ONE; // 10 tUSDC, the fixed seat price
 const NAMES = ["ada", "bram", "cyd", "dez", "eli", "fern", "gus", "hana"];

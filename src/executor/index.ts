@@ -7,8 +7,8 @@
  * no keeper), and the redeem-and-roll takes ~2.7s, so a 1s tick is plenty to
  * run one-minute rounds without ever missing a window.
  */
-import { houseCollateral, houseGas, fmtUsd, sleep, HOUSE } from "../lib/chain.js";
-import { openRound, enterRound, closeRound, db } from "./game.js";
+import { houseCollateral, houseGas, fmtUsd, sleep, HOUSE } from "../lib/chain";
+import { openRound, enterRound, closeRound, db } from "./game";
 
 const TICK_MS = 1000;
 const log = (...a: unknown[]) => console.log(new Date().toISOString().slice(11, 19), ...a);
