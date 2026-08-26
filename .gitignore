@@ -7,3 +7,5 @@ node_modules/
 .DS_Store
 dist/
 .next/
+prisma/*.db
+prisma/*.db-journal

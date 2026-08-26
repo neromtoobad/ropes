@@ -54,6 +54,44 @@ rather than reverting. buy tx `0x451b114029c7d45d7c20520a1a0328d1c23622a3112842c
 ➠ players fill against the resting MM even at 0.871 — **our MM is a backstop, not critical path**.
 ➠ `ROUND = BTC 1m`. `8 → 4 → 2 → 1` is a three-minute battle royale.
 
+## phase 1 findings — 26 aug
+
+the loop ran unattended for 5 consecutive 1m rounds and played a full battle royale
+(`4 → 2 → 0`) with correct compounding, elimination and ledger attribution.
+
+### 1m books are EMPTY at window open
+
+the resting MM does not quote immediately — there is a **~5-10 second gap** after a new 1m window
+opens before any bid or ask appears. observed repeatedly:
+
+```
+15:52:04 ROUND 2 open   yesBid=- yesAsk=-
+15:52:04   bram no fill on DOWN — sits out
+15:52:07   dez  no fill on DOWN — sits out
+15:52:10   bram DOWN @ 0.447          <- book finally appeared
+```
+
+**entry must retry across the whole window, not fire once at open.** the 1s tick loop already does
+this and it is why bram and dez still got in. do not "optimise" entry to a single attempt.
+
+consequence for the UI: the price a player sees when they pick is NOT the price they get. show the
+fill price after the fact, never promise one up front.
+
+### same-side players get different prices — fix in phase 2
+
+orders are placed sequentially (one wallet, one nonce). in round 1, bram and dez both picked DOWN
+and filled at **0.497 and 0.741** — five seconds apart, same side, same round. that reads as unfair
+in a game even though it is honest market behaviour.
+
+**batch all same-side runs in a round into ONE order and share the average fill price.** fairer,
+fewer transactions, and fewer nonce races.
+
+### depth is thin
+
+`cyd` could only deploy 9.12 of a 10.00 budget at the touch — the book ran out. sizing is correct;
+the book is just shallow. budget-vs-deployed will diverge and the ledger must keep the remainder
+(it does).
+
 ## verified config — confirmed live 26 aug, do not re-derive
 
 ```ts
@@ -126,7 +164,7 @@ scripts/spike/       day-0 throwaway. keep it, it is proof
 ## build phases
 
 - [x] **phase 0 — spike (26 aug)** buy → settle → redeem, 3 tx hashes in one transcript
-- [ ] **phase 1 — the loop (27–29 aug)** executor rolls stacks unattended at 1m cadence
+- [x] **phase 1 — the loop (27–29 aug)** executor rolls stacks unattended at 1m cadence
 - [ ] **phase 2 — the table (30 aug–2 sep)** 8 seats, live stacks, pick, bank, countdown
 - [ ] **phase 3 — reactive registry (3–4 sep)** eliminations land on-chain in the same block
 - [ ] **phase 4 — real run (5 sep)** 8 humans, one full run, recorded

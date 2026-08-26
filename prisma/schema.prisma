@@ -1,0 +1,106 @@
+// LAST CANDLE — the ledger.
+//
+// The executor wallet is a POOLED account: every player's collateral and every
+// player's outcome tokens sit in one wallet. This database is the ledger that
+// says whose is whose. Never infer a player's position from the wallet.
+//
+// All money is raw collateral units (tUSDC, 6 decimals on testnet). Never floats.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Player {
+  id          String   @id @default(cuid())
+  wallet      String   @unique
+  displayName String
+  createdAt   DateTime @default(now())
+
+  // Banking ends a run. The player then sits out one full round before they may
+  // buy a new seat — this is the round index they become eligible again.
+  eligibleFromRoundIndex Int @default(0)
+
+  runs Run[]
+}
+
+model Round {
+  id       String @id @default(cuid())
+  // bytes32 marketId. THE key for a round — never the pool, which is recycled.
+  marketId String @unique
+  // Recorded for debugging only. A pool address is a time-varying binding.
+  pool     String
+  // Monotonic game clock. Round N+1 is the successor window of round N.
+  index    Int    @unique
+
+  opensAt   DateTime
+  expiresAt DateTime
+
+  // open -> locked -> settled | voided
+  status         String    @default("open")
+  winningOutcome Int? // 0 = UP/YES, 1 = DOWN/NO. null while unsettled
+  settledAt      DateTime?
+  redeemTx       String? // one redemption tx covers every winner in the round
+
+  positions Position[]
+
+  @@index([status])
+}
+
+model Run {
+  id       String @id @default(cuid())
+  playerId String
+  player   Player @relation(fields: [playerId], references: [id])
+
+  buyIn BigInt // what they paid for the seat
+  stack BigInt // current value. grows by 1/p each surviving round
+
+  // alive -> banked | eliminated
+  status String @default("alive")
+
+  startedRoundIndex Int
+  endedRoundIndex   Int?
+  // Final stack / buyIn, as a float, for the leaderboard. Set when the run ends.
+  finalMultiple Float?
+
+  // Headless testing only: lets the executor pick for this run with no UI.
+  // "UP" | "DOWN" | "RANDOM" | null. Real players pick through the web app.
+  autoPick String?
+
+  // The side chosen for the CURRENT round, before the order is placed.
+  // Cleared once the position exists. No pick by lock time = sit the round out.
+  pendingSide String?
+
+  positions Position[]
+
+  @@index([status])
+}
+
+model Position {
+  id      String @id @default(cuid())
+  runId   String
+  run     Run    @relation(fields: [runId], references: [id])
+  roundId String
+  round   Round  @relation(fields: [roundId], references: [id])
+
+  side  String // "UP" | "DOWN"
+  // Raw units. contracts is what we hold; priceRaw is what we actually paid per
+  // contract (the FILL price, not the price we offered).
+  contracts BigInt
+  priceRaw  BigInt
+  cost      BigInt
+
+  stackBefore BigInt
+  stackAfter  BigInt? // null until the round settles
+
+  // won | lost | push (voided, pays 0.5) | skipped (no fill)
+  outcome String?
+  orderTx String?
+
+  @@unique([runId, roundId])
+  @@index([roundId])
+}

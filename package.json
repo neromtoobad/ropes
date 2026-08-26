@@ -3,11 +3,17 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "spike": "tsx scripts/spike/loop.ts"
+    "spike": "tsx scripts/spike/loop.ts",
+    "executor": "tsx src/executor/index.ts",
+    "seed": "tsx src/executor/seed.ts",
+    "db:push": "prisma db push",
+    "db:studio": "prisma studio"
   },
   "dependencies": {
+    "@prisma/client": "6.19.3",
     "@somnia-chain/markets-sdk": "^0.28.1",
     "dotenv": "^17.4.2",
+    "prisma": "6.19.3",
     "tsx": "^4.23.12",
     "viem": "^2.55.19"
   }
