@@ -2,13 +2,13 @@
 
 > rename to `AGENTS.md` before submitting. never commit the filename `CLAUDE.md`.
 
-**a battle royale on bitcoin. every 15 minutes, half the players die.**
+**a battle royale on bitcoin. every minute, half the players die.**
 
 ---
 
 ## what we are building
 
-players buy a 10 USDso seat. every 15 minutes a round runs on a real dreamDEX BTC 15m event
+players buy a 10 tUSDC seat. every minute a round runs on a real dreamDEX BTC 1m event
 contract. each player picks UP or DOWN; their whole stack goes in. wrong side eliminates them,
 right side multiplies their stack by 1/p and rolls it straight into the next round. players can
 bank out mid-round at live value. last one standing takes the biggest multiple.
@@ -23,7 +23,7 @@ somnia × dreamdex event contracts hackathon, $5,000 pool, deadline **8 sep 2026
 ➠ every round is a real event-contract trade through `@somnia-chain/markets-sdk`
 ➠ eliminations land on-chain via **somnia on-chain reactivity** — both sponsor products, stacked
 ➠ one seat fires N orders across N rounds → direct trading-activity multiplier
-➠ our players fill both sides of a market whose DOWN book currently reads "no liquidity"
+➠ almost every market shows `trades = 0` — one seat fires an order every single minute
 
 judging: technical 25 · innovation 20 · UX 20 · ecosystem 20 · presentation 15.
 
@@ -126,7 +126,7 @@ scripts/spike/       day-0 throwaway. keep it, it is proof
 ## build phases
 
 - [x] **phase 0 — spike (26 aug)** buy → settle → redeem, 3 tx hashes in one transcript
-- [ ] **phase 1 — loop + MM (27–29 aug)** executor rolls stacks unattended; MM fills both sides
+- [ ] **phase 1 — the loop (27–29 aug)** executor rolls stacks unattended at 1m cadence
 - [ ] **phase 2 — the table (30 aug–2 sep)** 8 seats, live stacks, pick, bank, countdown
 - [ ] **phase 3 — reactive registry (3–4 sep)** eliminations land on-chain in the same block
 - [ ] **phase 4 — real run (5 sep)** 8 humans, one full run, recorded
@@ -148,8 +148,8 @@ forge script script/Deploy.s.sol --rpc-url somnia_testnet --broadcast
 
 | | |
 |---|---|
-| round | one BTC 15m dreamDEX market, real clock (:00 :15 :30 :45 UTC) |
-| buy-in | 10 USDso, fixed, one seat |
+| round | one BTC **1m** dreamDEX market, real clock, every minute on the minute |
+| buy-in | 10 tUSDC, fixed, one seat |
 | pick | UP or DOWN before lock. whole stack goes in |
 | win | stack × 1/p, already staked next round |
 | lose | eliminated, stack gone, loss capped at buy-in |
@@ -161,7 +161,7 @@ lonely side pays a lot. show the crowd's split on screen — that is the strateg
 
 ## demo plan — what the judge sees, in order
 
-1. the table: 8 seats, stacks, a countdown at 0:40
+1. the table: 8 seats, stacks, a countdown at 0:20
 2. a player picks DOWN while the crowd is on UP — payout number jumps
 3. the bell. four seats go dark at once, four stacks double
 4. the on-chain elimination event, same block as settlement, explorer link
@@ -173,11 +173,11 @@ lonely side pays a lot. show the crowd's split on screen — that is the strateg
 ## pitch, 60 seconds, spoken
 
 > dreamDEX just launched event contracts — bet whether bitcoin closes above or below its price
-> fifteen minutes from now. it's a trading terminal. order books, position tabs. built for traders.
+> one minute from now. it's a trading terminal. order books, position tabs. built for traders.
 >
 > we turned it into a battle royale.
 >
-> you buy a seat. every fifteen minutes bitcoin decides who lives. pick wrong, you're out. pick
+> you buy a seat. every minute bitcoin decides who lives. pick wrong, you're out. pick
 > right, your stack doubles and it's already in the next round. bank out any time — or push.
 >
 > nobody's odds are made up. the payouts come from a real order book, and there's no house taking
@@ -186,7 +186,7 @@ lonely side pays a lot. show the crowd's split on screen — that is the strateg
 > and when a round settles, somnia's on-chain reactivity eliminates the losers in the same block.
 > no server, no keeper, no cron job. the chain runs the tournament.
 >
-> eight players, forty-five minutes, one survivor. every fifteen minutes, forever.
+> eight players, three minutes, one survivor. then it starts again.
 
 ## things that burned us
 
@@ -233,7 +233,7 @@ lonely side pays a lot. show the crowd's split on screen — that is the strateg
 
 ➠ do not build a per-user escrow contract. house executor, disclosed in the video.
 ➠ do not let the registry contract place orders. it advances game state only.
-➠ do not add ETH, 1h markets, or market selection. one market: BTC 15m.
+➠ do not add ETH, other cadences, or market selection. one market: BTC 1m.
 ➠ do not fake players on screen. ever. four real humans narrated honestly beats eight fake ones.
 ➠ do not rebuild the SDK's websocket layer. it ships hooks.
 ➠ do not promise a fixed multiple before a round — p is unknown until filled. show live values.
