@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { TableState } from "@/lib/state";
+import { Chart, usePriceSeries } from "./Chart";
 
 const POLL_MS = 750;
 
@@ -86,6 +87,8 @@ export default function Table() {
     }
   };
 
+  const points = usePriceSeries(state?.round?.index ?? null, state?.btc.price ?? null);
+
   const me = state?.seats.find((s) => s.runId === runId) ?? null;
   const secs = state?.round?.secondsLeft ?? 0;
   const urgent = secs > 0 && secs < 15;
@@ -93,6 +96,8 @@ export default function Table() {
   return (
     <main className="mx-auto min-h-screen max-w-5xl px-5 py-6">
       <Header state={state} urgent={urgent} />
+
+      <Chart points={points} strike={state?.btc.strike ?? null} price={state?.btc.price ?? null} />
 
       {state?.round && <Sides state={state} me={me} onPick={(side) => runId && post("/api/pick", { runId, side })} />}
 
@@ -156,7 +161,7 @@ function Sides({
 }) {
   const canPick = me && !me.inRound;
   return (
-    <div className="grid grid-cols-2 gap-3">
+    <div className="mt-3 grid grid-cols-2 gap-3">
       {(["UP", "DOWN"] as const).map((side) => {
         const price = side === "UP" ? state.price.up : state.price.down;
         const pays = side === "UP" ? state.pays.up : state.pays.down;
@@ -366,7 +371,16 @@ function Footnote({ state }: { state: TableState | null }) {
       order book, not a house line — there is no house edge, and you can never lose more than your
       seat. Prices shown are indicative: the book is thin at the start of a window, so your fill
       price is whatever the market gives you.{" "}
-      {state?.round && <span className="opacity-70">market {state.round.marketId.slice(0, 14)}…</span>}
+      {state?.btc.oracleQuestionId && (
+        <a
+          className="underline decoration-dotted underline-offset-2 hover:text-[var(--gold)]"
+          href={`https://prd.oracle.somnia.host/questions/${state.btc.oracleQuestionId}?view=graph`}
+          target="_blank"
+          rel="noreferrer"
+        >
+          check this round&apos;s settlement sources
+        </a>
+      )}
     </footer>
   );
 }

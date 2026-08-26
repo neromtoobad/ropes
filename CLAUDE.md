@@ -147,6 +147,16 @@ docs say "15-minute and 1-hour windows". that is **mainnet**. testnet runs, for 
 expiring exactly on the minute. this is why a round is 1m, not 15m: `8 → 4 → 2 → 1` is a
 **three-minute** battle royale that fits in the demo video live.
 
+### the price feed works, and the strike is scaled by 100
+
+`priceFeed: SOMNIA_TESTNET_PRICE_FEED` gives live BTC via `fetchPrice(ASSET)` and 1m candles via
+`fetchPriceOHLCV`. the indexer row's `strike` is an integer scaled by **100** (`7805356` = 78053.56)
+— that is the line the window settles against, and the chart draws BTC racing it.
+
+each market row also carries `oracleQuestionId`, deep-linkable at
+`prd.oracle.somnia.host/questions/{id}?view=graph` to show every price source behind the
+settlement. surfaced in the footer as the provably-fair link.
+
 ### the books are NOT empty
 
 a resting market maker quotes both sides, ~200 contracts at the touch, ~0.025 spread. observed on
@@ -184,7 +194,7 @@ scripts/spike/       day-0 throwaway. keep it, it is proof
 
 - [x] **phase 0 — spike (26 aug)** buy → settle → redeem, 3 tx hashes in one transcript
 - [x] **phase 1 — the loop (27–29 aug)** executor rolls stacks unattended at 1m cadence
-- [~] **phase 2 — the table (30 aug–2 sep)** seats, pick, bank, countdown, the bell — WORKING. still to do: crowd-split visual, BTC-vs-line chart, sound
+- [~] **phase 2 — the table (30 aug–2 sep)** seats, pick, bank, countdown, the bell, BTC-vs-line chart — WORKING. still to do: crowd-split visual, sound
 - [ ] **phase 3 — reactive registry (3–4 sep)** eliminations land on-chain in the same block
 - [ ] **phase 4 — real run (5 sep)** 8 humans, one full run, recorded
 - [ ] **phase 5 — submission (6–7 sep)** README, 4 slides, <3min video
@@ -298,6 +308,9 @@ lonely side pays a lot. show the crowd's split on screen — that is the strateg
   500s with "Module not found". extensionless works for both.
 ➠ do not label the two side prices as probabilities that sum to 100. they are
   both BUY prices (the ask on each side), so they sum to ~103. show the cost.
+➠ do not key the chart's sampling effect on `price`. BTC sits at the same number
+  for several polls, so an effect keyed on it never fires and the tape stays
+  empty. sample on an interval reading a ref.
 ➠ do not promise a fixed multiple before a round — p is unknown until filled. show live values.
 ➠ do not add squads, insurance, or free-play mode. the table is the product.
 ➠ do not write the video script before phase 4 exists.

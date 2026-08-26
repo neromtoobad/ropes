@@ -9,6 +9,7 @@
 import { db } from "./db";
 import { ONE, toUsd } from "./chain";
 import { currentMarket } from "./market";
+import { exchange, ASSET } from "./chain";
 import { MAX_ENTRY_PRICE_PCT } from "./orders";
 
 export interface SeatView {
@@ -39,6 +40,8 @@ export interface TableState {
   /** True when that side is above the entry cap and the executor will decline. */
   capped: { up: boolean; down: boolean };
   crowd: { up: number; down: number; undecided: number };
+  /** BTC against the line. `strike` is fixed for the window; `price` is live. */
+  btc: { price: number | null; strike: number | null; oracleQuestionId: string | null };
   seats: SeatView[];
   /** Most recently settled round, for the bell. */
   lastResult: {
@@ -61,11 +64,15 @@ export async function getTableState(): Promise<TableState> {
   // once the market is being watched.
   let up: number | null = null;
   let down: number | null = null;
+  let strike: number | null = null;
+  let oracleQuestionId: string | null = null;
   try {
     const market = await currentMarket(0);
     if (market && round && market.marketId === round.marketId) {
       if (market.yesAsk !== undefined) up = Number(market.yesAsk) / Number(ONE);
       if (market.yesBid !== undefined) down = 1 - Number(market.yesBid) / Number(ONE);
+      strike = market.strike || null;
+      oracleQuestionId = market.oracleQuestionId;
     }
   } catch {
     // A book read failing must never blank the table.
@@ -125,6 +132,15 @@ export async function getTableState(): Promise<TableState> {
       }
     : null;
 
+  // The external feed the market settles against.
+  let price: number | null = null;
+  try {
+    const t = await exchange.fetchPrice(ASSET);
+    price = t?.price ?? null;
+  } catch {
+    // A feed hiccup must not blank the table.
+  }
+
   const board = runs
     .filter((r) => r.status !== "alive" && r.finalMultiple !== null)
     .sort((a, b) => (b.finalMultiple ?? 0) - (a.finalMultiple ?? 0))
@@ -145,6 +161,7 @@ export async function getTableState(): Promise<TableState> {
     pays: { up: up ? 1 / up : null, down: down ? 1 / down : null },
     capped: { up: up !== null && up > CAP, down: down !== null && down > CAP },
     crowd,
+    btc: { price, strike, oracleQuestionId },
     seats,
     lastResult,
     board,

@@ -22,6 +22,10 @@ export interface LiveMarket {
   yesBid?: bigint;
   tick: bigint;
   lot: bigint;
+  /** The line to beat: the window's opening price. Row is scaled by 100. */
+  strike: number;
+  /** The oracle question behind this market, for the provably-fair deep link. */
+  oracleQuestionId: string | null;
 }
 
 /** Status 1 = Trading. The only status that accepts orders. */
@@ -68,6 +72,8 @@ export async function currentMarket(minSecondsLeft = 5): Promise<LiveMarket | nu
       yesBid: book.yesBids[0]?.price,
       tick: grid.tickSize ?? 1000n,
       lot: grid.lotSize ?? 1000n,
+      strike: row.strike ? Number(row.strike) / 100 : 0,
+      oracleQuestionId: row.oracleQuestionId ? String(row.oracleQuestionId) : null,
     };
   }
   return null;

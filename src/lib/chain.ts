@@ -3,7 +3,7 @@
  * see CLAUDE.md "verified config" before changing any of it.
  */
 import "dotenv/config";
-import { SomniaMarkets, SOMNIA_TESTNET_ADDRESSES } from "@somnia-chain/markets-sdk";
+import { SomniaMarkets, SOMNIA_TESTNET_ADDRESSES, SOMNIA_TESTNET_PRICE_FEED } from "@somnia-chain/markets-sdk";
 import { somniaShannon } from "@somnia-chain/markets-sdk/chains";
 import { erc20Abi } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
@@ -28,6 +28,9 @@ export const exchange = new SomniaMarkets({
   chain: somniaShannon,
   wsRpcUrl: process.env.WS_RPC_URL ?? "wss://api.infra.testnet.somnia.network/ws",
   addresses: SOMNIA_TESTNET_ADDRESSES,
+  // The external BTC feed the market settles against — this is what the
+  // chart draws racing the strike line.
+  priceFeed: SOMNIA_TESTNET_PRICE_FEED,
   privateKey: pk,
 });
 
