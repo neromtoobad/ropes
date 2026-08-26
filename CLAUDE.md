@@ -297,6 +297,15 @@ a resting market maker quotes both sides, ~200 contracts at the touch, ~0.025 sp
 
 ## the look — retro-futurism
 
+the logo is a candlestick whose body is a candle: green body, upper and lower wicks, the upper wick
+carrying a gold flame. generated with higgsfield `nano_banana_pro`, cropped to `public/mark.png`
+(header + favicon) and kept whole as `public/logo-full.png` (slides, README, social).
+
+**one detail carries more of the arcade feel than anything else: chamfered corners.** cutting two
+opposing corners off a panel moves it from "web card" to "HUD element" — `.chamfer` / `.chamfer-sm`.
+the clock is an OUTLINED numeral for the same reason; a solid one reads as a dashboard.
+
+
 from the ui-ux-pro-max design system, matched to "gaming / competitive / dark":
 
 ```
@@ -476,6 +485,8 @@ lonely side pays a lot. show the crowd's split on screen — that is the strateg
 ➠ do not trust `getMarketResolution` for prices. `openingAnswer` and `closingAnswer` come back
   **null** on these markets. the strike is on the live market row (scaled by 100), and the close is
   whatever `fetchPrice` says at settlement.
+➠ do not write `color: transparent` for an outlined numeral — that makes `currentColor` transparent
+  too and the stroke vanishes with it. use `-webkit-text-fill-color: transparent`.
 ➠ do not render a placeholder em dash in the display face at large sizes — Russo One draws it as a
   solid bar and it reads as a broken graphic. say what is happening instead ("WAITING FOR THE BOOK").
 ➠ do not size type for desktop and let it shrink. every display number is mobile-first with an `sm:`

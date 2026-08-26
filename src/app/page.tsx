@@ -1,11 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import type { TableState } from "@/lib/state";
 import { Chart, usePriceSeries } from "./Chart";
 import { useSound, useHeartbeat } from "./sound";
 
 const POLL_MS = 750;
+
+/** One identity colour per seat, so the table reads as a roster. */
+const SEAT_COLOURS = ["#00e58a", "#ff2f52", "#ffc94d", "#4da3ff", "#c77dff", "#ff8f3f", "#3fe0d0", "#ff5fa2"];
 
 /** Identity is a local key + a name. No wallet needed to sit down — the house
  *  executor holds the collateral, and every position is verifiable on-chain. */
@@ -222,6 +226,14 @@ function Header({
     <header className="mb-4 flex items-end justify-between">
       <div>
         <div className="flex items-center gap-3">
+          <Image
+            src="/mark.png"
+            alt=""
+            width={26}
+            height={46}
+            priority
+            className="h-8 w-auto sm:h-11"
+          />
           <h1 className="display text-base tracking-[0.2em] sm:text-xl sm:tracking-[0.28em]">LAST CANDLE</h1>
           <button
             onClick={sound.toggle}
@@ -240,7 +252,7 @@ function Header({
 
       <div className="text-right">
         {/* The clock is the loudest object on the page on purpose. */}
-        <div className={`display tabular text-6xl leading-[0.85] sm:text-8xl ${urgent ? "clock-urgent" : ""}`}>
+        <div className={`display tabular outline-num text-6xl leading-[0.85] sm:text-8xl ${urgent ? "clock-urgent" : ""}`}>
           {String(secs).padStart(2, "0")}
         </div>
         <p className="mt-1 text-[10px] font-bold tracking-[0.25em] text-[var(--dim)]">
@@ -288,7 +300,7 @@ function Sides({
               key={side}
               disabled={!canPick || capped}
               onClick={() => onPick(side)}
-              className={`side ${isUp ? "side-up" : "side-down"} ${picked ? "picked" : ""} rounded-2xl border p-4 text-left disabled:cursor-not-allowed sm:p-5`}
+              className={`side ${isUp ? "side-up" : "side-down"} ${picked ? "picked" : ""} chamfer border p-4 text-left disabled:cursor-not-allowed sm:p-5`}
               style={{
                 color: c,
                 borderColor: picked ? c : "var(--edge)",
@@ -353,6 +365,7 @@ function Seats({
   survived: string[];
 }) {
   const seats = state?.seats ?? [];
+  const topStack = Math.max(...seats.map((s) => s.stack), 0);
   if (!seats.length) {
     return (
       <p className="py-10 text-center text-sm tracking-widest text-[var(--dim)]">
@@ -362,15 +375,20 @@ function Seats({
   }
   return (
     <section className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-      {seats.map((s) => {
+      {seats.map((s, i) => {
         const dying = bellIndex !== null && killed.includes(s.name);
         const winning = bellIndex !== null && survived.includes(s.name);
         const mine = s.runId === runId;
-        const c = s.pick === "UP" ? "var(--up)" : s.pick === "DOWN" ? "var(--down)" : "var(--dim)";
+        // Each seat gets its own identity colour, so the table reads as a
+        // roster of players rather than four copies of the same card.
+        const c = SEAT_COLOURS[i % SEAT_COLOURS.length];
+        const side = s.pick === "UP" ? "var(--up)" : s.pick === "DOWN" ? "var(--down)" : "var(--dim)";
+        // Relative stack — who is actually winning, without reading numbers.
+        const share = topStack > 0 ? Math.max(6, (s.stack / topStack) * 100) : 0;
         return (
           <div
             key={s.runId}
-            className={`relative overflow-hidden rounded-xl border p-3 ${dying ? "dying" : winning ? "winning" : "alive"}`}
+            className={`chamfer-sm relative overflow-hidden border p-3 pb-4 ${dying ? "dying" : winning ? "winning" : "alive"}`}
             style={{
               background: "linear-gradient(180deg, var(--panel-2), var(--panel))",
               borderColor: mine ? "var(--gold)" : undefined,
@@ -381,7 +399,7 @@ function Seats({
             <div className="flex items-center justify-between pl-2">
               <span className="truncate text-sm font-bold">{s.name}</span>
               {s.pick && (
-                <span className="text-[10px] font-black tracking-widest" style={{ color: c }}>
+                <span className="text-[10px] font-black tracking-widest" style={{ color: side }}>
                   {s.pick}
                 </span>
               )}
@@ -394,6 +412,14 @@ function Seats({
               {" · "}
               {s.rounds}R
               {s.inRound && s.fillPrice ? ` · @${s.fillPrice.toFixed(3)}` : s.pick ? " · …" : ""}
+            </div>
+
+            {/* Relative stack. Who is leading, read without numbers. */}
+            <div className="mt-2 ml-2 h-1 overflow-hidden rounded-full bg-[#ffffff0d]">
+              <div
+                className="h-full transition-[width] duration-500"
+                style={{ width: `${share}%`, background: c, boxShadow: `0 0 10px ${c}` }}
+              />
             </div>
           </div>
         );

@@ -229,7 +229,12 @@ Testnet also runs **1m and 5m** markets, not just the 15m/1h the docs list — t
 
 ## AI tools
 
-Built with Claude Code (Claude Opus). It wrote the executor, the contract and its tests, and the
+The logo — a candlestick whose body is a candle, wicks and all — was generated with
+Higgsfield (`nano_banana_pro`) and cropped for the app mark and favicon. The visual system
+(retro-futurism, Russo One / Chakra Petch, CRT scanlines) came from running the product through a
+design-system skill rather than being guessed at.
+
+Everything else built with Claude Code (Claude Opus). It wrote the executor, the contract and its tests, and the
 table, and — more usefully — found the wrong settlement ABI by dumping live logs and brute-forcing
 the event signature against the observed topic0 when the subscription silently never fired.
 Every claim in this README is a transaction hash or a block number, not a model's word for it.

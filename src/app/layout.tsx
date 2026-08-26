@@ -26,6 +26,12 @@ const body = Chakra_Petch({
 export const metadata: Metadata = {
   title: "LAST CANDLE",
   description: "A battle royale on Bitcoin. Every minute, half the players die.",
+  icons: { icon: "/favicon-64.png", apple: "/icon.png" },
+  openGraph: {
+    title: "LAST CANDLE",
+    description: "A battle royale on Bitcoin. Every minute, half the players die.",
+    images: ["/logo-full.png"],
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

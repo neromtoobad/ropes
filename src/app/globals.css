@@ -148,6 +148,49 @@ body::after {
 }
 .alive { animation: alive-breathe 3.4s ease-in-out infinite; }
 
+/* ── the cabinet ───────────────────────────────────────────────────────── */
+
+/*
+ * Chamfered corners. One detail does more than anything else to move a panel
+ * from "web card" to "HUD element": cut two opposing corners so the shape is
+ * not a rounded rectangle.
+ */
+.chamfer {
+  clip-path: polygon(
+    18px 0,
+    100% 0,
+    100% calc(100% - 18px),
+    calc(100% - 18px) 100%,
+    0 100%,
+    0 18px
+  );
+}
+.chamfer-sm {
+  clip-path: polygon(
+    10px 0,
+    100% 0,
+    100% calc(100% - 10px),
+    calc(100% - 10px) 100%,
+    0 100%,
+    0 10px
+  );
+}
+
+/* An outlined numeral reads as arcade; a solid one reads as a dashboard. */
+.outline-num {
+  /*
+   * -webkit-text-fill-color, NOT color: transparent. Setting `color` also makes
+   * `currentColor` transparent, which turns the stroke invisible too — the
+   * numeral disappears entirely.
+   */
+  -webkit-text-fill-color: transparent;
+  -webkit-text-stroke: 2px currentColor;
+  paint-order: stroke fill;
+}
+@media (min-width: 640px) {
+  .outline-num { -webkit-text-stroke-width: 3px; }
+}
+
 /* ── side buttons ──────────────────────────────────────────────────────── */
 
 .side {

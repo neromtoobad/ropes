@@ -248,14 +248,18 @@ export function Chart({
             >
               {price.toLocaleString(undefined, { maximumFractionDigits: 2 })}
             </p>
-            <p className="tabular mt-1 whitespace-nowrap text-[11px] font-black sm:text-sm" style={{ color: colour }}>
-              {delta >= 0 ? "▲ +" : "▼ "}
-              {delta.toFixed(2)}
-              <span className="ml-2 hidden text-[10px] tracking-[0.2em] opacity-75 sm:inline">
-                {above ? "UP IS WINNING" : "DOWN IS WINNING"}
-              </span>
-            </p>
           </div>
+        </div>
+
+        {/* The delta lives at the foot, where the strike line can never reach it. */}
+        <div className="absolute inset-x-4 bottom-4 flex items-end justify-end" style={{ right: GUTTER + 8 }}>
+          <p className="tabular whitespace-nowrap text-[11px] font-black sm:text-sm" style={{ color: colour }}>
+            {delta >= 0 ? "▲ +" : "▼ "}
+            {delta.toFixed(2)}
+            <span className="ml-2 hidden text-[10px] tracking-[0.2em] opacity-75 sm:inline">
+              {above ? "UP IS WINNING" : "DOWN IS WINNING"}
+            </span>
+          </p>
         </div>
       </div>
 
