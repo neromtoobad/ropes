@@ -111,6 +111,55 @@ stack for a 1% gain. the executor declines above 0.90 and sits the round out ins
 the book is just shallow. budget-vs-deployed will diverge and the ledger must keep the remainder
 (it does).
 
+## phase 3 — PROVEN LIVE, 26 aug
+
+`ArenaRegistry` at **`0x2BfC0105Ec5454a85375A03dBaea6566d94BD3D4`** settles the game by itself.
+
+```
+market   0x...a49f   BTC 1m   pool 0xa763...2718 nonce 176
+registered a round, entered ada UP and bram DOWN, then walked away.
+
+REGISTRY SETTLED ITSELF        winner UP, block 471909612
+  venue says   resolved=true voided=false winner=0
+  ada  (UP)    16.0000  alive
+  bram (DOWN)   0.0249  ELIMINATED  (undeployed remainder returned)
+
+BinarySettlement MarketFinalized block   471909612
+ArenaRegistry   elimination block        471909612
+SAME BLOCK: YES
+```
+
+no keeper, no cron, no listener. `scripts/spike/reactive-e2e.ts` re-runs the whole proof.
+
+### the SDK's settlement event ABI is WRONG — this cost the first attempt
+
+`binarySettlementEventsAbi` declares:
+
+```
+MarketFinalized(uint256,address,uint64,address,uint256,bool,uint8 winningOutcome)
+```
+
+the DEPLOYED contract emits:
+
+```
+MarketFinalized(uint256,address,uint64,address,uint256,bool,uint256[] payoutNumerators)
+   topic0 0xb1884334e955f8d8727678d4fa52dd9fc7140ff5e4ad38d358453bd400ada178
+```
+
+subscribing to the topic0 the published ABI implies matches **nothing, silently** — no error, no
+callback, just a subscription that never fires. verify a topic0 against real logs before trusting
+any ABI here.
+
+payout numerators are better than a winner flag anyway: a win is `[full, 0]`, a void is
+`[half, half]`, so one field covers both and the handler never needs a second question.
+
+### deploys need an explicit gas limit
+
+`forge script --broadcast` sizes each tx from its own estimate and **ignores `--gas-limit`**. two
+deploys reverted with `gasUsed` exactly equal to the estimate — the out-of-gas signature. somnia's
+gas schedule is far dearer than mainnet's. use `forge create --gas-limit 20000000`, and pass an
+explicit `gas` on every viem write.
+
 ## phase 3 gate — 26 aug, CLEARED
 
 the 32-SOM question is answered: **the wallet is already above it and the precompile accepts us.**
@@ -232,7 +281,7 @@ scripts/spike/       day-0 throwaway. keep it, it is proof
 - [x] **phase 0 — spike (26 aug)** buy → settle → redeem, 3 tx hashes in one transcript
 - [x] **phase 1 — the loop (27–29 aug)** executor rolls stacks unattended at 1m cadence
 - [~] **phase 2 — the table (30 aug–2 sep)** seats, pick, bank, countdown, the bell, BTC-vs-line chart, sound — WORKING. still to do: crowd-split bar
-- [ ] **phase 3 — reactive registry (3–4 sep)** eliminations land on-chain in the same block
+- [x] **phase 3 — reactive registry (3–4 sep)** eliminations land on-chain in the same block — DONE 26 aug, proven live
 - [ ] **phase 4 — real run (5 sep)** 8 humans, one full run, recorded
 - [ ] **phase 5 — submission (6–7 sep)** README, 4 slides, <3min video
 

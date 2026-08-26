@@ -9,3 +9,6 @@ dist/
 .next/
 prisma/*.db
 prisma/*.db-journal
+contracts/out/
+contracts/cache/
+contracts/lib/
