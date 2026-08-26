@@ -9,7 +9,7 @@
  * money is whose; never read a player's position off the wallet.
  */
 import { db } from "../lib/db";
-import { fmtUsd, fmtProb } from "../lib/chain";
+import { fmtUsd, fmtProb, ONE } from "../lib/chain";
 import { currentMarket, settlement, type LiveMarket } from "../lib/market";
 import { exchange, ASSET } from "../lib/chain";
 import { buy, redeemAll, type Side } from "../lib/orders";
@@ -258,6 +258,9 @@ export async function closeRound(roundId: string) {
     }
   }
 
+  // Stacks are final for this round — clear out anyone who can no longer play.
+  await sweepZombies(round.index);
+
   await db.round.update({
     where: { id: roundId },
     data: {
@@ -272,19 +275,43 @@ export async function closeRound(roundId: string) {
 }
 
 /**
+ * A stack this small is not a player any more.
+ *
+ * Below the buy-in's floor a run cannot compound its way back — it just holds a
+ * seat at 0.06x while everyone else plays. The sweep cashes it out so the table
+ * stays a table. The run still ends honestly: whatever is left is theirs.
+ */
+export const MIN_STACK = ONE; // 1.00 tUSDC
+
+export async function sweepZombies(currentRoundIndex: number) {
+  const zombies = await db.run.findMany({
+    where: { status: "alive", stack: { lt: MIN_STACK } },
+    include: { player: true },
+  });
+  for (const z of zombies) {
+    try {
+      await bank(z.id, currentRoundIndex, true);
+    } catch (err) {
+      log(`  sweep failed for ${z.player.displayName}: ${String(err).slice(0, 100)}`);
+    }
+  }
+  return zombies.length;
+}
+
+/**
  * Bank out: sell the live position back and end the run.
  *
  * Banking ends a run, and the player then sits out one full round before they
  * may buy a new seat.
  */
-export async function bank(runId: string, currentRoundIndex: number) {
+export async function bank(runId: string, currentRoundIndex: number, auto = false) {
   const run = await db.run.findUniqueOrThrow({ where: { id: runId }, include: { player: true } });
   if (run.status !== "alive") throw new Error(`run is ${run.status}, cannot bank`);
 
   const mult = Number(run.stack) / Number(run.buyIn);
   await db.run.update({
     where: { id: runId },
-    data: { status: "banked", endedRoundIndex: currentRoundIndex, finalMultiple: mult },
+    data: { status: "banked", endedRoundIndex: currentRoundIndex, finalMultiple: mult, bankedAuto: auto },
   });
   await db.player.update({
     where: { id: run.playerId },
@@ -292,7 +319,7 @@ export async function bank(runId: string, currentRoundIndex: number) {
     data: { eligibleFromRoundIndex: currentRoundIndex + 2 },
   });
   if (registry.enabled) await registry.bankRun(runId, run.stack);
-  log(`  💰 ${run.player.displayName} banked at ${mult.toFixed(2)}x (${fmtUsd(run.stack)})`);
+  log(`  ${auto ? "🧹" : "💰"} ${run.player.displayName} ${auto ? "swept" : "banked"} at ${mult.toFixed(2)}x (${fmtUsd(run.stack)})`);
   return mult;
 }
 

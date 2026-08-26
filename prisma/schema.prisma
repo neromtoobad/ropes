@@ -84,6 +84,10 @@ model Run {
   // "UP" | "DOWN" | "RANDOM" | null. Real players pick through the web app.
   autoPick String?
 
+  /// True when the sweep ended this run, not the player. A stack this small
+  /// cannot come back, so it is cashed out rather than left to rot at the table.
+  bankedAuto Boolean @default(false)
+
   /// Rounds survived. The headline number of a run — a battle royale is about
   /// how long you lasted, not just what you made.
   roundsSurvived Int @default(0)

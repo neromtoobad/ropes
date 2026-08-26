@@ -511,13 +511,20 @@ function Feed({ state }: { state: TableState | null }) {
             <span className="flex items-center gap-2">
               <span
                 className="text-lg"
-                style={{ color: f.kind === "died" ? "var(--down)" : "var(--gold)" }}
+                style={{
+                  color:
+                    f.kind === "died" ? "var(--down)" : f.kind === "swept" ? "var(--dim)" : "var(--gold)",
+                }}
               >
-                {f.kind === "died" ? "☠" : "◆"}
+                {f.kind === "died" ? "☠" : f.kind === "swept" ? "⌁" : "◆"}
               </span>
               <span className="font-bold">{f.name}</span>
               <span className="text-[11px] tracking-wider text-[var(--dim)]">
-                {f.kind === "died" ? `OUT ON ROUND ${f.round}` : `BANKED ON ROUND ${f.round}`}
+                {f.kind === "died"
+                  ? `OUT ON ROUND ${f.round}`
+                  : f.kind === "swept"
+                    ? `SWEPT ON ROUND ${f.round}`
+                    : `BANKED ON ROUND ${f.round}`}
               </span>
             </span>
             <span className="tabular text-[11px] font-bold text-[var(--dim)]">

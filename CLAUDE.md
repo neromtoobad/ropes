@@ -353,6 +353,7 @@ forge script script/Deploy.s.sol --rpc-url somnia_testnet --broadcast
 | win | stack × 1/p, already staked next round |
 | lose | eliminated, stack gone, loss capped at buy-in |
 | bank | sell mid-round at live value, run ends, multiple recorded |
+| sweep | a stack under **1.00** is cashed out automatically — it cannot compound back |
 | joining | no lobbies. whoever is in when the bell rings, plays |
 
 **contrarianism pays and it is visible.** stack grows by 1/p, so a crowded side pays little and a
@@ -446,6 +447,12 @@ lonely side pays a lot. show the crowd's split on screen — that is the strateg
   500s with "Module not found". extensionless works for both.
 ➠ do not label the two side prices as probabilities that sum to 100. they are
   both BUY prices (the ask on each side), so they sum to ~103. show the cost.
+➠ do not let a sub-1.00 stack keep a seat. it cannot compound its way back and just sits at 0.06x
+  while the table plays around it. `sweepZombies` runs after every settlement.
+➠ do not label a sweep as "banked" anywhere. the player never made that choice — the feed says
+  SWEPT and the run carries `bankedAuto`.
+➠ **after `prisma generate`, restart the next dev server.** it holds a stale client and silently
+  returns the old shape — a new column reads as undefined with no error anywhere.
 ➠ do not run the executor bare — use `./run-executor.sh`. the SDK never reconnects a dropped
   WebSocket, so the process must die and be restarted to get a fresh client.
 ➠ do not trust `getMarketResolution` for prices. `openingAnswer` and `closingAnswer` come back

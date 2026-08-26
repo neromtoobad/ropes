@@ -71,7 +71,7 @@ export interface TableState {
   board: { name: string; multiple: number; status: string; rounds: number }[];
   /** Recent deaths and exits, newest first. A battle royale needs a kill feed. */
   feed: {
-    kind: "died" | "banked";
+    kind: "died" | "banked" | "swept";
     name: string;
     round: number;
     multiple: number;
@@ -190,7 +190,12 @@ export async function getTableState(): Promise<TableState> {
         ? Math.abs(rd.close - rd.strike)
         : null;
     return {
-      kind: (r.status === "eliminated" ? "died" : "banked") as "died" | "banked",
+      // A sweep is not a cash-out. Saying "banked" would credit a decision the
+      // player never made.
+      kind: (r.status === "eliminated" ? "died" : r.bankedAuto ? "swept" : "banked") as
+        | "died"
+        | "banked"
+        | "swept",
       name: r.player.displayName,
       round: r.endedRoundIndex ?? 0,
       multiple: r.finalMultiple ?? 0,
