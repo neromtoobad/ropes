@@ -194,7 +194,7 @@ scripts/spike/       day-0 throwaway. keep it, it is proof
 
 - [x] **phase 0 — spike (26 aug)** buy → settle → redeem, 3 tx hashes in one transcript
 - [x] **phase 1 — the loop (27–29 aug)** executor rolls stacks unattended at 1m cadence
-- [~] **phase 2 — the table (30 aug–2 sep)** seats, pick, bank, countdown, the bell, BTC-vs-line chart — WORKING. still to do: crowd-split visual, sound
+- [~] **phase 2 — the table (30 aug–2 sep)** seats, pick, bank, countdown, the bell, BTC-vs-line chart, sound — WORKING. still to do: crowd-split bar
 - [ ] **phase 3 — reactive registry (3–4 sep)** eliminations land on-chain in the same block
 - [ ] **phase 4 — real run (5 sep)** 8 humans, one full run, recorded
 - [ ] **phase 5 — submission (6–7 sep)** README, 4 slides, <3min video
@@ -308,6 +308,11 @@ lonely side pays a lot. show the crowd's split on screen — that is the strateg
   500s with "Module not found". extensionless works for both.
 ➠ do not label the two side prices as probabilities that sum to 100. they are
   both BUY prices (the ask on each side), so they sum to ~103. show the cost.
+➠ do not ship audio files. every sound is synthesised from oscillators in
+  `src/app/sound.ts`, so the last ten seconds of a round never wait on a fetch.
+➠ browsers refuse to start an AudioContext without a user gesture. `arm()` runs
+  from the speaker toggle AND from the first join/pick, or the heartbeat is
+  silent for a player who never touched the toggle.
 ➠ do not key the chart's sampling effect on `price`. BTC sits at the same number
   for several polls, so an effect keyed on it never fires and the tape stays
   empty. sample on an interval reading a ref.

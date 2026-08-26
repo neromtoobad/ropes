@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { TableState } from "@/lib/state";
 import { Chart, usePriceSeries } from "./Chart";
+import { useSound, useHeartbeat } from "./sound";
 
 const POLL_MS = 750;
 
@@ -88,24 +89,52 @@ export default function Table() {
   };
 
   const points = usePriceSeries(state?.round?.index ?? null, state?.btc.price ?? null);
+  const sound = useSound();
 
   const me = state?.seats.find((s) => s.runId === runId) ?? null;
   const secs = state?.round?.secondsLeft ?? 0;
   const urgent = secs > 0 && secs < 15;
 
+  // The heart only beats while you actually have something at stake.
+  useHeartbeat(secs, Boolean(me?.inRound));
+
+  // The bell, scored to what it did to YOU: your run ending sounds nothing like
+  // your stack multiplying, and a round you sat out is just a distant toll.
+  const nameRef = useRef<string | null>(null);
+  nameRef.current = me?.name ?? null;
+  useEffect(() => {
+    if (!bell) return;
+    const mine = nameRef.current;
+    if (bell.voided) sound.play("push");
+    else if (mine && bell.killed.includes(mine)) sound.play("death");
+    else if (mine && bell.survived.some((s) => s.name === mine)) sound.play("win");
+    else sound.play("toll");
+  }, [bell, sound]);
+
   return (
     <main className="mx-auto min-h-screen max-w-5xl px-5 py-6">
-      <Header state={state} urgent={urgent} />
+      <Header state={state} urgent={urgent} sound={sound} />
 
       <Chart points={points} strike={state?.btc.strike ?? null} price={state?.btc.price ?? null} />
 
-      {state?.round && <Sides state={state} me={me} onPick={(side) => runId && post("/api/pick", { runId, side })} />}
+      {state?.round && (
+        <Sides
+          state={state}
+          me={me}
+          onPick={(side) => {
+            // First gesture is what lets the AudioContext exist at all.
+            sound.arm();
+            sound.play("click");
+            if (runId) post("/api/pick", { runId, side });
+          }}
+        />
+      )}
 
       <Seats state={state} runId={runId} bellIndex={bell?.index ?? null} killed={bell?.killed ?? []} />
 
       <div className="mt-6">
         {!runId || !me ? (
-          <Join name={name} setName={setName} onJoin={join} />
+          <Join name={name} setName={setName} onJoin={() => { sound.arm(); join(); }} />
         ) : (
           <YourRun
             me={me}
@@ -125,13 +154,30 @@ export default function Table() {
   );
 }
 
-function Header({ state, urgent }: { state: TableState | null; urgent: boolean }) {
+function Header({
+  state,
+  urgent,
+  sound,
+}: {
+  state: TableState | null;
+  urgent: boolean;
+  sound: ReturnType<typeof useSound>;
+}) {
   const secs = Math.floor(state?.round?.secondsLeft ?? 0);
   const alive = state?.seats.length ?? 0;
   return (
     <header className="mb-6 flex items-end justify-between border-b border-[var(--edge)] pb-4">
       <div>
-        <h1 className="text-2xl font-black tracking-[0.2em]">LAST CANDLE</h1>
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl font-black tracking-[0.2em]">LAST CANDLE</h1>
+          <button
+            onClick={sound.toggle}
+            aria-label={sound.on ? "mute" : "unmute"}
+            className="rounded border border-[var(--edge)] px-2 py-1 text-xs text-[var(--dim)] hover:text-[var(--gold)]"
+          >
+            {sound.on ? "🔊" : "🔇"}
+          </button>
+        </div>
         <p className="mt-1 text-xs text-[var(--dim)]">
           {state?.round ? `round ${state.round.index} · BTC 1m` : "waiting for a window…"}
         </p>
