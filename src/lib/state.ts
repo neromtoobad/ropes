@@ -23,6 +23,8 @@ export interface SeatView {
   inRound: boolean;
   fillPrice: number | null;
   multiple: number;
+  /** Rounds survived so far. The number a player actually brags about. */
+  rounds: number;
 }
 
 export interface TableState {
@@ -67,7 +69,19 @@ export interface TableState {
     killed: string[];
     survived: { name: string; from: number; to: number }[];
   } | null;
-  board: { name: string; multiple: number; status: string }[];
+  board: { name: string; multiple: number; status: string; rounds: number }[];
+  /** Recent deaths and exits, newest first. A battle royale needs a kill feed. */
+  feed: {
+    kind: "died" | "banked";
+    name: string;
+    round: number;
+    multiple: number;
+    rounds: number;
+    /** How far the wrong side of the line they finished. The near miss. */
+    missedBy: number | null;
+  }[];
+  /** The number to beat. A run is measured in rounds survived, not dollars. */
+  record: { name: string; rounds: number; multiple: number } | null;
 }
 
 const CAP = Number(MAX_ENTRY_PRICE_PCT) / 100;
@@ -114,6 +128,7 @@ export async function getTableState(): Promise<TableState> {
         inRound: Boolean(pos),
         fillPrice: pos ? Number(pos.priceRaw) / Number(ONE) : null,
         multiple: toUsd(r.stack + (pos?.cost ?? 0n)) / toUsd(r.buyIn),
+        rounds: r.roundsSurvived,
       };
     });
 
@@ -168,11 +183,56 @@ export async function getTableState(): Promise<TableState> {
     // A feed hiccup must not blank the table.
   }
 
+  // The kill feed. Deaths first — that is the drama — with banks woven in.
+  const recent = await db.run.findMany({
+    where: { status: { in: ["eliminated", "banked"] } },
+    include: { player: true, positions: { include: { round: true } } },
+    orderBy: { endedRoundIndex: "desc" },
+    take: 12,
+  });
+
+  const feed = recent.map((r) => {
+    const last = r.positions.sort((a, b) => b.round.index - a.round.index)[0];
+    const rd = last?.round;
+    // A death is far more interesting when you know it was $3.20, not "a loss".
+    const missedBy =
+      r.status === "eliminated" && rd?.strike != null && rd?.close != null
+        ? Math.abs(rd.close - rd.strike)
+        : null;
+    return {
+      kind: (r.status === "eliminated" ? "died" : "banked") as "died" | "banked",
+      name: r.player.displayName,
+      round: r.endedRoundIndex ?? 0,
+      multiple: r.finalMultiple ?? 0,
+      rounds: r.roundsSurvived,
+      missedBy,
+    };
+  });
+
+  // Longest run ever seen at this table, alive or dead.
+  const best = await db.run.findFirst({
+    include: { player: true },
+    orderBy: [{ roundsSurvived: "desc" }, { finalMultiple: "desc" }],
+  });
+  const record =
+    best && best.roundsSurvived > 0
+      ? {
+          name: best.player.displayName,
+          rounds: best.roundsSurvived,
+          multiple: best.finalMultiple ?? toUsd(best.stack) / toUsd(best.buyIn),
+        }
+      : null;
+
   const board = runs
     .filter((r) => r.status !== "alive" && r.finalMultiple !== null)
     .sort((a, b) => (b.finalMultiple ?? 0) - (a.finalMultiple ?? 0))
     .slice(0, 10)
-    .map((r) => ({ name: r.player.displayName, multiple: r.finalMultiple ?? 0, status: r.status }));
+    .map((r) => ({
+      name: r.player.displayName,
+      multiple: r.finalMultiple ?? 0,
+      status: r.status,
+      rounds: r.roundsSurvived,
+    }));
 
   return {
     round: round
@@ -193,5 +253,7 @@ export async function getTableState(): Promise<TableState> {
     seats,
     lastResult,
     board,
+    feed,
+    record,
   };
 }

@@ -228,6 +228,21 @@ must satisfy `gasLimit` in `(0, 200_000_000]`, and a non-zero `maxFeePerGas` at 
 **gotcha the SDK flags:** viem unwraps the JSON-RPC envelope, so a notification payload is at
 `notification.result`, NOT `notification.params.result` as upstream's README still says.
 
+## the executor MUST be supervised — found 26 aug
+
+the SDK owns its WebSocket and **does not reconnect** when the node drops it. observed live: the
+socket died and the loop kept ticking for six minutes, every read failing, while the process looked
+perfectly healthy.
+
+```
+21:52:48 tick failed: RpcError: rpc readContract markets failed: WebSocket request failed.
+   ... x120, silently, for six minutes
+```
+
+a stalled executor during the recorded run would be far worse than a five-second gap, so it now
+exits(1) after 10 consecutive failed ticks and `run-executor.sh` restarts it with a fresh client.
+**always run the executor through the supervisor, never bare.** this is also how railway expects it.
+
 ## verified config — confirmed live 26 aug, do not re-derive
 
 ```ts
@@ -431,6 +446,11 @@ lonely side pays a lot. show the crowd's split on screen — that is the strateg
   500s with "Module not found". extensionless works for both.
 ➠ do not label the two side prices as probabilities that sum to 100. they are
   both BUY prices (the ask on each side), so they sum to ~103. show the cost.
+➠ do not run the executor bare — use `./run-executor.sh`. the SDK never reconnects a dropped
+  WebSocket, so the process must die and be restarted to get a fresh client.
+➠ do not trust `getMarketResolution` for prices. `openingAnswer` and `closingAnswer` come back
+  **null** on these markets. the strike is on the live market row (scaled by 100), and the close is
+  whatever `fetchPrice` says at settlement.
 ➠ do not ship audio files. every sound is synthesised from oscillators in
   `src/app/sound.ts`, so the last ten seconds of a round never wait on a fetch.
 ➠ browsers refuse to start an AudioContext without a user gesture. `arm()` runs

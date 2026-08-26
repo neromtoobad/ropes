@@ -44,6 +44,11 @@ model Round {
   status         String    @default("open")
   winningOutcome Int? // 0 = UP/YES, 1 = DOWN/NO. null while unsettled
   settledAt      DateTime?
+
+  // The two numbers the market actually settled on, from getMarketResolution.
+  // Kept so a death can be shown for what it was: "you missed by $3.20".
+  strike Float?
+  close  Float?
   redeemTx       String? // one redemption tx covers every winner in the round
 
   positions Position[]
@@ -70,6 +75,10 @@ model Run {
   // Headless testing only: lets the executor pick for this run with no UI.
   // "UP" | "DOWN" | "RANDOM" | null. Real players pick through the web app.
   autoPick String?
+
+  /// Rounds survived. The headline number of a run — a battle royale is about
+  /// how long you lasted, not just what you made.
+  roundsSurvived Int @default(0)
 
   // The side chosen for the CURRENT round, before the order is placed.
   // Cleared once the position exists. No pick by lock time = sit the round out.

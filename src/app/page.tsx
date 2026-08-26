@@ -139,6 +139,7 @@ export default function Table() {
         ) : (
           <YourRun
             me={me}
+            record={state?.record ?? null}
             auto={auto}
             onAuto={async () => {
               sound.play("click");
@@ -155,6 +156,7 @@ export default function Table() {
         {err && <p className="mt-3 text-sm text-[var(--down)]">{err}</p>}
       </div>
 
+      <Feed state={state} />
       <Board state={state} />
       {bell && <Bell result={bell} />}
       <Footnote state={state} />
@@ -317,7 +319,7 @@ function Seats({
             </div>
             <div className="tabular mt-1 text-xl font-bold">{s.stack.toFixed(2)}</div>
             <div className="tabular text-[11px] text-[var(--dim)]">
-              {s.multiple.toFixed(2)}×
+              {s.multiple.toFixed(2)}× · {s.rounds}R
               {s.inRound && s.fillPrice ? ` · in @ ${s.fillPrice.toFixed(3)}` : s.pick ? " · waiting" : ""}
             </div>
           </div>
@@ -364,11 +366,13 @@ function Join({
 
 function YourRun({
   me,
+  record,
   onBank,
   onAuto,
   auto,
 }: {
   me: TableState["seats"][number];
+  record: TableState["record"];
   onBank: () => void;
   onAuto: () => void;
   auto: boolean;
@@ -380,6 +384,7 @@ function YourRun({
         <p className="tabular text-3xl font-black">
           {me.stack.toFixed(2)}{" "}
           <span className="text-lg text-[var(--gold)]">{me.multiple.toFixed(2)}×</span>
+          <span className="ml-2 text-sm text-[var(--dim)]">{me.rounds} survived</span>
         </p>
         <p className="mt-1 text-xs text-[var(--dim)]">
           {me.inRound && me.fillPrice
@@ -387,6 +392,14 @@ function YourRun({
             : me.pick
               ? `${me.pick} — waiting for the book`
               : "pick a side"}
+          {record && me.rounds > 0 && me.rounds < record.rounds && (
+            <span className="ml-2 text-[var(--gold)]">
+              {record.rounds - me.rounds} from the record
+            </span>
+          )}
+          {record && me.rounds >= record.rounds && (
+            <span className="ml-2 text-[var(--gold)]">longest run alive</span>
+          )}
         </p>
       </div>
       <div className="flex items-center gap-2">
@@ -438,6 +451,54 @@ function Bell({ result }: { result: NonNullable<TableState["lastResult"]> }) {
   );
 }
 
+/**
+ * The kill feed. A battle royale is defined by watching other people go out, and
+ * a death reads completely differently when you can see it was $3.20 the wrong
+ * way — the near miss is the most re-engaging thing on the screen.
+ */
+function Feed({ state }: { state: TableState | null }) {
+  const feed = state?.feed ?? [];
+  const record = state?.record;
+  if (!feed.length && !record) return null;
+  return (
+    <section className="mt-8">
+      <div className="mb-2 flex items-baseline justify-between">
+        <h2 className="text-xs tracking-[0.2em] text-[var(--dim)]">THE FEED</h2>
+        {record && (
+          <p className="tabular text-xs text-[var(--gold)]">
+            longest run · {record.name} · {record.rounds}R · {record.multiple.toFixed(2)}×
+          </p>
+        )}
+      </div>
+      <div className="space-y-1">
+        {feed.slice(0, 6).map((f, i) => (
+          <div
+            key={i}
+            className="flex items-baseline justify-between rounded-md border border-[var(--edge)] px-3 py-2 text-sm"
+            style={{ background: "var(--panel)" }}
+          >
+            <span>
+              <span style={{ color: f.kind === "died" ? "var(--down)" : "var(--gold)" }}>
+                {f.kind === "died" ? "☠" : "💰"}
+              </span>{" "}
+              <span className="font-semibold">{f.name}</span>
+              <span className="ml-2 text-xs text-[var(--dim)]">
+                {f.kind === "died" ? `out on round ${f.round}` : `banked on round ${f.round}`}
+              </span>
+            </span>
+            <span className="tabular text-xs text-[var(--dim)]">
+              {f.rounds}R · {f.multiple.toFixed(2)}×
+              {f.missedBy !== null && (
+                <span className="ml-2 text-[var(--down)]">missed by ${f.missedBy.toFixed(2)}</span>
+              )}
+            </span>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function Board({ state }: { state: TableState | null }) {
   const board = state?.board ?? [];
   if (!board.length) return null;
@@ -449,7 +510,7 @@ function Board({ state }: { state: TableState | null }) {
           <div key={i} className="flex items-center justify-between px-4 py-2 text-sm">
             <span>{b.name}</span>
             <span className="tabular" style={{ color: b.status === "banked" ? "var(--gold)" : "var(--dim)" }}>
-              {b.multiple.toFixed(2)}× {b.status === "banked" ? "banked" : "☠"}
+              {b.rounds}R · {b.multiple.toFixed(2)}× {b.status === "banked" ? "banked" : "☠"}
             </span>
           </div>
         ))}

@@ -11,6 +11,7 @@
 import { db } from "../lib/db";
 import { fmtUsd, fmtProb } from "../lib/chain";
 import { currentMarket, settlement, type LiveMarket } from "../lib/market";
+import { exchange, ASSET } from "../lib/chain";
 import { buy, redeemAll, type Side } from "../lib/orders";
 import * as registry from "../lib/registry";
 
@@ -41,6 +42,7 @@ export async function openRound() {
       opensAt: market.opensAt,
       expiresAt: market.expiresAt,
       status: "open",
+      strike: market.strike || null,
     },
   });
   log(`ROUND ${round.index} open  market=${market.marketId.slice(0, 10)}…  ` +
@@ -183,6 +185,17 @@ export async function closeRound(roundId: string) {
   const s = await settlement(round.marketId as `0x${string}`);
   if (!s.settled) return false;
 
+  // Where BTC finished, so a death can be shown for what it was — a miss by
+  // some exact number of dollars, not just "you lost". Read from the price feed
+  // rather than getMarketResolution, whose openingAnswer/closingAnswer come back
+  // null on these markets: the indexer never populates them.
+  let close: number | null = null;
+  try {
+    close = (await exchange.fetchPrice(ASSET))?.price ?? null;
+  } catch {
+    // Never block a settlement on a cosmetic read.
+  }
+
   const { redeemed, txs } = await redeemAll(
     round.marketId as `0x${string}`,
     s.onchain,
@@ -225,7 +238,10 @@ export async function closeRound(roundId: string) {
       log(`  ☠ ${pos.run.player.displayName} eliminated` +
           (remainder > 0n ? `  (${fmtUsd(remainder)} undeployed, returned)` : ""));
     } else {
-      await db.run.update({ where: { id: pos.runId }, data: { stack: stackAfter } });
+      await db.run.update({
+        where: { id: pos.runId },
+        data: { stack: stackAfter, roundsSurvived: { increment: 1 } },
+      });
       const mult = Number(stackAfter) / Number(pos.run.buyIn);
       log(`  ✓ ${pos.run.player.displayName} ${fmtUsd(pos.stackBefore)} → ${fmtUsd(stackAfter)}  (${mult.toFixed(2)}x)`);
     }
@@ -237,6 +253,7 @@ export async function closeRound(roundId: string) {
       status: s.voided ? "voided" : "settled",
       winningOutcome: s.winningOutcome,
       settledAt: new Date(),
+      close,
       redeemTx: txs[0],
     },
   });

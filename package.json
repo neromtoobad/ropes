@@ -4,13 +4,14 @@
   "type": "module",
   "scripts": {
     "spike": "tsx scripts/spike/loop.ts",
-    "executor": "tsx src/executor/index.ts",
+    "executor": "./run-executor.sh",
     "seed": "tsx src/executor/seed.ts",
     "db:push": "prisma db push",
     "db:studio": "prisma studio",
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "executor:once": "tsx src/executor/index.ts"
   },
   "dependencies": {
     "@prisma/client": "6.19.3",
