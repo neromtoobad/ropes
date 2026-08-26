@@ -23,12 +23,17 @@ pragma solidity 0.8.28;
  *     uint64  nonce,
  *     address collateralToken,
  *     uint256 netBacking,
- *     bool    voided,
- *     uint8   winningOutcome
+ *     bool      voided,
+ *     uint256[] payoutNumerators
  *   )
  *
  * so the handler needs no follow-up call to learn who won — which matters,
  * because a callback runs under a gas limit and a revert there is silent.
+ *
+ * NOTE this is the DEPLOYED signature, verified against live logs. The SDK's
+ * published `binarySettlementEventsAbi` declares a trailing `uint8
+ * winningOutcome`; it is not that, and subscribing to the topic0 that ABI
+ * implies matches nothing at all, silently — no error, no callback.
  */
 contract ArenaRegistry {
     /* ------------------------------------------------------------ types */
@@ -229,7 +234,7 @@ contract ArenaRegistry {
      *
      * `topics` is [sig, marketKey, pool] and `data` is the non-indexed tail:
      * (uint64 nonce, address collateralToken, uint256 netBacking, bool voided,
-     * uint8 winningOutcome).
+     * uint256[] payoutNumerators).
      */
     function onEvent(address emitter, bytes32[] calldata topics, bytes calldata data) external {
         if (msg.sender != precompile) revert NotPrecompile();
