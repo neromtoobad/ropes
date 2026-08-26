@@ -9,8 +9,8 @@
  * money is whose; never read a player's position off the wallet.
  */
 import { PrismaClient } from "@prisma/client";
-import { HOUSE, fmtUsd, fmtProb, houseCollateral } from "../lib/chain.js";
-import { currentMarket, settlement, outcomeBalance, type LiveMarket } from "../lib/market.js";
+import { fmtUsd, fmtProb } from "../lib/chain.js";
+import { currentMarket, settlement, type LiveMarket } from "../lib/market.js";
 import { buy, redeemAll, type Side } from "../lib/orders.js";
 
 export const db = new PrismaClient();
@@ -57,64 +57,93 @@ function sideFor(run: { pendingSide: string | null; autoPick: string | null }): 
 }
 
 /**
- * Place one order per alive run that has picked a side.
+ * Enter the round: ONE order per side, shared at the average fill price.
  *
- * Sequential on purpose: one wallet, one nonce. Eight players at ~2s a fill is
- * ~16s, comfortably inside a 60s window.
+ * Orders go through a single wallet, so placing them per-player means the book
+ * moves between sends — two players picking the same side five seconds apart
+ * filled at 0.497 and 0.741 in testing. Honest market behaviour, but it reads
+ * as rigged in a game. Batching by side makes every player on a side pay
+ * exactly the same price, and costs one transaction instead of N.
  */
 export async function enterRound(roundId: string, market: LiveMarket) {
   const alive = await db.run.findMany({ where: { status: "alive" }, include: { player: true } });
-  const entered: string[] = [];
 
+  // Who still needs a position this round, and on which side.
+  const pending: { run: (typeof alive)[number]; side: Side }[] = [];
   for (const run of alive) {
     const already = await db.position.findUnique({
       where: { runId_roundId: { runId: run.id, roundId } },
     });
-    if (already) continue;
-
+    if (already || run.stack <= 0n) continue;
     const side = sideFor(run);
     if (!side) {
       log(`  ${run.player.displayName} sits out (no pick)`);
       continue;
     }
+    pending.push({ run, side });
+  }
+  if (!pending.length) return [];
 
-    // Measure before/after so the fill is chain truth, not what we asked for.
-    const collateralBefore = await houseCollateral();
-    const outcomeBefore = await outcomeBalance(market.onchain, HOUSE, side === "UP" ? 0 : 1);
+  const entered: string[] = [];
+
+  for (const side of ["UP", "DOWN"] as const) {
+    const group = pending.filter((p) => p.side === side);
+    if (!group.length) continue;
+
+    const totalBudget = group.reduce((sum, p) => sum + p.run.stack, 0n);
 
     let fill;
     try {
-      fill = await buy(market, side, run.stack, collateralBefore, outcomeBefore);
+      fill = await buy(market, side, totalBudget);
     } catch (err) {
-      log(`  ${run.player.displayName} order FAILED: ${String(err).slice(0, 120)}`);
+      log(`  ${side} x${group.length} order FAILED: ${String(err).slice(0, 120)}`);
       continue;
     }
-
     if (fill.contracts === 0n) {
-      log(`  ${run.player.displayName} no fill on ${side} — sits out`);
+      const who = group.map((g) => g.run.player.displayName).join(", ");
+      log(fill.tooExpensive
+        ? `  ${side} x${group.length} declined @ ${fmtProb(fill.priceRaw)} (above cap) — ${who} sit out`
+        : `  ${side} x${group.length} no fill — ${who} sit out`);
       continue;
     }
 
-    await db.position.create({
-      data: {
-        runId: run.id,
-        roundId,
-        side,
-        contracts: fill.contracts,
-        priceRaw: fill.priceRaw,
-        cost: fill.cost,
-        stackBefore: run.stack,
-        orderTx: fill.tx,
-      },
-    });
-    // Stack is now deployed. Any dust the lot grid left behind stays with them.
-    await db.run.update({
-      where: { id: run.id },
-      data: { stack: run.stack - fill.cost, pendingSide: null },
-    });
-    entered.push(run.player.displayName);
-    log(`  ${run.player.displayName} ${side} @ ${fmtProb(fill.priceRaw)}  ` +
+    log(`  ${side} x${group.length} @ ${fmtProb(fill.priceRaw)}  ` +
         `${fmtUsd(fill.contracts)} contracts for ${fmtUsd(fill.cost)}`);
+
+    // Split pro rata by stake. The last run absorbs the rounding residual so
+    // the attributed sums equal the fill EXACTLY — attributing more contracts
+    // than we hold would over-redeem at settlement.
+    let contractsLeft = fill.contracts;
+    let costLeft = fill.cost;
+
+    for (let i = 0; i < group.length; i++) {
+      const { run } = group[i];
+      const isLast = i === group.length - 1;
+      const contracts = isLast ? contractsLeft : (fill.contracts * run.stack) / totalBudget;
+      const cost = isLast ? costLeft : (fill.cost * run.stack) / totalBudget;
+      contractsLeft -= contracts;
+      costLeft -= cost;
+
+      await db.position.create({
+        data: {
+          runId: run.id,
+          roundId,
+          side,
+          contracts,
+          priceRaw: fill.priceRaw, // the shared average — identical for the group
+          cost,
+          stackBefore: run.stack,
+          orderTx: fill.tx,
+        },
+      });
+      // Whatever the book could not absorb stays in their stack.
+      await db.run.update({
+        where: { id: run.id },
+        data: { stack: run.stack - cost, pendingSide: null },
+      });
+      entered.push(run.player.displayName);
+      log(`      ${run.player.displayName.padEnd(5)} ${fmtUsd(contracts)} contracts, ${fmtUsd(cost)}`);
+    }
   }
   return entered;
 }

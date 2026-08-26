@@ -16,5 +16,9 @@
     "prisma": "6.19.3",
     "tsx": "^4.23.12",
     "viem": "^2.55.19"
+  },
+  "devDependencies": {
+    "@types/node": "^26.3.0",
+    "typescript": "^5.9.3"
   }
 }

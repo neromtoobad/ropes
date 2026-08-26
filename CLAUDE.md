@@ -77,14 +77,33 @@ this and it is why bram and dez still got in. do not "optimise" entry to a singl
 consequence for the UI: the price a player sees when they pick is NOT the price they get. show the
 fill price after the fact, never promise one up front.
 
-### same-side players get different prices — fix in phase 2
+### same-side players get different prices — FIXED, batched by side
 
-orders are placed sequentially (one wallet, one nonce). in round 1, bram and dez both picked DOWN
-and filled at **0.497 and 0.741** — five seconds apart, same side, same round. that reads as unfair
-in a game even though it is honest market behaviour.
+orders were placed sequentially (one wallet, one nonce). bram and dez both picked DOWN and filled
+at **0.497 and 0.741** — five seconds apart, same side, same round. honest market behaviour that
+reads as rigged in a game.
 
-**batch all same-side runs in a round into ONE order and share the average fill price.** fairer,
-fewer transactions, and fewer nonce races.
+now one order per side per round, split pro rata at the **average fill price**, with the last run
+absorbing the rounding residual so attributed contracts equal the fill exactly. attributing more
+than we hold would over-redeem at settlement. verified: `UP x2 @ 0.416` → both players identical.
+
+### order type: 2, never 1
+
+`ORDER_TYPE.FILL_OR_KILL = 1`, `MARKET (IOC) = 2`. the spike used **1** and got away with it only
+because a 2-contract order always fills. the first batched order reverted eight times in a row with
+`FillOrKillNotFillable()`, paying gas each time. `ImmediateOrCancelNoFill()` on a MARKET order is a
+normal "the quote moved" event — catch it like `PostOnlyWouldCross`, do not treat it as a fault.
+
+### size in two passes or players under-deploy
+
+the book frequently moves **in our favour** between the read and the fill on a 1m window, so an
+order sized at the touch left ~20% of the budget unspent (18.94 of a 24.28 stack). a second top-up
+pass with the remainder fixes it: now 16.2337 of 16.2337 deployed, nothing left behind.
+
+### never enter above 0.90
+
+a 1m window that has made its mind up quotes the favourite at 0.99 — a player risks their whole
+stack for a 1% gain. the executor declines above 0.90 and sits the round out instead.
 
 ### depth is thin
 
