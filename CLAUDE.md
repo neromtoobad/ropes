@@ -111,6 +111,43 @@ stack for a 1% gain. the executor declines above 0.90 and sits the round out ins
 the book is just shallow. budget-vs-deployed will diverge and the ledger must keep the remainder
 (it does).
 
+## phase 3 gate — 26 aug, CLEARED
+
+the 32-SOM question is answered: **the wallet is already above it and the precompile accepts us.**
+
+```
+balance    49.8147 STT      17.81 over the claimed 32 minimum
+precompile 0x0000000000000000000000000000000000000100
+emitter    0x3ecC694Cef705358864a646142ac17A90E29e388   BinaryMarketsModule
+subscribe  SIMULATION PASSED -> subscription id 0xd6d544
+```
+
+`scripts/spike/reactivity.ts` simulates the real `subscribe` write with `eth_call`, so a funding
+rule would have rejected it for free. nothing was actually subscribed.
+
+**caveat:** the simulation used our EOA as a placeholder handler. a deployed handler contract may
+carry further requirements, so re-run this script in phase 3 against the real `ArenaRegistry`
+before assuming it still passes.
+
+### how reactivity is actually reached
+
+`@somnia-chain/reactivity` is an **optional peer dependency** of the SDK — the `/reactivity` export
+throws without it. `npm install -E @somnia-chain/reactivity@0.2.1`.
+
+two different mechanisms, do not confuse them:
+
+➠ `reactivity.watch(...)` — an off-chain `somnia_watch` WebSocket stream. no contract, no funding.
+  delivers the matched log **plus the results of arbitrary `ethCalls` read at the same block**.
+➠ `reactivity.subscribe({ handlerContractAddress, ... })` — the on-chain one. validators call a
+  deployed handler. this is what phase 3 needs and what the funding rule applies to.
+
+the handler selector is `onEvent(address,bytes32[],bytes)` = `0x53edf33d`. subscription options
+must satisfy `gasLimit` in `(0, 200_000_000]`, and a non-zero `maxFeePerGas` at least 6 gwei above
+`priorityFeePerGas`.
+
+**gotcha the SDK flags:** viem unwraps the JSON-RPC envelope, so a notification payload is at
+`notification.result`, NOT `notification.params.result` as upstream's README still says.
+
 ## verified config — confirmed live 26 aug, do not re-derive
 
 ```ts

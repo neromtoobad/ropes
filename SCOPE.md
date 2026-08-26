@@ -142,7 +142,7 @@ decide at the phase boundary, not on 7 sep.
 | if | then |
 |---|---|
 | settle→redeem is slower than 90s | fall back to 15m rounds and edit the demo video |
-| faucet cannot fund the 32 SOM reactivity subscription | drop reactivity, use an event listener, make no reactivity claim |
+| ~~faucet cannot fund the 32 SOM subscription~~ | CLEARED 26 aug — 49.81 STT held, subscribe simulates clean |
 | phase 3 not working by **4 sep EOD** | ship 1+2+4, delete the reactivity slide |
 | cannot gather 8 humans for the real run | run 4 real + narrate honestly; never fake players on screen |
 
