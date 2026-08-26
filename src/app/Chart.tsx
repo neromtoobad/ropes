@@ -71,7 +71,7 @@ export function Chart({
   if (!strike || price === null || points.length < 2) {
     return (
       <Frame>
-        <div className="flex h-full items-center justify-center text-xs tracking-[0.3em] text-[var(--dim)]">
+        <div className="flex h-full items-center justify-center text-[10px] tracking-[0.3em] text-[var(--dim)] sm:text-xs">
           {strike ? "READING THE TAPE…" : "WAITING FOR THE LINE"}
         </div>
       </Frame>
@@ -203,7 +203,7 @@ export function Chart({
 
         {/* the live price, riding the head of the tape */}
         <div
-          className="tabular absolute right-1 -translate-y-1/2 rounded px-1.5 py-1 text-[11px] font-black text-black"
+          className="display tabular absolute right-1 -translate-y-1/2 rounded px-1.5 py-1 text-[11px] text-black"
           style={{
             top: `${t(price) * 100}%`,
             background: colour,
@@ -231,7 +231,7 @@ export function Chart({
       {/* corner furniture */}
       <div className="pointer-events-none absolute inset-0 p-4" style={{ paddingRight: GUTTER + 8 }}>
         <div className="flex items-start justify-between gap-6">
-          <div className="flex items-center gap-2">
+          <div className="hidden items-center gap-2 sm:flex">
             <span className="rounded bg-[#ffffff0a] px-2 py-1 text-[9px] font-black tracking-[0.2em] text-[var(--dim)]">
               BTC · 1M
             </span>
@@ -243,15 +243,15 @@ export function Chart({
           </div>
           <div className="min-w-0 text-right">
             <p
-              className="tabular truncate text-4xl font-black leading-none"
+              className="display tabular truncate text-xl leading-none sm:text-4xl"
               style={{ color: colour, textShadow: `0 0 44px ${colour}66` }}
             >
               {price.toLocaleString(undefined, { maximumFractionDigits: 2 })}
             </p>
-            <p className="tabular mt-1 text-sm font-black" style={{ color: colour }}>
+            <p className="tabular mt-1 whitespace-nowrap text-[11px] font-black sm:text-sm" style={{ color: colour }}>
               {delta >= 0 ? "▲ +" : "▼ "}
               {delta.toFixed(2)}
-              <span className="ml-2 text-[10px] tracking-[0.2em] opacity-75">
+              <span className="ml-2 hidden text-[10px] tracking-[0.2em] opacity-75 sm:inline">
                 {above ? "UP IS WINNING" : "DOWN IS WINNING"}
               </span>
             </p>
@@ -290,9 +290,8 @@ function Frame({ children, tint }: { children: React.ReactNode; tint?: "up" | "d
       }}
     >
       <div
-        className="relative overflow-hidden rounded-xl border"
+        className="relative h-[200px] overflow-hidden rounded-xl border sm:h-[300px]"
         style={{
-          height: H,
           borderColor: edge,
           background: "radial-gradient(120% 80% at 50% 0%, #0d1117 0%, #06080c 100%)",
           boxShadow: "inset 0 2px 18px #000000cc",

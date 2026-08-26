@@ -22,6 +22,36 @@ function usePlayerKey() {
   return key;
 }
 
+/** Lucide-style speaker, 1.75 stroke, inheriting colour from the button. */
+function SpeakerIcon({ on }: { on: boolean }) {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.75"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M11 5 6 9H2v6h4l5 4V5Z" />
+      {on ? (
+        <>
+          <path d="M15.5 8.5a5 5 0 0 1 0 7" />
+          <path d="M18.5 5.5a9 9 0 0 1 0 13" />
+        </>
+      ) : (
+        <>
+          <path d="M22 9l-6 6" />
+          <path d="M16 9l6 6" />
+        </>
+      )}
+    </svg>
+  );
+}
+
 export default function Table() {
   const playerKey = usePlayerKey();
   const [state, setState] = useState<TableState | null>(null);
@@ -192,13 +222,14 @@ function Header({
     <header className="mb-4 flex items-end justify-between">
       <div>
         <div className="flex items-center gap-3">
-          <h1 className="text-xl font-black tracking-[0.28em]">LAST CANDLE</h1>
+          <h1 className="display text-base tracking-[0.2em] sm:text-xl sm:tracking-[0.28em]">LAST CANDLE</h1>
           <button
             onClick={sound.toggle}
-            aria-label={sound.on ? "mute" : "unmute"}
-            className="rounded border border-[var(--edge)] px-2 py-1 text-[10px] text-[var(--dim)] hover:text-[var(--gold)]"
+            aria-label={sound.on ? "Mute sound" : "Unmute sound"}
+            aria-pressed={sound.on}
+            className="rounded border border-[var(--edge)] p-1.5 text-[var(--dim)] transition-colors duration-200 hover:text-[var(--gold)]"
           >
-            {sound.on ? "🔊" : "🔇"}
+            <SpeakerIcon on={sound.on} />
           </button>
         </div>
         <p className="mt-1 flex items-center gap-2 text-[10px] font-bold tracking-[0.25em] text-[var(--dim)]">
@@ -209,7 +240,7 @@ function Header({
 
       <div className="text-right">
         {/* The clock is the loudest object on the page on purpose. */}
-        <div className={`tabular text-8xl font-black leading-[0.85] ${urgent ? "clock-urgent" : ""}`}>
+        <div className={`display tabular text-6xl leading-[0.85] sm:text-8xl ${urgent ? "clock-urgent" : ""}`}>
           {String(secs).padStart(2, "0")}
         </div>
         <p className="mt-1 text-[10px] font-bold tracking-[0.25em] text-[var(--dim)]">
@@ -257,7 +288,7 @@ function Sides({
               key={side}
               disabled={!canPick || capped}
               onClick={() => onPick(side)}
-              className={`side ${isUp ? "side-up" : "side-down"} ${picked ? "picked" : ""} rounded-2xl border p-5 text-left disabled:cursor-not-allowed`}
+              className={`side ${isUp ? "side-up" : "side-down"} ${picked ? "picked" : ""} rounded-2xl border p-4 text-left disabled:cursor-not-allowed sm:p-5`}
               style={{
                 color: c,
                 borderColor: picked ? c : "var(--edge)",
@@ -266,29 +297,39 @@ function Sides({
               }}
             >
               <div className="flex items-baseline justify-between">
-                <span className="text-2xl font-black tracking-[0.15em]">
+                <span className="display whitespace-nowrap text-lg tracking-[0.12em] sm:text-2xl sm:tracking-[0.15em]">
                   {isUp ? "▲ UP" : "▼ DOWN"}
                 </span>
-                <span className="tabular text-[11px] font-bold text-[var(--dim)]">
+                <span className="tabular whitespace-nowrap text-[10px] font-bold text-[var(--dim)] sm:text-[11px]">
                   {stake > 0 ? `${stake.toFixed(2)} STAKED` : calls > 0 ? `${calls} CALLING` : "—"}
                 </span>
               </div>
 
               {/* The payout is the whole proposition. Nothing else competes. */}
-              <div
-                className="tabular mt-3 text-7xl font-black leading-none"
-                style={{ textShadow: `0 0 44px ${c}55` }}
-              >
-                {pays ? pays.toFixed(2) : "—"}
-                <span className="align-super text-2xl opacity-60">×</span>
-              </div>
+              {pays ? (
+                <div
+                  className="display tabular mt-3 text-5xl leading-none sm:text-7xl"
+                  style={{ textShadow: `0 0 44px ${c}55` }}
+                >
+                  {pays.toFixed(2)}
+                  <span className="align-super text-2xl opacity-60">×</span>
+                </div>
+              ) : (
+                // An em dash at 72px in the display face renders as a solid bar
+                // and reads as a broken graphic. Say what is actually happening.
+                <div className="mt-3 flex h-[48px] items-center sm:h-[72px]">
+                  <span className="text-sm font-semibold tracking-[0.2em] text-[var(--dim)]">
+                    WAITING FOR THE BOOK
+                  </span>
+                </div>
+              )}
 
               <div className="mt-2 text-[11px] font-bold tracking-wider text-[var(--dim)]">
                 {capped
                   ? "ABOVE 90% — NOT WORTH THE RISK"
                   : price
                     ? `${price.toFixed(3)} PER CONTRACT`
-                    : "NO QUOTES YET"}
+                    : "THE BOOK IS EMPTY AT WINDOW OPEN"}
               </div>
             </button>
           );
@@ -345,7 +386,7 @@ function Seats({
                 </span>
               )}
             </div>
-            <div className="tabular pl-2 text-3xl font-black leading-tight">{s.stack.toFixed(2)}</div>
+            <div className="display tabular pl-2 text-2xl leading-tight sm:text-3xl">{s.stack.toFixed(2)}</div>
             <div className="tabular pl-2 text-[11px] font-bold text-[var(--dim)]">
               <span style={{ color: s.multiple >= 1 ? "var(--up)" : "var(--down)" }}>
                 {s.multiple.toFixed(2)}×
@@ -459,14 +500,14 @@ function Bell({ result }: { result: NonNullable<TableState["lastResult"]> }) {
       <div className="text-center">
         <p className="text-xs font-bold tracking-[0.5em] text-[var(--dim)]">ROUND {result.index}</p>
         <p
-          className="mt-2 text-[9rem] font-black leading-[0.8] tracking-tighter"
+          className="display mt-2 text-[4.5rem] leading-[0.8] tracking-tight sm:text-[9rem]"
           style={{ color: c, textShadow: `0 0 90px ${c}` }}
         >
           {result.voided ? "VOID" : result.winner}
         </p>
 
         {result.killed.length > 0 && (
-          <p className="mt-6 text-3xl font-black glow-down">
+          <p className="display mt-6 text-xl glow-down sm:text-3xl">
             {result.killed.map((n) => `☠ ${n}`).join("   ")}
           </p>
         )}

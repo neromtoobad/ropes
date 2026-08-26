@@ -28,9 +28,15 @@ html,
 body {
   background: var(--bg);
   color: var(--text);
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   overscroll-behavior: none;
+}
+
+/* Anything the player shouts about wears the display face. */
+.display {
+  font-family: var(--font-display), var(--font-body), system-ui, sans-serif;
+  letter-spacing: 0.02em;
 }
 
 /* A vignette stops the flat-black page reading as an empty div. */
@@ -40,7 +46,26 @@ body::before {
   inset: 0;
   pointer-events: none;
   z-index: 0;
-  background: radial-gradient(120% 90% at 50% 0%, #10141d 0%, transparent 60%);
+  background: radial-gradient(120% 90% at 50% 0%, #131826 0%, transparent 62%);
+}
+
+/*
+ * CRT scanlines. Kept at 3% so it reads as texture rather than an effect —
+ * enough to make the screen feel like a cabinet, not enough to fight the data.
+ */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 60;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.03) 0px,
+    rgba(255, 255, 255, 0.03) 1px,
+    transparent 1px,
+    transparent 3px
+  );
 }
 
 .tabular {
@@ -157,3 +182,42 @@ body::before {
   100% { opacity: 1; transform: translateX(0); }
 }
 .feed-row { animation: feed-in 0.35s ease-out backwards; }
+
+/* ── accessibility ─────────────────────────────────────────────────────── */
+
+button:not(:disabled),
+a[href] {
+  cursor: pointer;
+}
+
+:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+
+/*
+ * Respect the system motion preference. This screen has a pulsing clock, a
+ * breathing table, a sweeping button highlight and a shaking bell — exactly the
+ * stack that triggers motion sickness. The game stays fully playable without
+ * any of it, so all of it goes.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .side::after {
+    display: none;
+  }
+
+  /* The bell still has to communicate the result, just without the motion. */
+  .bell {
+    opacity: 1;
+  }
+}

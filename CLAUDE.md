@@ -295,6 +295,24 @@ a resting market maker quotes both sides, ~200 contracts at the touch, ~0.025 sp
 1m, 15m, 60m, 240m and 1440m. **our MM is a backstop, not critical path.** most markets show
 `trades = 0`, so we would be creating essentially all of the organic volume.
 
+## the look — retro-futurism
+
+from the ui-ux-pro-max design system, matched to "gaming / competitive / dark":
+
+```
+style        retro-futurism — neon glow, CRT scanlines, synthwave
+type         Russo One (display) + Chakra Petch (body), via next/font
+effects      bloom on the tape, glow on every number that matters
+```
+
+**Russo One is only for what a player shouts about** — the clock, the multiplier, the stack, the
+verdict. Everything else is Chakra Petch and gets out of the way. A screen where every number wears
+the display face is as flat as one where none of them do.
+
+accessibility the style forces us to handle: `prefers-reduced-motion` kills the pulsing clock,
+breathing table, sweeping buttons and screen shake; `:focus-visible` rings are gold at 2px; the
+speaker toggle is an SVG, never an emoji.
+
 ## tech stack
 
 ```
@@ -458,6 +476,10 @@ lonely side pays a lot. show the crowd's split on screen — that is the strateg
 ➠ do not trust `getMarketResolution` for prices. `openingAnswer` and `closingAnswer` come back
   **null** on these markets. the strike is on the live market row (scaled by 100), and the close is
   whatever `fetchPrice` says at settlement.
+➠ do not render a placeholder em dash in the display face at large sizes — Russo One draws it as a
+  solid bar and it reads as a broken graphic. say what is happening instead ("WAITING FOR THE BOOK").
+➠ do not size type for desktop and let it shrink. every display number is mobile-first with an `sm:`
+  step up, or the price truncates to "78,..." and the multiplier clips on a 375px screen.
 ➠ do not ship audio files. every sound is synthesised from oscillators in
   `src/app/sound.ts`, so the last ten seconds of a round never wait on a fetch.
 ➠ browsers refuse to start an AudioContext without a user gesture. `arm()` runs
