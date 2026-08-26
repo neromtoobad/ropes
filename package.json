@@ -1,0 +1,14 @@
+{
+  "name": "last-candle",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "spike": "tsx scripts/spike/loop.ts"
+  },
+  "dependencies": {
+    "@somnia-chain/markets-sdk": "^0.28.1",
+    "dotenv": "^17.4.2",
+    "tsx": "^4.23.12",
+    "viem": "^2.55.19"
+  }
+}
