@@ -122,6 +122,7 @@ export default function Table() {
         strike={state?.btc.strike ?? null}
         price={state?.btc.price ?? null}
         secondsLeft={secs}
+        roundIndex={state?.round?.index ?? null}
       />
 
       {state?.round && (
@@ -201,7 +202,7 @@ function Header({
           </button>
         </div>
         <p className="mt-1 flex items-center gap-2 text-[10px] font-bold tracking-[0.25em] text-[var(--dim)]">
-          {state?.round ? `ROUND ${state.round.index}` : "WAITING FOR A WINDOW"}
+          {state?.round ? "BATTLE ROYALE ON BITCOIN" : "WAITING FOR A WINDOW"}
           {state?.locked && <span className="glow-gold">● LOCKED</span>}
         </p>
       </div>
