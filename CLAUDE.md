@@ -297,6 +297,20 @@ a resting market maker quotes both sides, ~200 contracts at the touch, ~0.025 sp
 
 ## the look — retro-futurism
 
+**the surface is deep indigo violet (`#0d0a1c`), not black.** black was legible but inert, and navy
+washed the green multiplier out to near-white. violet sits opposite BOTH green and red on the wheel,
+so neither semantic colour has to fight the surface — and that contrast between the two sides is the
+entire read of this screen. `data-bg="void"` and `data-bg="arcade"` keep the alternates for
+comparison.
+
+it also fixed the accessibility gap: every pair now clears WCAG AA against the violet —
+text 17.38:1, dim 5.53:1, up 11.67:1, down 5.37:1, gold 12.73:1. `--dim` on near-black was the
+pair that used to fail.
+
+semantic colours live in the base `:root`, never inside a palette override — UP is always the same
+green whatever the surface is.
+
+
 the logo is a candlestick whose body is a candle: green body, upper and lower wicks, the upper wick
 carrying a gold flame. generated with higgsfield `nano_banana_pro`, cropped to `public/mark.png`
 (header + favicon) and kept whole as `public/logo-full.png` (slides, README, social).

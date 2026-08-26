@@ -9,19 +9,54 @@
  * everything else gets out of their way.
  */
 :root {
-  --bg: #050608;
-  --panel: #0c0e14;
-  --panel-2: #11141c;
-  --edge: #1c212c;
-  --dim: #5d6675;
-  --text: #eef1f6;
+  /*
+   * SYNTH — deep indigo violet.
+   *
+   * Chosen over flat black and over navy for one reason: violet sits opposite
+   * BOTH green and red on the wheel, so neither semantic colour has to fight
+   * the surface. On navy the green multiplier washed out to near-white; on
+   * black everything was legible but inert. Here both sides stay vivid and
+   * clearly distinct from each other, which is the entire read of this screen.
+   */
+  --bg: #0d0a1c;
+  --panel: #171233;
+  --panel-2: #1e1840;
+  --edge: #322a5c;
+  --dim: #8b82b5;
+  --text: #f3f0ff;
+  --ambient: #241c4d;
 
+  /* Semantic. Identical across every surface palette — UP is always this
+     green, DOWN is always this red, and the line to beat is always gold. */
   --up: #00e58a;
   --up-glow: #00e58a55;
   --down: #ff2f52;
   --down-glow: #ff2f5255;
   --gold: #ffc94d;
   --gold-glow: #ffc94d55;
+}
+
+/* VOID — flat near-black. Kept for comparison. */
+:root[data-bg="void"] {
+  --bg: #050608;
+  --panel: #0c0e14;
+  --panel-2: #11141c;
+  --edge: #1c212c;
+  --dim: #5d6675;
+  --text: #eef1f6;
+  --ambient: #131826;
+}
+
+/* ARCADE — deep navy slate. The palette the design system returns for
+   "arcade & retro game": neon red + blue on dark, with score green. */
+:root[data-bg="arcade"] {
+  --bg: #0b1220;
+  --panel: #131c2e;
+  --panel-2: #1a2438;
+  --edge: #2a3750;
+  --dim: #7d8aa3;
+  --text: #f2f6ff;
+  --ambient: #1d2b44;
 }
 
 html,
@@ -46,7 +81,7 @@ body::before {
   inset: 0;
   pointer-events: none;
   z-index: 0;
-  background: radial-gradient(120% 90% at 50% 0%, #131826 0%, transparent 62%);
+  background: radial-gradient(120% 90% at 50% 0%, var(--ambient) 0%, transparent 62%);
 }
 
 /*
