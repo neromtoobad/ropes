@@ -290,6 +290,8 @@ export default function Game() {
 
       <TopBar state={state} urgent={urgent} sound={sound} me={me} view={view} onView={switchView} />
 
+      <MoneyBar me={me} price={state?.price ?? { up: null, down: null }} ledger={ledger} />
+
       {seatFlash && (
         <div className="pointer-events-none fixed inset-x-0 top-[20%] z-40 text-center">
           <p className="display text-3xl sm:text-4xl" style={{ color: "var(--down)", textShadow: "0 0 40px var(--down-glow)" }}>
@@ -418,11 +420,6 @@ function TopBar({
   const secs = Math.floor(state?.round?.secondsLeft ?? 0);
   const t = state?.table;
   const roping = t?.status === "filling" && t.seated > 0;
-  // The money line: what the run is worth right now, against the 10 seat.
-  // Smoothed at the same rate as the wall, so header and climber agree.
-  const mult = useSmoothed(liveMultipleOf(me, state?.price ?? { up: null, down: null }), 340, 3);
-  const value = me ? mult * me.buyIn : null;
-  const delta = me && value !== null ? value - me.buyIn : null;
   return (
     <header className="flex items-center justify-between gap-4">
       <div className="flex items-center gap-3">
@@ -430,21 +427,11 @@ function TopBar({
         <div>
           <h1 className="display text-base leading-none tracking-[0.2em] sm:text-lg">THE CLIMB</h1>
           <p className="mt-0.5 text-[9px] font-bold tracking-[0.3em] text-[var(--dim)]">
-            {me && value !== null && delta !== null ? (
-              <>
-                RUN VALUE <span className="tabular text-[var(--text)]">{value.toFixed(2)}</span>
-                <span className="tabular ml-1.5" style={{ color: delta >= 0 ? "var(--up)" : "var(--down)" }}>
-                  {delta >= 0 ? "+" : ""}
-                  {delta.toFixed(2)}
-                </span>
-              </>
-            ) : roping ? (
-              `ROPING UP · 0:${String(Math.max(0, Math.round(t!.sealsIn))).padStart(2, "0")}`
-            ) : state?.locked ? (
-              "ON THE WALL"
-            ) : (
-              "BTC · 1 MINUTE"
-            )}
+            {roping
+              ? `ROPING UP · 0:${String(Math.max(0, Math.round(t!.sealsIn))).padStart(2, "0")}`
+              : me
+                ? "ON THE WALL"
+                : "BTC · 1 MINUTE"}
           </p>
         </div>
       </div>
@@ -974,6 +961,61 @@ function Feed({ state }: { state: TableState | null }) {
         ))}
       </div>
     </section>
+  );
+}
+
+/* ───────────────────────── the money bar ─────────────────────────── */
+
+/**
+ * The two numbers that make a player pick again, too big to miss:
+ * what is riding right now, and what the game has paid them all time.
+ */
+function MoneyBar({
+  me,
+  price,
+  ledger,
+}: {
+  me: TableState["seats"][number] | null;
+  price: TableState["price"];
+  ledger: LedgerData | null;
+}) {
+  const mult = useSmoothed(liveMultipleOf(me, price), 340, 3);
+  const onWall = me ? mult * me.buyIn : null;
+  const delta = me && onWall !== null ? onWall - me.buyIn : null;
+  const upC = delta === null || delta >= 0 ? "var(--up)" : "var(--down)";
+  const net = ledger?.totals?.net ?? null;
+  const netC = net !== null && net < 0 ? "var(--down)" : "var(--up)";
+  return (
+    <div className="mt-3 grid grid-cols-2 gap-3">
+      <div className="chamfer-sm flex items-baseline justify-between border px-4 py-2.5"
+        style={{ borderColor: "var(--edge)", background: "linear-gradient(180deg, var(--panel-2), var(--panel))" }}>
+        <div>
+          <p className="text-[9px] font-black tracking-[0.3em] text-[var(--dim)]">ON THE WALL</p>
+          <p className="display tabular text-3xl leading-none sm:text-4xl"
+            style={onWall !== null ? { color: upC, textShadow: `0 0 34px ${upC}55` } : { color: "var(--dim)" }}>
+            {onWall !== null ? onWall.toFixed(2) : "—"}
+          </p>
+        </div>
+        {delta !== null && (
+          <span className="tabular text-sm font-black" style={{ color: upC }}>
+            THIS RUN {usd(delta)}
+          </span>
+        )}
+      </div>
+      <div className="chamfer-sm flex items-baseline justify-between border px-4 py-2.5"
+        style={{ borderColor: "var(--edge)", background: "linear-gradient(180deg, var(--panel-2), var(--panel))" }}>
+        <div>
+          <p className="text-[9px] font-black tracking-[0.3em] text-[var(--dim)]">WON ALL TIME</p>
+          <p className="display tabular text-3xl leading-none sm:text-4xl"
+            style={net !== null ? { color: netC, textShadow: `0 0 34px ${netC}55` } : { color: "var(--dim)" }}>
+            {net !== null ? usd(net) : "—"}
+          </p>
+        </div>
+        <span className="hidden text-[9px] font-bold tracking-[0.2em] text-[var(--dim)] sm:inline">
+          tUSDC
+        </span>
+      </div>
+    </div>
   );
 }
 
