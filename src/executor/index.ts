@@ -9,6 +9,7 @@
  */
 import { houseCollateral, houseGas, fmtUsd, sleep, HOUSE } from "../lib/chain";
 import { openRound, enterRound, closeRound, db } from "./game";
+import { manageTables } from "./tables";
 
 const TICK_MS = 1000;
 const log = (...a: unknown[]) => console.log(new Date().toISOString().slice(11, 19), ...a);
@@ -53,7 +54,11 @@ async function tick() {
     }
   }
 
-  // 2. Open the live window and enter it.
+  // 2. Crown anyone who has outlasted their table, then keep a table open for
+  //    arrivals and seal it when it is ready.
+  await manageTables();
+
+  // 3. Open the live window and enter it.
   const opened = await openRound();
   if (!opened) return;
   const { round, market } = opened;

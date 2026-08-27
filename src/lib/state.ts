@@ -10,6 +10,7 @@ import { db } from "./db";
 import { ONE, toUsd } from "./chain";
 import { exchange, ASSET } from "./chain";
 import { MAX_ENTRY_PRICE_PCT } from "./orders";
+import { MAX_SEATS } from "../executor/tables";
 
 export interface SeatView {
   runId: string;
@@ -56,6 +57,22 @@ export interface TableState {
   };
   /** True once the executor has filled the live round — no more changing it. */
   locked: boolean;
+  /**
+   * The cohort. This is what makes the game finite: a sealed table has a fixed
+   * roster and resolves to exactly one champion.
+   */
+  table: {
+    index: number;
+    status: "filling" | "sealed" | "finished";
+    seated: number;
+    alive: number;
+    maxSeats: number;
+    pot: number;
+    /** Seconds until a filling table locks its roster. */
+    sealsIn: number;
+  } | null;
+  /** The most recent champion, for the victory moment. */
+  champion: { name: string; multiple: number; rounds: number; pot: number; tableIndex: number } | null;
   /** BTC against the line. `strike` is fixed for the window; `price` is live. */
   btc: { price: number | null; strike: number | null; oracleQuestionId: string | null };
   seats: SeatView[];
@@ -97,6 +114,12 @@ export async function getTableState(): Promise<TableState> {
   const strike = round?.strike ?? null;
   const oracleQuestionId = round?.oracleQuestionId ?? null;
 
+  // The table the game is currently being played on: the sealed one if there is
+  // a live match, otherwise the one taking arrivals.
+  const activeTable =
+    (await db.table.findFirst({ where: { status: "sealed" }, orderBy: { index: "desc" } })) ??
+    (await db.table.findFirst({ where: { status: "filling" }, orderBy: { index: "desc" } }));
+
   const runs = await db.run.findMany({
     include: {
       player: true,
@@ -106,7 +129,7 @@ export async function getTableState(): Promise<TableState> {
   });
 
   const seats: SeatView[] = runs
-    .filter((r) => r.status === "alive")
+    .filter((r) => r.status === "alive" && (!activeTable || r.tableId === activeTable.id))
     .map((r) => {
       const pos = (r.positions ?? [])[0];
       return {
@@ -218,6 +241,22 @@ export async function getTableState(): Promise<TableState> {
         }
       : null;
 
+  // The last champion — a table that actually resolved to one player.
+  const champRun = await db.run.findFirst({
+    where: { isChampion: true },
+    include: { player: true, table: true },
+    orderBy: { endedRoundIndex: "desc" },
+  });
+  const champion = champRun
+    ? {
+        name: champRun.player.displayName,
+        multiple: champRun.finalMultiple ?? 0,
+        rounds: champRun.roundsSurvived,
+        pot: toUsd(champRun.table?.pot ?? 0n),
+        tableIndex: champRun.table?.index ?? 0,
+      }
+    : null;
+
   const board = runs
     .filter((r) => r.status !== "alive" && r.finalMultiple !== null)
     .sort((a, b) => (b.finalMultiple ?? 0) - (a.finalMultiple ?? 0))
@@ -244,6 +283,18 @@ export async function getTableState(): Promise<TableState> {
     capped: { up: up !== null && up > CAP, down: down !== null && down > CAP },
     crowd,
     locked,
+    table: activeTable
+      ? {
+          index: activeTable.index,
+          status: activeTable.status as "filling" | "sealed" | "finished",
+          seated: await db.run.count({ where: { tableId: activeTable.id } }),
+          alive: await db.run.count({ where: { tableId: activeTable.id, status: "alive" } }),
+          maxSeats: MAX_SEATS,
+          pot: toUsd(activeTable.pot),
+          sealsIn: Math.max(0, (activeTable.sealsAt.getTime() - Date.now()) / 1000),
+        }
+      : null,
+    champion,
     btc: { price, strike, oracleQuestionId },
     seats,
     lastResult,

@@ -14,6 +14,7 @@ import { currentMarket, settlement, type LiveMarket } from "../lib/market";
 import { exchange, ASSET } from "../lib/chain";
 import { buy, redeemAll, type Side } from "../lib/orders";
 import * as registry from "../lib/registry";
+import { fillingTable, STARTING_STACK, SEAT_PRICE, POT_CUT, MAX_SEATS } from "./tables";
 
 export { db };
 
@@ -86,7 +87,12 @@ function sideFor(run: { pendingSide: string | null; autoPick: string | null }): 
  * exactly the same price, and costs one transaction instead of N.
  */
 export async function enterRound(roundId: string, market: LiveMarket) {
-  const alive = await db.run.findMany({ where: { status: "alive" }, include: { player: true } });
+  // Only sealed tables play. A run in a filling table is seated and watching —
+  // its field is not fixed yet, so it cannot be in a battle royale.
+  const alive = await db.run.findMany({
+    where: { status: "alive", table: { status: "sealed" } },
+    include: { player: true },
+  });
 
   // Who still needs a position this round, and on which side.
   const pending: { run: (typeof alive)[number]; side: Side }[] = [];
@@ -323,8 +329,20 @@ export async function bank(runId: string, currentRoundIndex: number, auto = fals
   return mult;
 }
 
-/** Buy a seat. Refused while the player is sitting out after a bank. */
-export async function joinGame(wallet: string, displayName: string, buyIn: bigint, roundIndex: number, autoPick?: string) {
+/**
+ * Buy a seat at whichever table is currently filling.
+ *
+ * The seat costs SEAT_PRICE; POT_CUT of that is held by the table and the rest
+ * becomes the starting stack, so a multiple is always measured against what is
+ * actually at risk. The pot goes to whoever is last standing.
+ */
+export async function joinGame(
+  wallet: string,
+  displayName: string,
+  _buyIn: bigint,
+  roundIndex: number,
+  autoPick?: string,
+) {
   const player = await db.player.upsert({
     where: { wallet },
     create: { wallet, displayName },
@@ -336,7 +354,20 @@ export async function joinGame(wallet: string, displayName: string, buyIn: bigin
   const open = await db.run.findFirst({ where: { playerId: player.id, status: "alive" } });
   if (open) throw new Error(`${displayName} already has a live run`);
 
-  return db.run.create({
-    data: { playerId: player.id, buyIn, stack: buyIn, startedRoundIndex: roundIndex, autoPick },
+  const table = await fillingTable();
+  const seated = await db.run.count({ where: { tableId: table.id } });
+  if (seated >= MAX_SEATS) throw new Error("this table is full — the next one opens shortly");
+
+  const run = await db.run.create({
+    data: {
+      playerId: player.id,
+      tableId: table.id,
+      buyIn: STARTING_STACK,
+      stack: STARTING_STACK,
+      startedRoundIndex: roundIndex,
+      autoPick,
+    },
   });
+  await db.table.update({ where: { id: table.id }, data: { pot: { increment: POT_CUT } } });
+  return run;
 }

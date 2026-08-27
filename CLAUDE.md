@@ -387,6 +387,30 @@ forge test                      # ArenaRegistry
 forge script script/Deploy.s.sol --rpc-url somnia_testnet --broadcast
 ```
 
+## why there are tables
+
+the market's clock is infinite — a new BTC window opens every minute forever. left alone that
+produces a **venue, not a tournament**: nobody ever wins, because "last one standing" needs a field
+to be last in, and an always-open table never resolves to one. other seats are ambient decoration
+and beating someone pays you nothing.
+
+**a table fixes all three.** it fills, SEALS, and its roster is then frozen until one player
+remains. that player is the champion and takes the pot. the next table is already accepting
+arrivals, so sealing costs nobody a wait — exactly how a battle-royale queue works.
+
+proven live:
+
+```
+TABLE 1 SEALED  4 players  pot 8.0000
+TABLE 1 — wiped out, nobody left. pot 8.0000 carries forward
+TABLE 2 SEALED  2 players  pot 4.0000
+TABLE 3 open  (carrying 8.0000 pot)
+TABLE 2 — 👑 bram LAST STANDING  10.1251 + 4.0000 pot = 14.1251
+```
+
+**a wipeout is a feature.** when the last players all pick the same side nobody wins, and the pot
+rolls into the next table — table 3 opened at 16.00. the stakes escalate on their own.
+
 ## the rules, exactly
 
 | | |
@@ -398,7 +422,10 @@ forge script script/Deploy.s.sol --rpc-url somnia_testnet --broadcast
 | lose | eliminated, stack gone, loss capped at buy-in |
 | bank | sell mid-round at live value, run ends, multiple recorded |
 | sweep | a stack under **1.00** is cashed out automatically — it cannot compound back |
-| joining | no lobbies. whoever is in when the bell rings, plays |
+| table | a cohort of up to 8. **seals** when full, or after a 2m fill window with 2+ seated |
+| pot | 2 of every 10 seat price. **last one standing takes it all** |
+| joining | you always join the table that is currently filling — the next one is already open, so sealing costs nobody a wait |
+| wipeout | if the whole table goes out together nobody takes the pot; it **carries into the next table** |
 
 **contrarianism pays and it is visible.** stack grows by 1/p, so a crowded side pays little and a
 lonely side pays a lot. show the crowd's split on screen — that is the strategy layer, free.
@@ -517,6 +544,8 @@ lonely side pays a lot. show the crowd's split on screen — that is the strateg
   for several polls, so an effect keyed on it never fires and the tape stays
   empty. sample on an interval reading a ref.
 ➠ do not promise a fixed multiple before a round — p is unknown until filled. show live values.
+➠ do not let a run in a FILLING table enter a round. its field is not fixed yet, so it cannot be in
+  a battle royale — it is seated and watching.
 ➠ do not add squads, insurance, or free-play mode. the table is the product.
 ➠ do not copy app.linera.xyz's six magnitude bands (MOON/PUMP/POP/DROP/DUMP/CRASH). dreamDEX event
   contracts are **binary UP/DOWN only** — there is no magnitude market to trade, so bands could only

@@ -64,6 +64,8 @@ export default function Table() {
   const [err, setErr] = useState<string | null>(null);
   const [bell, setBell] = useState<TableState["lastResult"]>(null);
   const [auto, setAuto] = useState(false);
+  const [crown, setCrown] = useState<TableState["champion"]>(null);
+  const lastCrown = useRef<number | null>(null);
   const lastBellIndex = useRef<number | null>(null);
 
   useEffect(() => {
@@ -87,6 +89,15 @@ export default function Table() {
           setTimeout(() => setBell(null), 2600);
         }
         lastBellIndex.current = idx;
+
+        // A table resolving to one player is the whole point of the game, so it
+        // gets its own moment rather than sharing the round bell.
+        const ct = next.champion?.tableIndex ?? null;
+        if (ct !== null && lastCrown.current !== null && ct !== lastCrown.current) {
+          setCrown(next.champion);
+          setTimeout(() => setCrown(null), 5000);
+        }
+        lastCrown.current = ct;
       } catch {
         /* keep the last good frame rather than blanking the table */
       }
@@ -151,6 +162,8 @@ export default function Table() {
       {secs > 0 && secs < 10 && <div className="danger" />}
       <Header state={state} urgent={urgent} sound={sound} />
 
+      <TableStrip state={state} />
+
       <Chart
         points={points}
         strike={state?.btc.strike ?? null}
@@ -206,8 +219,44 @@ export default function Table() {
       <Feed state={state} />
       <Board state={state} />
       {bell && <Bell result={bell} />}
+      {crown && <Crown champion={crown} />}
       <Footnote state={state} />
     </main>
+  );
+}
+
+/**
+ * The cohort strip. Without this the game reads as an open table anyone can
+ * wander into; with it there is a fixed field, a shrinking count and a prize.
+ */
+function TableStrip({ state }: { state: TableState | null }) {
+  const t = state?.table;
+  if (!t) return null;
+  const filling = t.status === "filling";
+  const seal = Math.ceil(t.sealsIn);
+  return (
+    <div
+      className="chamfer-sm mb-3 flex items-center justify-between border px-4 py-2.5"
+      style={{ background: "var(--panel)", borderColor: "var(--edge)" }}
+    >
+      <div className="flex items-baseline gap-3">
+        <span className="display text-sm tracking-[0.15em]">TABLE {t.index}</span>
+        {filling ? (
+          <span className="text-[11px] font-bold tracking-widest text-[var(--dim)]">
+            FILLING · {t.seated}/{t.maxSeats} SEATED · SEALS IN {Math.floor(seal / 60)}:
+            {String(seal % 60).padStart(2, "0")}
+          </span>
+        ) : (
+          <span className="text-[11px] font-bold tracking-widest glow-down">
+            {t.alive} OF {t.seated} REMAINING
+          </span>
+        )}
+      </div>
+      <div className="text-right">
+        <span className="text-[9px] font-bold tracking-[0.25em] text-[var(--dim)]">POT </span>
+        <span className="display tabular text-lg glow-gold">{t.pot.toFixed(2)}</span>
+      </div>
+    </div>
   );
 }
 
@@ -277,7 +326,13 @@ function Sides({
     <>
       <div className="mt-4 mb-2 flex items-baseline justify-between text-[10px] font-bold tracking-[0.25em] text-[var(--dim)]">
         <span className={state.locked ? "glow-gold" : ""}>
-          {state.locked ? "LOCKED — WATCH IT PLAY OUT" : canPick ? "PICK YOUR SIDE" : "NEXT ROUND"}
+          {state.table?.status === "filling"
+            ? "WAITING FOR THE TABLE TO SEAL"
+            : state.locked
+              ? "LOCKED — WATCH IT PLAY OUT"
+              : canPick
+                ? "PICK YOUR SIDE"
+                : "NEXT ROUND"}
         </span>
         <span className="tabular">
           {(state.crowd.liveStake.up + state.crowd.liveStake.down).toFixed(2)} IN PLAY
@@ -604,6 +659,24 @@ function Feed({ state }: { state: TableState | null }) {
         ))}
       </div>
     </section>
+  );
+}
+
+/** Last one standing. The end the infinite clock could never produce. */
+function Crown({ champion }: { champion: NonNullable<TableState["champion"]> }) {
+  return (
+    <div className="bell pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-black/94">
+      <div className="text-center">
+        <p className="text-xs font-bold tracking-[0.5em] text-[var(--dim)]">
+          TABLE {champion.tableIndex}
+        </p>
+        <p className="display mt-3 text-6xl leading-none glow-gold sm:text-8xl">LAST STANDING</p>
+        <p className="display mt-6 text-4xl sm:text-6xl">{champion.name}</p>
+        <p className="tabular mt-4 text-lg font-bold glow-gold">
+          {champion.multiple.toFixed(2)}× · {champion.rounds} ROUNDS SURVIVED
+        </p>
+      </div>
+    </div>
   );
 }
 

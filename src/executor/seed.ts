@@ -5,10 +5,10 @@
  *
  * Real players pick through the web app in phase 2; these pick via autoPick.
  */
-import { ONE, fmtUsd } from "../lib/chain";
+import { fmtUsd } from "../lib/chain";
 import { db, joinGame } from "./game";
 
-const BUY_IN = 10n * ONE; // 10 tUSDC, the fixed seat price
+
 const NAMES = ["ada", "bram", "cyd", "dez", "eli", "fern", "gus", "hana"];
 
 const count = Math.min(Number(process.argv[2] ?? 4), NAMES.length);
@@ -24,7 +24,7 @@ for (let i = 0; i < count; i++) {
     const run = await joinGame(
       `0x${(i + 1).toString(16).padStart(40, "0")}`,
       name,
-      BUY_IN,
+      0n,
       roundIndex,
       autoPick,
     );

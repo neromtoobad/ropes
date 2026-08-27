@@ -15,6 +15,32 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+/// A cohort. This is what makes the game finite: a table fills, SEALS, and then
+/// its roster is fixed until one player is left. New arrivals go to the next
+/// table, so nobody waits behind a match that is already running.
+model Table {
+  id     String @id @default(cuid())
+  index  Int    @unique
+  /// filling -> sealed -> finished
+  status String @default("filling")
+
+  opensAt    DateTime  @default(now())
+  /// Seals at this time if at least MIN_SEATS are in. Extended while short.
+  sealsAt    DateTime
+  sealedAt   DateTime?
+  finishedAt DateTime?
+
+  /// Held back from every seat. The last player standing takes it all.
+  pot BigInt @default(0)
+
+  /// The run that outlasted the rest. Null when the whole table died together.
+  championRunId String?
+
+  runs Run[]
+
+  @@index([status])
+}
+
 model Player {
   id          String   @id @default(cuid())
   wallet      String   @unique
@@ -68,6 +94,13 @@ model Run {
   id       String @id @default(cuid())
   playerId String
   player   Player @relation(fields: [playerId], references: [id])
+
+  /// The cohort this run belongs to. A run only plays once its table seals.
+  tableId String?
+  table   Table?  @relation(fields: [tableId], references: [id])
+
+  /// Outlasted everyone else at the table and took the pot.
+  isChampion Boolean @default(false)
 
   buyIn BigInt // what they paid for the seat
   stack BigInt // current value. grows by 1/p each surviving round
