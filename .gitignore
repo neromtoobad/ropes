@@ -12,3 +12,6 @@ prisma/*.db-journal
 contracts/out/
 contracts/cache/
 contracts/lib/
+
+# local pointer to AGENTS.md, never committed
+CLAUDE.md
