@@ -27,6 +27,10 @@ export interface SeatView {
   rounds: number;
   /** This player's best-ever finished multiple — their ghost on the wall. */
   best: number | null;
+  /** What this round's position cost, so the client can mark it to market. */
+  costInRound: number;
+  /** The seat price this run started from — the denominator of every multiple. */
+  buyIn: number;
 }
 
 export interface TableState {
@@ -160,6 +164,8 @@ export async function getTableState(): Promise<TableState> {
         multiple: toUsd(r.stack + (pos?.cost ?? 0n)) / toUsd(r.buyIn),
         rounds: r.roundsSurvived,
         best: bestByPlayer.get(r.playerId) ?? null,
+        costInRound: toUsd(pos?.cost ?? 0n),
+        buyIn: toUsd(r.buyIn),
       };
     });
 

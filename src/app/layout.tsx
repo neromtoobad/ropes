@@ -24,12 +24,12 @@ const body = Chakra_Petch({
 });
 
 export const metadata: Metadata = {
-  title: "LAST CANDLE",
-  description: "A battle royale on Bitcoin. Every minute, half the players die.",
+  title: "THE CLIMB",
+  description: "Climb the candle. A battle royale on Bitcoin — last one on the wall takes the pot.",
   icons: { icon: "/favicon-64.png", apple: "/icon.png" },
   openGraph: {
-    title: "LAST CANDLE",
-    description: "A battle royale on Bitcoin. Every minute, half the players die.",
+    title: "THE CLIMB",
+    description: "Climb the candle. A battle royale on Bitcoin — last one on the wall takes the pot.",
     images: ["/logo-full.png"],
   },
 };

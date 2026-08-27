@@ -83,10 +83,22 @@ export function Cliff({
 
   const climbers = seats.map((seat, i) => {
     const live = seat.pick === "UP" ? price.up : seat.pick === "DOWN" ? price.down : null;
-    const height = seat.inRound ? heightFor(seat.fillPrice, live) : 0.5;
-    // What the position is actually worth, as a multiple of what was paid.
-    // The wall's height is a log-squashed VIEW of this; it is not the number.
-    const multiple = seat.inRound && seat.fillPrice && live ? live / seat.fillPrice : null;
+    /**
+     * Height is the CUMULATIVE multiple — everything this run is worth right
+     * now against the seat price. "Survivors keep climbing into the next round
+     * with their new height" is the game; the first cut mapped height to the
+     * per-round multiple instead, which snapped every climber back to the
+     * ledge each minute and quietly deleted the tournament from the wall.
+     *
+     * free cash + this round's position marked to the live book, over buy-in.
+     */
+    const positionLive =
+      seat.inRound && seat.fillPrice && live
+        ? seat.costInRound * (live / seat.fillPrice)
+        : seat.costInRound;
+    const multiple =
+      seat.buyIn > 0 ? (seat.stack - seat.costInRound + positionLive) / seat.buyIn : 1;
+    const height = heightOfMultiple(multiple);
     const was = previous.current.get(seat.runId) ?? height;
     previous.current.set(seat.runId, height);
 
@@ -293,7 +305,7 @@ export function Cliff({
                 color: mine ? "#000" : "var(--text)",
               }}
             >
-              {seat.name} {multiple !== null ? `${multiple.toFixed(2)}×` : ""}
+              {seat.name} {multiple.toFixed(2)}×
             </div>
             <Image
               src={`/climbers/${art}/${pose}.png`}

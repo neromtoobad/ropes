@@ -325,7 +325,7 @@ function Header({
             priority
             className="h-8 w-auto sm:h-11"
           />
-          <h1 className="display text-base tracking-[0.2em] sm:text-xl sm:tracking-[0.28em]">LAST CANDLE</h1>
+          <h1 className="display text-base tracking-[0.2em] sm:text-xl sm:tracking-[0.28em]">THE CLIMB</h1>
           <button
             onClick={sound.toggle}
             aria-label={sound.on ? "Mute sound" : "Unmute sound"}
