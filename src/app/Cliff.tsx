@@ -1,8 +1,9 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import type { TableState } from "@/lib/state";
+import { useSmoothed } from "./useSmoothed";
 
 /**
  * THE CLIMB — solo.
@@ -99,22 +100,15 @@ export function Cliff({
   // The climber: the viewer's run, or whoever is on the wall when spectating.
   const seat = seats.find((s) => s.runId === myRunId) ?? seats[0] ?? null;
 
-  const multiple = liveMultipleOf(seat, price);
+  const target = liveMultipleOf(seat, price);
+  // ONE smoothed number drives everything — the wall, the tag, the poses —
+  // so nothing on screen can disagree about where the climber is.
+  const multiple = useSmoothed(target, 340, 3);
   const meH = heightOfMultiple(multiple);
 
-  // Direction of travel picks the pose; a repaint timer keeps it alive between
-  // identical polls.
-  const prev = useRef(meH);
-  const [, force] = useState(0);
-  useEffect(() => {
-    const id = setInterval(() => force((n) => n + 1), 500);
-    return () => clearInterval(id);
-  }, []);
-  const rising = meH > prev.current + 0.002;
-  const sinking = meH < prev.current - 0.002;
-  useEffect(() => {
-    prev.current = meH;
-  });
+  // Direction of travel = which way the glide is still chasing the target.
+  const rising = heightOfMultiple(target) > meH + 0.0015;
+  const sinking = heightOfMultiple(target) < meH - 0.0015;
 
   // Milestone crossings, upward only. The chime belongs to gains.
   const lastMult = useRef(multiple);
@@ -197,7 +191,7 @@ export function Cliff({
             <div
               key={m}
               className="pointer-events-none absolute inset-x-0"
-              style={{ bottom: `${b}%`, transition: "bottom 900ms cubic-bezier(0.33, 0.9, 0.4, 1)" }}
+              style={{ bottom: `${b}%` }}
             >
               <div
                 className="h-[2px] w-full"
@@ -233,7 +227,6 @@ export function Cliff({
               className="pointer-events-none absolute inset-x-0"
               style={{
                 bottom: `${bottomOf(heightOfMultiple(record.multiple))}%`,
-                transition: "bottom 900ms cubic-bezier(0.33, 0.9, 0.4, 1)",
               }}
             >
               <div
@@ -256,7 +249,6 @@ export function Cliff({
             className="pointer-events-none absolute inset-x-0"
             style={{
               bottom: `${bottomOf(heightOfMultiple(myBest))}%`,
-              transition: "bottom 900ms cubic-bezier(0.33, 0.9, 0.4, 1)",
             }}
           >
             <div
@@ -287,7 +279,6 @@ export function Cliff({
             className="rope pointer-events-none absolute inset-y-[-12%] left-1/2 z-10 w-[7px] -translate-x-1/2"
             style={{
               backgroundPositionY: `${meH * SPREAD * 5.2}px`,
-              transition: "background-position 900ms cubic-bezier(0.33, 0.9, 0.4, 1)",
             }}
           />
         )}

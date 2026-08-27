@@ -7,6 +7,7 @@ import type { Address } from "viem";
 import { Cliff, liveMultipleOf, CAST, type ClimberId } from "./Cliff";
 import { useSound, useHeartbeat } from "./sound";
 import { hasWallet, connect, paySeat, collateralBalance } from "./wallet";
+import { useSmoothed } from "./useSmoothed";
 
 const SEAT = 10_000_000n; // 10 tUSDC, 6 decimals
 const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
@@ -338,7 +339,9 @@ function TopBar({
   const t = state?.table;
   const roping = t?.status === "filling" && t.seated > 0;
   // The money line: what the run is worth right now, against the 10 seat.
-  const value = me ? liveMultipleOf(me, state?.price ?? { up: null, down: null }) * me.buyIn : null;
+  // Smoothed at the same rate as the wall, so header and climber agree.
+  const mult = useSmoothed(liveMultipleOf(me, state?.price ?? { up: null, down: null }), 340, 3);
+  const value = me ? mult * me.buyIn : null;
   const delta = me && value !== null ? value - me.buyIn : null;
   return (
     <header className="flex items-center justify-between gap-4">
@@ -460,7 +463,8 @@ function StatPanel({
   climber: ClimberId;
 }) {
   const cast = CAST.find((c) => c.id === climber) ?? CAST[0];
-  const mult = me ? liveMultipleOf(me, state?.price ?? { up: null, down: null }) : null;
+  const smoothMult = useSmoothed(liveMultipleOf(me, state?.price ?? { up: null, down: null }), 340, 3);
+  const mult = me ? smoothMult : null;
   const record = state?.wallRecord?.multiple ?? null;
   const best = me?.best ?? null;
   // One scale for every bar, so they are comparable at a glance.
@@ -525,7 +529,7 @@ function BailBar({
   pending: boolean;
   onBank: () => void;
 }) {
-  const liveMult = liveMultipleOf(me, price);
+  const liveMult = useSmoothed(liveMultipleOf(me, price), 340, 3);
   const keep = liveMult * me.buyIn;
   const sideC = me.pick === "UP" ? "var(--up)" : "var(--down)";
   return (
@@ -599,6 +603,7 @@ function Sides({
           const pays = isUp ? state.pays.up : state.pays.down;
           const capped = isUp ? state.capped.up : state.capped.down;
           const picked = shownPick === side;
+          const unpicked = shownPick !== null && !picked;
           const c = isUp ? "var(--up)" : "var(--down)";
 
           return (
@@ -606,7 +611,7 @@ function Sides({
               key={side}
               disabled={!canPick || capped}
               onClick={() => onPick(side)}
-              className={`side ${isUp ? "side-up" : "side-down"} ${picked ? "picked" : ""} chamfer border p-4 text-left disabled:cursor-not-allowed sm:p-5`}
+              className={`side ${isUp ? "side-up" : "side-down"} ${picked ? "picked" : ""} ${unpicked ? "unpicked" : ""} chamfer border p-4 text-left disabled:cursor-not-allowed sm:p-5`}
               style={{
                 color: c,
                 borderColor: picked ? c : "var(--edge)",
