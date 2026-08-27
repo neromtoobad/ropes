@@ -252,6 +252,8 @@ export async function closeRound(roundId: string) {
           status: "eliminated",
           endedRoundIndex: round.index,
           finalMultiple: Number(remainder) / Number(pos.run.buyIn),
+          // A pending bail the bell beat to the punch is resolved by the bell.
+          bailRequested: false,
         },
       });
       log(`  ☠ ${pos.run.player.displayName} eliminated` +

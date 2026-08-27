@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import type { TableState } from "@/lib/state";
-import { usePriceSeries } from "./Chart";
 import { Cliff, liveMultipleOf } from "./Cliff";
 import { useSound, useHeartbeat } from "./sound";
 
@@ -140,7 +139,6 @@ export default function Table() {
     }
   };
 
-  const points = usePriceSeries(state?.round?.index ?? null, state?.btc.price ?? null);
   const sound = useSound();
 
   const me = state?.seats.find((s) => s.runId === runId) ?? null;

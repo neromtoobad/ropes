@@ -24,6 +24,7 @@ const body = Chakra_Petch({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000"),
   title: "THE CLIMB",
   description: "Climb the candle. A battle royale on Bitcoin — last one on the wall takes the pot.",
   icons: { icon: "/favicon-64.png", apple: "/icon.png" },

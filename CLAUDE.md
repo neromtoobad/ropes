@@ -522,6 +522,8 @@ lonely side pays a lot. show the crowd's split on screen — that is the strateg
   while the table plays around it. `sweepZombies` runs after every settlement.
 ➠ do not label a sweep as "banked" anywhere. the player never made that choice — the feed says
   SWEPT and the run carries `bankedAuto`.
+➠ do not run `next build` while `next dev` is serving — they share `.next` and the dev server
+  starts 500ing on corrupted chunks. `rm -rf .next` and restart it.
 ➠ **after `prisma generate`, restart the next dev server.** it holds a stale client and silently
   returns the old shape — a new column reads as undefined with no error anywhere.
 ➠ do not run the executor bare — use `./run-executor.sh`. the SDK never reconnects a dropped
