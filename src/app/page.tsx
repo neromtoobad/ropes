@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import type { TableState } from "@/lib/state";
-import { Chart, usePriceSeries } from "./Chart";
+import { usePriceSeries } from "./Chart";
 import { Cliff } from "./Cliff";
 import { useSound, useHeartbeat } from "./sound";
 
@@ -162,12 +162,19 @@ export default function Table() {
   }, [bell, sound]);
 
   return (
-    <main className={`relative z-10 mx-auto min-h-screen max-w-5xl px-5 py-6 ${bell ? "shake" : ""}`}>
+    <main className={`relative z-10 mx-auto min-h-screen max-w-5xl px-5 py-5 ${bell ? "shake" : ""}`}>
       {secs > 0 && secs < 10 && <div className="danger" />}
       <Header state={state} urgent={urgent} sound={sound} />
 
       <TableStrip state={state} />
 
+      {/*
+        THE WALL IS THE SCREEN.
+        The seat cards and the price chart used to live below this, but the
+        climbers ARE the seats — rendering both showed every player twice and
+        made the page read as the old game with a cliff bolted on top. The line
+        to beat now lives on the wall itself.
+      */}
       <Cliff
         seats={state?.seats ?? []}
         price={state?.price ?? { up: null, down: null }}
@@ -175,55 +182,18 @@ export default function Table() {
         myRunId={runId}
         falling={bell?.killed ?? []}
         leaping={leaping}
+        btc={state?.btc ?? { price: null, strike: null, oracleQuestionId: null }}
       />
 
+      {/* One row: pick a side, or bail. Never both — they are different moments. */}
       <div className="mt-3">
-        <Chart
-          points={points}
-          strike={state?.btc.strike ?? null}
-          price={state?.btc.price ?? null}
-          secondsLeft={secs}
-          roundIndex={state?.round?.index ?? null}
-        />
-      </div>
-
-      {state?.round && (
-        <Sides
-          state={state}
-          me={me}
-          onPick={(side) => {
-            // First gesture is what lets the AudioContext exist at all.
-            sound.arm();
-            sound.play("click");
-            if (runId) post("/api/pick", { runId, side });
-          }}
-        />
-      )}
-
-      <Seats
-        state={state}
-        runId={runId}
-        bellIndex={bell?.index ?? null}
-        killed={bell?.killed ?? []}
-        survived={(bell?.survived ?? []).map((s) => s.name)}
-      />
-
-      <div className="mt-6">
         {!runId || !me ? (
           <Join name={name} setName={setName} onJoin={() => { sound.arm(); join(); }} />
-        ) : (
-          <YourRun
+        ) : me.inRound ? (
+          <BailBar
             me={me}
             record={state?.record ?? null}
-            auto={auto}
-            onAuto={async () => {
-              sound.play("click");
-              const next = !auto;
-              setAuto(next);
-              if (runId) await post("/api/auto", { runId, on: next, side: me.pick });
-            }}
             onBank={async () => {
-              // Play the leap first; the money follows.
               if (me) setLeaping((n) => [...n, me.name]);
               sound.play("win");
               const r = await post("/api/bank", { runId });
@@ -231,51 +201,89 @@ export default function Table() {
               setTimeout(() => setLeaping((n) => n.filter((x) => x !== me?.name)), 1400);
             }}
           />
-        )}
-        {err && <p className="mt-3 text-sm text-[var(--down)]">{err}</p>}
+        ) : state?.round ? (
+          <Sides
+            state={state}
+            me={me}
+            onPick={(side) => {
+              sound.arm();
+              sound.play("click");
+              if (runId) post("/api/pick", { runId, side });
+            }}
+          />
+        ) : null}
+        {err && <p className="mt-2 text-sm text-[var(--down)]">{err}</p>}
       </div>
 
       <Feed state={state} />
-      <Board state={state} />
       {bell && <Bell result={bell} />}
-      {crown && <Crown champion={crown} />}
       <Footnote state={state} />
     </main>
   );
 }
 
-/**
- * The cohort strip. Without this the game reads as an open table anyone can
- * wander into; with it there is a fixed field, a shrinking count and a prize.
- */
+/** The cohort strip: which table you are on, how many are left, what is at stake. */
 function TableStrip({ state }: { state: TableState | null }) {
   const t = state?.table;
   if (!t) return null;
   const filling = t.status === "filling";
-  const seal = Math.ceil(t.sealsIn);
   return (
     <div
-      className="chamfer-sm mb-3 flex items-center justify-between border px-4 py-2.5"
-      style={{ background: "var(--panel)", borderColor: "var(--edge)" }}
+      className="chamfer-sm mb-3 flex items-center justify-between border px-4 py-2"
+      style={{ borderColor: "var(--edge)", background: "var(--panel)" }}
     >
-      <div className="flex items-baseline gap-3">
-        <span className="display text-sm tracking-[0.15em]">TABLE {t.index}</span>
-        {filling ? (
-          <span className="text-[11px] font-bold tracking-widest text-[var(--dim)]">
-            FILLING · {t.seated}/{t.maxSeats} SEATED · SEALS IN {Math.floor(seal / 60)}:
-            {String(seal % 60).padStart(2, "0")}
-          </span>
-        ) : (
-          <span className="text-[11px] font-bold tracking-widest glow-down">
-            {t.alive} OF {t.seated} REMAINING
-          </span>
-        )}
-      </div>
-      <div className="text-right">
-        <span className="text-[9px] font-bold tracking-[0.25em] text-[var(--dim)]">POT </span>
-        <span className="display tabular text-lg glow-gold">{t.pot.toFixed(2)}</span>
-      </div>
+      <span className="text-[10px] font-black tracking-[0.2em]">
+        TABLE {t.index}
+        <span className="ml-3 font-bold text-[var(--dim)]">
+          {filling
+            ? `FILLING · ${t.seated}/${t.maxSeats} SEATED · SEALS IN 0:${String(Math.max(0, Math.round(t.sealsIn))).padStart(2, "0")}`
+            : `${t.alive} OF ${t.seated} LEFT ON THE WALL`}
+        </span>
+      </span>
+      <span className="tabular text-[10px] font-black tracking-[0.2em] text-[var(--dim)]">
+        POT <span className="glow-gold">{t.pot.toFixed(2)}</span>
+      </span>
     </div>
+  );
+}
+
+/**
+ * The one control that matters while you are on the wall. It is deliberately
+ * the only thing on screen at that moment: picking is over, and the sole
+ * remaining decision is whether to jump.
+ */
+function BailBar({
+  me,
+  record,
+  onBank,
+}: {
+  me: TableState["seats"][number];
+  record: TableState["record"];
+  onBank: () => void;
+}) {
+  return (
+    <button
+      onClick={onBank}
+      className="chamfer flex w-full items-center justify-between border px-5 py-4 text-left transition"
+      style={{
+        borderColor: "var(--gold)",
+        background: "linear-gradient(90deg, #241c07, var(--panel))",
+        boxShadow: "0 0 44px -18px var(--gold)",
+      }}
+    >
+      <span>
+        <span className="display text-2xl glow-gold sm:text-3xl">BAIL</span>
+        <span className="ml-3 text-[11px] font-bold tracking-widest text-[var(--dim)]">
+          KEEP {me.stack.toFixed(2)}
+          {record && me.rounds > 0 && me.rounds < record.rounds
+            ? ` · ${record.rounds - me.rounds} FROM THE RECORD`
+            : ""}
+        </span>
+      </span>
+      <span className="display tabular text-3xl glow-gold sm:text-4xl">
+        {me.multiple.toFixed(2)}×
+      </span>
+    </button>
   );
 }
 

@@ -41,6 +41,7 @@ export function Cliff({
   myRunId,
   falling,
   leaping,
+  btc,
 }: {
   seats: TableState["seats"];
   price: TableState["price"];
@@ -50,6 +51,8 @@ export function Cliff({
   falling: string[];
   /** Names that just bailed. They leap clear rather than fall. */
   leaping: string[];
+  /** BTC against the line, shown on the wall now the chart is gone. */
+  btc: TableState["btc"];
 }) {
   // Direction of travel decides the pose, so the previous height has to persist
   // across renders. A climber that is rising climbs; one that is losing ground
@@ -108,7 +111,7 @@ export function Cliff({
     <div
       className="relative overflow-hidden rounded-2xl border"
       style={{
-        height: 420,
+        height: 520,
         borderColor: urgent ? "#3d1220" : "var(--edge)",
         background:
           "linear-gradient(180deg, #171528 0%, #100e1c 45%, #0a0812 100%)",
@@ -180,12 +183,13 @@ export function Cliff({
               alt=""
               width={64}
               height={96}
-              className="h-[68px] w-auto sm:h-[86px]"
+              className="h-[76px] w-auto sm:h-[104px]"
               style={{
                 filter: mine ? "drop-shadow(0 0 14px var(--gold-glow))" : "none",
                 transform: pose === "slip" ? "scaleX(-1)" : undefined,
               }}
-              priority={i < 3}
+              priority
+              unoptimized
             />
           </div>
         );
@@ -196,6 +200,32 @@ export function Cliff({
         // line and the two strings overprint each other.
         <div className="absolute inset-x-0 top-[22%] text-center text-[10px] tracking-[0.3em] text-[var(--dim)]">
           NOBODY ON THE WALL
+        </div>
+      )}
+
+      {/* BTC against the line. The chart no longer sits below the wall, so the
+          number that decides everyone's fate has to be on the wall itself. */}
+      {btc.price !== null && btc.strike !== null && (
+        <div className="pointer-events-none absolute right-4 top-3 text-right">
+          <p
+            className="display tabular text-2xl leading-none sm:text-3xl"
+            style={{
+              color: btc.price >= btc.strike ? "var(--up)" : "var(--down)",
+              textShadow: `0 0 36px ${btc.price >= btc.strike ? "var(--up-glow)" : "var(--down-glow)"}`,
+            }}
+          >
+            {btc.price.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+          </p>
+          <p
+            className="tabular text-[10px] font-black tracking-widest"
+            style={{ color: btc.price >= btc.strike ? "var(--up)" : "var(--down)" }}
+          >
+            {btc.price >= btc.strike ? "▲ +" : "▼ "}
+            {(btc.price - btc.strike).toFixed(2)}
+          </p>
+          <p className="tabular mt-0.5 text-[9px] font-bold tracking-widest text-[var(--dim)]">
+            TO BEAT {btc.strike.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+          </p>
         </div>
       )}
 
