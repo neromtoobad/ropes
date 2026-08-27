@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import type { TableState } from "@/lib/state";
 import { Chart, usePriceSeries } from "./Chart";
+import { Cliff } from "./Cliff";
 import { useSound, useHeartbeat } from "./sound";
 
 const POLL_MS = 750;
@@ -164,13 +165,23 @@ export default function Table() {
 
       <TableStrip state={state} />
 
-      <Chart
-        points={points}
-        strike={state?.btc.strike ?? null}
-        price={state?.btc.price ?? null}
+      <Cliff
+        seats={state?.seats ?? []}
+        price={state?.price ?? { up: null, down: null }}
         secondsLeft={secs}
-        roundIndex={state?.round?.index ?? null}
+        myRunId={runId}
+        falling={bell?.killed ?? []}
       />
+
+      <div className="mt-3">
+        <Chart
+          points={points}
+          strike={state?.btc.strike ?? null}
+          price={state?.btc.price ?? null}
+          secondsLeft={secs}
+          roundIndex={state?.round?.index ?? null}
+        />
+      </div>
 
       {state?.round && (
         <Sides
