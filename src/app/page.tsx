@@ -3,13 +3,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import type { TableState } from "@/lib/state";
-import { Cliff, liveMultipleOf } from "./Cliff";
+import { Cliff, liveMultipleOf, CAST, type ClimberId } from "./Cliff";
 import { useSound, useHeartbeat } from "./sound";
 
 const POLL_MS = 750;
-
-/** One identity colour per seat, so the table reads as a roster. */
-const SEAT_COLOURS = ["#00e58a", "#ff2f52", "#ffc94d", "#4da3ff", "#c77dff", "#ff8f3f", "#3fe0d0", "#ff5fa2"];
 
 /** Identity is a local key + a name. No wallet needed to sit down — the house
  *  executor holds the collateral, and every position is verifiable on-chain. */
@@ -26,20 +23,9 @@ function usePlayerKey() {
   return key;
 }
 
-/** Lucide-style speaker, 1.75 stroke, inheriting colour from the button. */
 function SpeakerIcon({ on }: { on: boolean }) {
   return (
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.75"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d="M11 5 6 9H2v6h4l5 4V5Z" />
       {on ? (
         <>
@@ -56,34 +42,28 @@ function SpeakerIcon({ on }: { on: boolean }) {
   );
 }
 
-export default function Table() {
+export default function Game() {
   const playerKey = usePlayerKey();
   const [state, setState] = useState<TableState | null>(null);
   const [runId, setRunId] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [err, setErr] = useState<string | null>(null);
   const [bell, setBell] = useState<TableState["lastResult"]>(null);
-  const [auto, setAuto] = useState(false);
-  // Names mid-leap. Held locally so the jump plays on tap rather than waiting
-  // for the next poll to confirm — a bail that lags reads as a dropped input.
   const [leaping, setLeaping] = useState<string[]>([]);
-  // The name just overtaken, briefly on screen.
   const [passed, setPassed] = useState<string | null>(null);
-  // Optimistic pick: highlight on tap, not on the next poll. Rolls back if the
-  // server refuses. Also the busy latch that keeps every submit single-fire.
   const [optimisticPick, setOptimisticPick] = useState<"UP" | "DOWN" | null>(null);
   const [busy, setBusy] = useState(false);
-  // BAIL fired and the executor is selling — the button must not fire twice.
   const [bailing, setBailing] = useState(false);
-  const [crown, setCrown] = useState<TableState["champion"]>(null);
-  const lastCrown = useRef<number | null>(null);
+  // Which of the eight climbers you are. Cosmetic, local, and yours.
+  const [climber, setClimber] = useState<ClimberId>("green");
   const lastBellIndex = useRef<number | null>(null);
 
   useEffect(() => {
     setRunId(localStorage.getItem("lc.runId"));
+    const saved = localStorage.getItem("lc.climber");
+    if (saved && CAST.some((c) => c.id === saved)) setClimber(saved as ClimberId);
   }, []);
 
-  // Poll. Simple beats elegant for eight players on one table.
   useEffect(() => {
     let alive = true;
     const tick = async () => {
@@ -93,24 +73,14 @@ export default function Table() {
         if (!alive) return;
         setState(next);
 
-        // Ring the bell once per newly settled round.
         const idx = next.lastResult?.index ?? null;
         if (idx !== null && lastBellIndex.current !== null && idx !== lastBellIndex.current) {
           setBell(next.lastResult);
           setTimeout(() => setBell(null), 2600);
         }
         lastBellIndex.current = idx;
-
-        // A table resolving to one player is the whole point of the game, so it
-        // gets its own moment rather than sharing the round bell.
-        const ct = next.champion?.tableIndex ?? null;
-        if (ct !== null && lastCrown.current !== null && ct !== lastCrown.current) {
-          setCrown(next.champion);
-          setTimeout(() => setCrown(null), 5000);
-        }
-        lastCrown.current = ct;
       } catch {
-        /* keep the last good frame rather than blanking the table */
+        /* keep the last good frame rather than blanking the wall */
       }
     };
     tick();
@@ -148,16 +118,12 @@ export default function Table() {
   };
 
   const sound = useSound();
-
   const me = state?.seats.find((s) => s.runId === runId) ?? null;
   const secs = state?.round?.secondsLeft ?? 0;
   const urgent = secs > 0 && secs < 15;
 
-  // The heart only beats while you actually have something at stake.
   useHeartbeat(secs, Boolean(me?.inRound));
 
-  // The bell, scored to what it did to YOU: your run ending sounds nothing like
-  // your stack multiplying, and a round you sat out is just a distant toll.
   const nameRef = useRef<string | null>(null);
   nameRef.current = me?.name ?? null;
   useEffect(() => {
@@ -169,36 +135,86 @@ export default function Table() {
     else sound.play("toll");
   }, [bell, sound]);
 
+  const pickClimber = (id: ClimberId) => {
+    sound.arm();
+    sound.play("click");
+    setClimber(id);
+    localStorage.setItem("lc.climber", id);
+  };
+
   return (
-    <main className={`relative z-10 mx-auto min-h-screen max-w-5xl px-5 py-5 ${bell ? "shake" : ""}`}>
+    <main className={`relative z-10 mx-auto min-h-screen max-w-6xl px-4 py-4 ${bell ? "shake" : ""}`}>
       {secs > 0 && secs < 10 && <div className="danger" />}
-      <Header state={state} urgent={urgent} sound={sound} />
 
-      <TableStrip state={state} />
+      <TopBar state={state} urgent={urgent} sound={sound} />
 
-      {/*
-        THE WALL IS THE SCREEN.
-        The seat cards and the price chart used to live below this, but the
-        climbers ARE the seats — rendering both showed every player twice and
-        made the page read as the old game with a cliff bolted on top. The line
-        to beat now lives on the wall itself.
-      */}
-      <Cliff
-        seats={state?.seats ?? []}
-        price={state?.price ?? { up: null, down: null }}
-        secondsLeft={secs}
-        myRunId={runId}
-        falling={bell?.killed ?? []}
-        leaping={leaping}
-        btc={state?.btc ?? { price: null, strike: null, oracleQuestionId: null }}
-        record={state?.wallRecord ?? null}
-        onMilestone={(m) => {
-          // A ledge climbed past is the solo game's overtake.
-          sound.play("win");
-          setPassed(`${m}×`);
-          setTimeout(() => setPassed(null), 2000);
-        }}
-      />
+      {/* The HUD: roster rail · the wall · the stat block. */}
+      <div className="mt-3 grid gap-3 lg:grid-cols-[72px_minmax(0,1fr)_240px]">
+        <Rail climber={climber} onPick={pickClimber} lockedIn={Boolean(me)} />
+
+        <div className="min-w-0">
+          <Cliff
+            seats={state?.seats ?? []}
+            price={state?.price ?? { up: null, down: null }}
+            secondsLeft={secs}
+            myRunId={runId}
+            falling={bell?.killed ?? []}
+            leaping={leaping}
+            btc={state?.btc ?? { price: null, strike: null, oracleQuestionId: null }}
+            record={state?.wallRecord ?? null}
+            climber={climber}
+            onMilestone={(m) => {
+              sound.play("win");
+              setPassed(`${m}×`);
+              setTimeout(() => setPassed(null), 2000);
+            }}
+          />
+
+          {/* One control, matched to the moment. Never several at once. */}
+          <div className="mt-3">
+            {!runId || !me ? (
+              <Join name={name} setName={setName} busy={busy} onJoin={() => { sound.arm(); join(); }} />
+            ) : me.inRound ? (
+              <BailBar
+                me={me}
+                price={state?.price ?? { up: null, down: null }}
+                pending={bailing}
+                onBank={async () => {
+                  if (bailing) return;
+                  setBailing(true);
+                  if (me) setLeaping((n) => [...n, me.name]);
+                  sound.play("win");
+                  const r = await post("/api/bank", { runId });
+                  if (r?.ok) localStorage.removeItem("lc.runId");
+                  else setBailing(false);
+                  setTimeout(() => setLeaping((n) => n.filter((x) => x !== me?.name)), 1400);
+                }}
+              />
+            ) : state?.round ? (
+              <Sides
+                state={state}
+                me={me}
+                optimistic={optimisticPick}
+                onPick={async (side) => {
+                  if (busy) return;
+                  sound.arm();
+                  sound.play("click");
+                  setOptimisticPick(side);
+                  if (runId) {
+                    setBusy(true);
+                    const r = await post("/api/pick", { runId, side });
+                    setBusy(false);
+                    if (!r) setOptimisticPick(null);
+                  }
+                }}
+              />
+            ) : null}
+            {err && <p className="mt-2 text-sm text-[var(--down)]">{err}</p>}
+          </div>
+        </div>
+
+        <StatPanel state={state} me={me} climber={climber} />
+      </div>
 
       {passed && (
         <div className="pointer-events-none fixed inset-x-0 top-[28%] z-40 text-center">
@@ -206,100 +222,204 @@ export default function Table() {
         </div>
       )}
 
-      {/* One row: pick a side, or bail. Never both — they are different moments. */}
-      <div className="mt-3">
-        {!runId || !me ? (
-          <Join name={name} setName={setName} onJoin={() => { sound.arm(); join(); }} />
-        ) : me.inRound ? (
-          <BailBar
-            me={me}
-            price={state?.price ?? { up: null, down: null }}
-            record={state?.record ?? null}
-            pending={bailing}
-            onBank={async () => {
-              if (bailing) return;
-              setBailing(true);
-              if (me) setLeaping((n) => [...n, me.name]);
-              sound.play("win");
-              const r = await post("/api/bank", { runId });
-              if (r?.ok) localStorage.removeItem("lc.runId");
-              else setBailing(false); // refused — re-arm the button
-              setTimeout(() => setLeaping((n) => n.filter((x) => x !== me?.name)), 1400);
-            }}
-          />
-        ) : state?.round ? (
-          <Sides
-            state={state}
-            me={me}
-            optimistic={optimisticPick}
-            onPick={async (side) => {
-              if (busy) return;
-              sound.arm();
-              sound.play("click");
-              setOptimisticPick(side);
-              if (runId) {
-                setBusy(true);
-                const r = await post("/api/pick", { runId, side });
-                setBusy(false);
-                if (!r) setOptimisticPick(null); // refused — roll back
-              }
-            }}
-          />
-        ) : null}
-        {err && <p className="mt-2 text-sm text-[var(--down)]">{err}</p>}
+      <div id="runs">
+        <Feed state={state} />
       </div>
-
-      <Feed state={state} />
       {bell && <Bell result={bell} />}
       <Footnote state={state} />
     </main>
   );
 }
 
-/** Solo strip: roping up, or on the wall. The cohort UI returns with multiplayer. */
-function TableStrip({ state }: { state: TableState | null }) {
+/* ───────────────────────────── top bar ───────────────────────────── */
+
+function TopBar({
+  state,
+  urgent,
+  sound,
+}: {
+  state: TableState | null;
+  urgent: boolean;
+  sound: ReturnType<typeof useSound>;
+}) {
+  const secs = Math.floor(state?.round?.secondsLeft ?? 0);
   const t = state?.table;
-  if (!t) return null;
-  const roping = t.status === "filling" && t.seated > 0;
-  if (t.status === "filling" && t.seated === 0) return null;
+  const roping = t?.status === "filling" && t.seated > 0;
   return (
-    <div
-      className="chamfer-sm mb-3 flex items-center justify-between border px-4 py-2"
-      style={{ borderColor: "var(--edge)", background: "var(--panel)" }}
-    >
-      <span className="text-[10px] font-black tracking-[0.2em]">
-        {roping
-          ? `ROPING UP · CLIMB STARTS IN 0:${String(Math.max(0, Math.round(t.sealsIn))).padStart(2, "0")}`
-          : `ON THE WALL${state?.round ? ` · ROUND ${state.round.index}` : ""}`}
-      </span>
-      <span className="tabular text-[10px] font-black tracking-[0.2em] text-[var(--dim)]">
-        SEAT 10.00
-      </span>
+    <header className="flex items-center justify-between gap-4">
+      <div className="flex items-center gap-3">
+        <Image src="/mark.png" alt="" width={26} height={40} priority className="h-9 w-auto" />
+        <div>
+          <h1 className="display text-base leading-none tracking-[0.2em] sm:text-lg">THE CLIMB</h1>
+          <p className="mt-0.5 text-[9px] font-bold tracking-[0.3em] text-[var(--dim)]">
+            {roping
+              ? `ROPING UP · 0:${String(Math.max(0, Math.round(t!.sealsIn))).padStart(2, "0")}`
+              : state?.locked
+                ? "ON THE WALL"
+                : "BTC · 1 MINUTE"}
+          </p>
+        </div>
+      </div>
+
+      <nav className="flex items-center gap-1" aria-label="sections">
+        <span className="gametab active hidden sm:inline-block">CLIMB</span>
+        <a className="gametab hidden sm:inline-block" href="#runs">RUNS</a>
+        <button
+          onClick={sound.toggle}
+          aria-label={sound.on ? "Mute sound" : "Unmute sound"}
+          aria-pressed={sound.on}
+          className="gametab flex items-center"
+        >
+          <SpeakerIcon on={sound.on} />
+        </button>
+      </nav>
+
+      <div className="text-right">
+        <div className={`display tabular outline-num text-5xl leading-[0.85] sm:text-7xl ${urgent ? "clock-urgent" : ""}`}>
+          {String(secs).padStart(2, "0")}
+        </div>
+        <p className="mt-0.5 text-[9px] font-bold tracking-[0.3em] text-[var(--dim)]">TO THE BELL</p>
+      </div>
+    </header>
+  );
+}
+
+/* ─────────────────────────── roster rail ─────────────────────────── */
+
+/**
+ * The selection rail from every mech garage: eight climbers, one outlined.
+ * Purely cosmetic — the market does not care what you look like — but choosing
+ * a body is half of what makes a game feel like one.
+ */
+function Rail({
+  climber,
+  onPick,
+  lockedIn,
+}: {
+  climber: ClimberId;
+  onPick: (id: ClimberId) => void;
+  lockedIn: boolean;
+}) {
+  return (
+    <div className="flex gap-2 overflow-x-auto lg:flex-col lg:overflow-visible">
+      <p className="hidden text-[8px] font-black tracking-[0.3em] text-[var(--dim)] lg:block">
+        CLIMBER
+      </p>
+      {CAST.map((c) => (
+        <button
+          key={c.id}
+          onClick={() => onPick(c.id)}
+          disabled={lockedIn && climber !== c.id}
+          title={`${c.code} ${c.label}`}
+          aria-pressed={climber === c.id}
+          className={`slot chamfer-sm h-[56px] w-[56px] shrink-0 lg:h-[60px] lg:w-full ${climber === c.id ? "sel" : ""} disabled:cursor-not-allowed disabled:opacity-35`}
+        >
+          <Image
+            src={`/climbers/${c.id}/climb.png`}
+            alt={c.label}
+            width={40}
+            height={56}
+            unoptimized
+            className="h-[44px] w-auto"
+          />
+        </button>
+      ))}
     </div>
   );
 }
 
-/**
- * The one control that matters while you are on the wall. It is deliberately
- * the only thing on screen at that moment: picking is over, and the sole
- * remaining decision is whether to jump.
- */
+/* ─────────────────────────── stat panel ──────────────────────────── */
+
+function Stat({ label, value, frac }: { label: string; value: string; frac: number }) {
+  return (
+    <div>
+      <div className="flex items-baseline justify-between">
+        <span className="text-[9px] font-black tracking-[0.25em] text-[var(--dim)]">{label}</span>
+        <span className="tabular text-[11px] font-bold">{value}</span>
+      </div>
+      <div className="statbar mt-1">
+        <div style={{ width: `${Math.max(2, Math.min(100, frac * 100))}%` }} />
+      </div>
+    </div>
+  );
+}
+
+/** The RPG stat block: altitude as the level numeral, then the bars. */
+function StatPanel({
+  state,
+  me,
+  climber,
+}: {
+  state: TableState | null;
+  me: TableState["seats"][number] | null;
+  climber: ClimberId;
+}) {
+  const cast = CAST.find((c) => c.id === climber) ?? CAST[0];
+  const mult = me ? liveMultipleOf(me, state?.price ?? { up: null, down: null }) : null;
+  const record = state?.wallRecord?.multiple ?? null;
+  const best = me?.best ?? null;
+  // One scale for every bar, so they are comparable at a glance.
+  const scale = Math.max(record ?? 0, best ?? 0, mult ?? 0, 2);
+  const btc = state?.btc;
+
+  return (
+    <aside className="ticks chamfer-sm hidden flex-col gap-4 border p-4 lg:flex"
+      style={{ borderColor: "var(--edge)", background: "linear-gradient(180deg, var(--panel-2), var(--panel))" }}>
+      <div>
+        <p className="text-[9px] font-black tracking-[0.3em] text-[var(--dim)]">{cast.code}</p>
+        <p className="display text-lg tracking-[0.08em]">{cast.label}</p>
+        <span className="hatch mt-1 block h-[6px] w-full" />
+      </div>
+
+      <div className="border border-[var(--edge)] px-3 py-2">
+        <p className="text-[9px] font-black tracking-[0.3em] text-[var(--dim)]">ALTITUDE</p>
+        <p className="display tabular text-5xl leading-none glow-gold">
+          {mult !== null ? mult.toFixed(2) : "—"}
+          {mult !== null && <span className="text-2xl opacity-70">×</span>}
+        </p>
+      </div>
+
+      <div className="flex flex-col gap-3">
+        <Stat label="CURRENT" value={mult !== null ? `${mult.toFixed(2)}×` : "—"} frac={(mult ?? 0) / scale} />
+        <Stat label="YOUR BEST" value={best !== null ? `${best.toFixed(2)}×` : "—"} frac={(best ?? 0) / scale} />
+        <Stat label="RECORD" value={record !== null ? `${record.toFixed(2)}×` : "—"} frac={(record ?? 0) / scale} />
+        <Stat
+          label="ROUNDS"
+          value={me ? `${me.rounds}` : "—"}
+          frac={me && state?.record ? Math.min(1, me.rounds / Math.max(state.record.rounds, 1)) : 0}
+        />
+      </div>
+
+      {btc?.price != null && btc.strike != null && (
+        <div className="mt-auto border-t border-[var(--edge)] pt-3">
+          <p className="text-[9px] font-black tracking-[0.3em] text-[var(--dim)]">BTC vs THE LINE</p>
+          <p className="tabular mt-1 text-lg font-bold"
+            style={{ color: btc.price >= btc.strike ? "var(--up)" : "var(--down)" }}>
+            {btc.price >= btc.strike ? "▲ +" : "▼ "}
+            {(btc.price - btc.strike).toFixed(2)}
+          </p>
+          <p className="tabular text-[10px] text-[var(--dim)]">
+            TO BEAT {btc.strike.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+          </p>
+        </div>
+      )}
+    </aside>
+  );
+}
+
+/* ─────────────────────────── action bar ──────────────────────────── */
+
 function BailBar({
   me,
   price,
-  record,
   pending,
   onBank,
 }: {
   me: TableState["seats"][number];
   price: TableState["price"];
-  record: TableState["record"];
   pending: boolean;
   onBank: () => void;
 }) {
-  // The LIVE number — same maths as the wall. Promising the cost-basis stack
-  // here showed KEEP 10.00 while the climber hung at 0.10x, which is a lie
-  // about money at the exact moment the player is deciding whether to jump.
   const liveMult = liveMultipleOf(me, price);
   const keep = liveMult * me.buyIn;
   return (
@@ -317,67 +437,10 @@ function BailBar({
         <span className="display text-2xl glow-gold sm:text-3xl">{pending ? "SELLING…" : "BAIL"}</span>
         <span className="ml-3 text-[11px] font-bold tracking-widest text-[var(--dim)]">
           {pending ? "ON THE BOOK — MONEY LANDS IN A MOMENT" : `KEEP ${keep.toFixed(2)}`}
-          {record && me.rounds > 0 && me.rounds < record.rounds
-            ? ` · ${record.rounds - me.rounds} FROM THE RECORD`
-            : ""}
         </span>
       </span>
-      <span className="display tabular text-3xl glow-gold sm:text-4xl">
-        {liveMult.toFixed(2)}×
-      </span>
+      <span className="display tabular text-3xl glow-gold sm:text-4xl">{liveMult.toFixed(2)}×</span>
     </button>
-  );
-}
-
-function Header({
-  state,
-  urgent,
-  sound,
-}: {
-  state: TableState | null;
-  urgent: boolean;
-  sound: ReturnType<typeof useSound>;
-}) {
-  const secs = Math.floor(state?.round?.secondsLeft ?? 0);
-  const alive = state?.seats.length ?? 0;
-  return (
-    <header className="mb-4 flex items-end justify-between">
-      <div>
-        <div className="flex items-center gap-3">
-          <Image
-            src="/mark.png"
-            alt=""
-            width={26}
-            height={46}
-            priority
-            className="h-8 w-auto sm:h-11"
-          />
-          <h1 className="display text-base tracking-[0.2em] sm:text-xl sm:tracking-[0.28em]">THE CLIMB</h1>
-          <button
-            onClick={sound.toggle}
-            aria-label={sound.on ? "Mute sound" : "Unmute sound"}
-            aria-pressed={sound.on}
-            className="rounded border border-[var(--edge)] p-1.5 text-[var(--dim)] transition-colors duration-200 hover:text-[var(--gold)]"
-          >
-            <SpeakerIcon on={sound.on} />
-          </button>
-        </div>
-        <p className="mt-1 flex items-center gap-2 text-[10px] font-bold tracking-[0.25em] text-[var(--dim)]">
-          {state?.round ? "CLIMB THE CANDLE · BTC 1M" : "WAITING FOR A WINDOW"}
-          {state?.locked && <span className="glow-gold">● LOCKED</span>}
-        </p>
-      </div>
-
-      <div className="text-right">
-        {/* The clock is the loudest object on the page on purpose. */}
-        <div className={`display tabular outline-num text-6xl leading-[0.85] sm:text-8xl ${urgent ? "clock-urgent" : ""}`}>
-          {String(secs).padStart(2, "0")}
-        </div>
-        <p className="mt-1 text-[10px] font-bold tracking-[0.25em] text-[var(--dim)]">
-          TO THE BELL
-        </p>
-      </div>
-    </header>
   );
 }
 
@@ -396,10 +459,10 @@ function Sides({
   const shownPick = optimistic ?? me?.pick ?? null;
   return (
     <>
-      <div className="mt-4 mb-2 flex items-baseline justify-between text-[10px] font-bold tracking-[0.25em] text-[var(--dim)]">
+      <div className="mb-2 flex items-baseline justify-between text-[10px] font-bold tracking-[0.25em] text-[var(--dim)]">
         <span className={state.locked ? "glow-gold" : ""}>
           {state.table?.status === "filling"
-            ? "WAITING FOR THE TABLE TO SEAL"
+            ? "ROPING UP"
             : state.locked
               ? "LOCKED — WATCH IT PLAY OUT"
               : canPick
@@ -417,8 +480,6 @@ function Sides({
           const price = isUp ? state.price.up : state.price.down;
           const pays = isUp ? state.pays.up : state.pays.down;
           const capped = isUp ? state.capped.up : state.capped.down;
-          const stake = isUp ? state.crowd.liveStake.up : state.crowd.liveStake.down;
-          const calls = isUp ? state.crowd.nextCall.up : state.crowd.nextCall.down;
           const picked = shownPick === side;
           const c = isUp ? "var(--up)" : "var(--down)";
 
@@ -435,16 +496,15 @@ function Sides({
                 opacity: capped ? 0.45 : 1,
               }}
             >
-              <div className="flex items-baseline justify-between">
+              <div className="flex items-baseline justify-between gap-2">
                 <span className="display whitespace-nowrap text-lg tracking-[0.12em] sm:text-2xl sm:tracking-[0.15em]">
                   {isUp ? "▲ UP" : "▼ DOWN"}
                 </span>
-                <span className="tabular whitespace-nowrap text-[10px] font-bold text-[var(--dim)] sm:text-[11px]">
+                <span className="tabular hidden whitespace-nowrap text-[10px] font-bold text-[var(--dim)] min-[420px]:inline sm:text-[11px]">
                   PAYS IF RIGHT
                 </span>
               </div>
 
-              {/* The payout is the whole proposition. Nothing else competes. */}
               {pays ? (
                 <div
                   className="display tabular mt-3 text-5xl leading-none sm:text-7xl"
@@ -454,8 +514,6 @@ function Sides({
                   <span className="align-super text-2xl opacity-60">×</span>
                 </div>
               ) : (
-                // An em dash at 72px in the display face renders as a solid bar
-                // and reads as a broken graphic. Say what is actually happening.
                 <div className="mt-3 flex h-[48px] items-center sm:h-[72px]">
                   <span className="text-sm font-semibold tracking-[0.2em] text-[var(--dim)]">
                     WAITING FOR THE BOOK
@@ -478,90 +536,15 @@ function Sides({
   );
 }
 
-function Seats({
-  state,
-  runId,
-  bellIndex,
-  killed,
-  survived,
-}: {
-  state: TableState | null;
-  runId: string | null;
-  bellIndex: number | null;
-  killed: string[];
-  survived: string[];
-}) {
-  const seats = state?.seats ?? [];
-  const topStack = Math.max(...seats.map((s) => s.stack), 0);
-  if (!seats.length) {
-    return (
-      <p className="py-10 text-center text-sm tracking-widest text-[var(--dim)]">
-        THE TABLE IS EMPTY — TAKE A SEAT
-      </p>
-    );
-  }
-  return (
-    <section className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-      {seats.map((s, i) => {
-        const dying = bellIndex !== null && killed.includes(s.name);
-        const winning = bellIndex !== null && survived.includes(s.name);
-        const mine = s.runId === runId;
-        // Each seat gets its own identity colour, so the table reads as a
-        // roster of players rather than four copies of the same card.
-        const c = SEAT_COLOURS[i % SEAT_COLOURS.length];
-        const side = s.pick === "UP" ? "var(--up)" : s.pick === "DOWN" ? "var(--down)" : "var(--dim)";
-        // Relative stack — who is actually winning, without reading numbers.
-        const share = topStack > 0 ? Math.max(6, (s.stack / topStack) * 100) : 0;
-        return (
-          <div
-            key={s.runId}
-            className={`chamfer-sm relative overflow-hidden border p-3 pb-4 ${dying ? "dying" : winning ? "winning" : "alive"}`}
-            style={{
-              background: "linear-gradient(180deg, var(--panel-2), var(--panel))",
-              borderColor: mine ? "var(--gold)" : undefined,
-            }}
-          >
-            {/* A side bar, so you read the table's split without reading words. */}
-            <div className="absolute inset-y-0 left-0 w-1" style={{ background: c, boxShadow: `0 0 16px ${c}` }} />
-            <div className="flex items-center justify-between pl-2">
-              <span className="truncate text-sm font-bold">{s.name}</span>
-              {s.pick && (
-                <span className="text-[10px] font-black tracking-widest" style={{ color: side }}>
-                  {s.pick}
-                </span>
-              )}
-            </div>
-            <div className="display tabular pl-2 text-2xl leading-tight sm:text-3xl">{s.stack.toFixed(2)}</div>
-            <div className="tabular pl-2 text-[11px] font-bold text-[var(--dim)]">
-              <span style={{ color: s.multiple >= 1 ? "var(--up)" : "var(--down)" }}>
-                {s.multiple.toFixed(2)}×
-              </span>
-              {" · "}
-              {s.rounds}R
-              {s.inRound && s.fillPrice ? ` · @${s.fillPrice.toFixed(3)}` : s.pick ? " · …" : ""}
-            </div>
-
-            {/* Relative stack. Who is leading, read without numbers. */}
-            <div className="mt-2 ml-2 h-1 overflow-hidden rounded-full bg-[#ffffff0d]">
-              <div
-                className="h-full transition-[width] duration-500"
-                style={{ width: `${share}%`, background: c, boxShadow: `0 0 10px ${c}` }}
-              />
-            </div>
-          </div>
-        );
-      })}
-    </section>
-  );
-}
-
 function Join({
   name,
   setName,
+  busy,
   onJoin,
 }: {
   name: string;
   setName: (v: string) => void;
+  busy: boolean;
   onJoin: () => void;
 }) {
   return (
@@ -576,89 +559,29 @@ function Join({
       />
       <button
         onClick={onJoin}
-        disabled={!name.trim()}
-        className="rounded-lg bg-[var(--gold)] px-6 py-3 text-sm font-bold text-black disabled:opacity-40"
+        disabled={!name.trim() || busy}
+        className="chamfer-sm bg-[var(--gold)] px-6 py-3 text-sm font-black tracking-[0.1em] text-black disabled:opacity-40"
       >
-        TAKE A SEAT · 10
+        {busy ? "SEATING…" : "TAKE A SEAT · 10"}
       </button>
     </div>
   );
 }
 
-function YourRun({
-  me,
-  record,
-  onBank,
-  onAuto,
-  auto,
-}: {
-  me: TableState["seats"][number];
-  record: TableState["record"];
-  onBank: () => void;
-  onAuto: () => void;
-  auto: boolean;
-}) {
-  return (
-    <div className="flex items-center justify-between rounded-xl border border-[var(--gold)] p-4" style={{ background: "var(--panel)" }}>
-      <div>
-        <p className="text-xs text-[var(--dim)]">your stack</p>
-        <p className="tabular text-3xl font-black">
-          {me.stack.toFixed(2)}{" "}
-          <span className="text-lg text-[var(--gold)]">{me.multiple.toFixed(2)}×</span>
-          <span className="ml-2 text-sm text-[var(--dim)]">{me.rounds} survived</span>
-        </p>
-        <p className="mt-1 text-xs text-[var(--dim)]">
-          {me.inRound && me.fillPrice
-            ? `in this round on ${me.pick} at ${me.fillPrice.toFixed(3)}`
-            : me.pick
-              ? `${me.pick} — waiting for the book`
-              : "pick a side"}
-          {record && me.rounds > 0 && me.rounds < record.rounds && (
-            <span className="ml-2 text-[var(--gold)]">
-              {record.rounds - me.rounds} from the record
-            </span>
-          )}
-          {record && me.rounds >= record.rounds && (
-            <span className="ml-2 text-[var(--gold)]">longest run alive</span>
-          )}
-        </p>
-      </div>
-      <div className="flex items-center gap-2">
-        {me.pick && (
-          <button
-            onClick={onAuto}
-            title="keep calling this side every round"
-            className={`rounded-lg border px-3 py-3 text-xs font-bold ${
-              auto ? "border-[var(--up)] text-[var(--up)]" : "border-[var(--edge)] text-[var(--dim)]"
-            }`}
-          >
-            AUTO {auto ? "ON" : "OFF"}
-          </button>
-        )}
-        <button
-          onClick={onBank}
-          className="rounded-lg border border-[var(--gold)] px-6 py-3 text-sm font-bold text-[var(--gold)]"
-        >
-          BANK {me.multiple.toFixed(2)}×
-        </button>
-      </div>
-    </div>
-  );
-}
+/* ────────────────────────── bell + feed ──────────────────────────── */
 
 function Bell({ result }: { result: NonNullable<TableState["lastResult"]> }) {
   const c = result.voided ? "var(--gold)" : result.winner === "UP" ? "var(--up)" : "var(--down)";
   return (
     <div className="bell pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-black/92">
       <div className="text-center">
-        <p className="text-xs font-bold tracking-[0.5em] text-[var(--dim)]">ROUND {result.index}</p>
+        <p className="text-xs font-bold tracking-[0.5em] text-[var(--dim)]">THE BELL</p>
         <p
           className="display mt-2 text-[4.5rem] leading-[0.8] tracking-tight sm:text-[9rem]"
           style={{ color: c, textShadow: `0 0 90px ${c}` }}
         >
           {result.voided ? "VOID" : result.winner}
         </p>
-
         {result.killed.length > 0 && (
           <p className="display mt-6 text-xl glow-down sm:text-3xl">
             {result.killed.map((n) => `☠ ${n}`).join("   ")}
@@ -666,9 +589,7 @@ function Bell({ result }: { result: NonNullable<TableState["lastResult"]> }) {
         )}
         {result.survived.length > 0 && (
           <p className="tabular mt-3 text-lg font-bold glow-up">
-            {result.survived
-              .map((s) => `${s.name} ${s.from.toFixed(2)} → ${s.to.toFixed(2)}`)
-              .join("     ")}
+            {result.survived.map((s) => `${s.name} ${s.from.toFixed(2)} → ${s.to.toFixed(2)}`).join("   ")}
           </p>
         )}
       </div>
@@ -676,11 +597,6 @@ function Bell({ result }: { result: NonNullable<TableState["lastResult"]> }) {
   );
 }
 
-/**
- * The kill feed. A battle royale is defined by watching other people go out, and
- * a death reads completely differently when you can see it was $3.20 the wrong
- * way — the near miss is the most re-engaging thing on the screen.
- */
 function Feed({ state }: { state: TableState | null }) {
   const feed = state?.feed ?? [];
   const record = state?.record;
@@ -688,7 +604,7 @@ function Feed({ state }: { state: TableState | null }) {
   return (
     <section className="mt-8">
       <div className="mb-2 flex items-baseline justify-between">
-        <h2 className="text-[10px] font-bold tracking-[0.3em] text-[var(--dim)]">THE FEED</h2>
+        <h2 className="text-[10px] font-bold tracking-[0.3em] text-[var(--dim)]">PAST RUNS</h2>
         {record && (
           <p className="tabular text-[11px] font-bold glow-gold">
             LONGEST RUN · {record.name.toUpperCase()} · {record.rounds}R · {record.multiple.toFixed(2)}×
@@ -699,16 +615,13 @@ function Feed({ state }: { state: TableState | null }) {
         {feed.slice(0, 6).map((f, i) => (
           <div
             key={`${f.name}-${f.round}-${i}`}
-            className="feed-row flex items-center justify-between rounded-lg border border-[var(--edge)] px-4 py-2.5 text-sm"
+            className="feed-row chamfer-sm flex items-center justify-between border border-[var(--edge)] px-4 py-2.5 text-sm"
             style={{ background: "var(--panel)", animationDelay: `${i * 45}ms` }}
           >
             <span className="flex items-center gap-2">
               <span
                 className="text-lg"
-                style={{
-                  color:
-                    f.kind === "died" ? "var(--down)" : f.kind === "swept" ? "var(--dim)" : "var(--gold)",
-                }}
+                style={{ color: f.kind === "died" ? "var(--down)" : f.kind === "swept" ? "var(--dim)" : "var(--gold)" }}
               >
                 {f.kind === "died" ? "☠" : f.kind === "swept" ? "⌁" : "◆"}
               </span>
@@ -722,44 +635,6 @@ function Feed({ state }: { state: TableState | null }) {
               {f.missedBy !== null && (
                 <span className="ml-3 glow-down">MISSED BY ${f.missedBy.toFixed(2)}</span>
               )}
-            </span>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-/** Last one standing. The end the infinite clock could never produce. */
-function Crown({ champion }: { champion: NonNullable<TableState["champion"]> }) {
-  return (
-    <div className="bell pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-black/94">
-      <div className="text-center">
-        <p className="text-xs font-bold tracking-[0.5em] text-[var(--dim)]">
-          TABLE {champion.tableIndex}
-        </p>
-        <p className="display mt-3 text-6xl leading-none glow-gold sm:text-8xl">LAST STANDING</p>
-        <p className="display mt-6 text-4xl sm:text-6xl">{champion.name}</p>
-        <p className="tabular mt-4 text-lg font-bold glow-gold">
-          {champion.multiple.toFixed(2)}× · {champion.rounds} ROUNDS SURVIVED
-        </p>
-      </div>
-    </div>
-  );
-}
-
-function Board({ state }: { state: TableState | null }) {
-  const board = state?.board ?? [];
-  if (!board.length) return null;
-  return (
-    <section className="mt-8">
-      <h2 className="mb-2 text-xs tracking-[0.2em] text-[var(--dim)]">FINISHED RUNS</h2>
-      <div className="divide-y divide-[var(--edge)] rounded-lg border border-[var(--edge)]">
-        {board.map((b, i) => (
-          <div key={i} className="flex items-center justify-between px-4 py-2 text-sm">
-            <span>{b.name}</span>
-            <span className="tabular" style={{ color: b.status === "banked" ? "var(--gold)" : "var(--dim)" }}>
-              {b.rounds}R · {b.multiple.toFixed(2)}× {b.status === "banked" ? "banked" : "☠"}
             </span>
           </div>
         ))}

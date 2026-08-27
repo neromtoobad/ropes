@@ -270,6 +270,91 @@ body::after {
   animation: sweep 4.5s linear infinite;
 }
 
+/* ── game chrome (the technical garnish that reads as a game, not a site) ── */
+
+/* Corner ticks: four L-marks that frame a panel like a targeting reticle. */
+.ticks { position: relative; }
+.ticks::before,
+.ticks::after {
+  content: "";
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--gold);
+  opacity: 0.55;
+  pointer-events: none;
+  z-index: 30;
+}
+.ticks::before { top: 6px; left: 6px; border-right: 0; border-bottom: 0; }
+.ticks::after { bottom: 6px; right: 6px; border-left: 0; border-top: 0; }
+
+/* Diagonal hatching — the caution-tape strip from mech UI. */
+.hatch {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    var(--gold) 0 6px,
+    transparent 6px 14px
+  );
+  opacity: 0.14;
+}
+
+/* An RPG stat bar: thin track, hard accent fill, no rounding. */
+.statbar {
+  height: 4px;
+  background: #ffffff0e;
+  overflow: hidden;
+}
+.statbar > div {
+  height: 100%;
+  background: var(--gold);
+  box-shadow: 0 0 10px var(--gold-glow);
+  transition: width 700ms cubic-bezier(0.3, 0.9, 0.3, 1);
+}
+
+/* Roster slot: a character thumbnail in the selection rail. */
+.slot {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--edge);
+  background: linear-gradient(180deg, var(--panel-2), var(--panel));
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+  cursor: pointer;
+}
+@media (hover: hover) {
+  .slot:hover { border-color: var(--dim); }
+}
+.slot.sel {
+  border-color: var(--gold);
+  box-shadow: 0 0 22px -8px var(--gold), inset 0 0 14px -8px var(--gold);
+}
+.slot.sel::after {
+  content: "";
+  position: absolute;
+  left: -1px;
+  top: 10%;
+  bottom: 10%;
+  width: 2px;
+  background: var(--gold);
+}
+
+/* Game-tab nav. One active pill, everything else recedes. */
+.gametab {
+  padding: 4px 14px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.22em;
+  color: var(--dim);
+  border: 1px solid transparent;
+  transition: color 150ms ease;
+}
+.gametab.active {
+  color: var(--gold);
+  border-color: var(--gold);
+  box-shadow: 0 0 16px -8px var(--gold);
+}
+
 /* ── the feed ──────────────────────────────────────────────────────────── */
 
 @keyframes feed-in {

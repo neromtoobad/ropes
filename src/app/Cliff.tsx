@@ -59,7 +59,17 @@ const HANGING = 0.35;
 
 type Pose = "climb" | "slip" | "leap" | "fall" | "cheer";
 
-const CAST = ["green", "red", "gold", "blue", "violet", "orange", "teal", "pink"] as const;
+export const CAST = [
+  { id: "green", code: "VRD-01", label: "VERDANT" },
+  { id: "red", code: "CRM-02", label: "CRIMSON" },
+  { id: "gold", code: "AUR-03", label: "AURUM" },
+  { id: "blue", code: "AZR-04", label: "AZURE" },
+  { id: "violet", code: "VLT-05", label: "VESPER" },
+  { id: "orange", code: "EMB-06", label: "EMBER" },
+  { id: "teal", code: "TDL-07", label: "TIDAL" },
+  { id: "pink", code: "NEO-08", label: "NEON" },
+] as const;
+export type ClimberId = (typeof CAST)[number]["id"];
 
 export function Cliff({
   seats,
@@ -70,6 +80,7 @@ export function Cliff({
   leaping,
   btc,
   record,
+  climber,
   onMilestone,
 }: {
   seats: TableState["seats"];
@@ -80,6 +91,8 @@ export function Cliff({
   leaping: string[];
   btc: TableState["btc"];
   record: TableState["wallRecord"];
+  /** Which of the eight climbers the player chose in the rail. */
+  climber: ClimberId;
   /** Fired when the climber crosses a milestone ledge going UP. */
   onMilestone?: (multiple: number) => void;
 }) {
@@ -128,7 +141,8 @@ export function Cliff({
           ? "climb"
           : "climb";
 
-  const art = CAST[0];
+  const art = climber;
+  const cast = CAST.find((c) => c.id === climber) ?? CAST[0];
   const finale = secondsLeft > 0 && secondsLeft <= 5 && (seat?.inRound ?? false);
   const urgent = secondsLeft > 0 && secondsLeft < 10;
 
@@ -141,7 +155,7 @@ export function Cliff({
 
   return (
     <div
-      className="relative overflow-hidden rounded-2xl border"
+      className="ticks relative overflow-hidden rounded-2xl border"
       style={{
         height: 520,
         borderColor: urgent ? "#3d1220" : "var(--edge)",
@@ -308,7 +322,7 @@ export function Cliff({
       {!seat && (
         <div className="pointer-events-none absolute inset-x-0 bottom-6 flex flex-col items-center">
           <Image
-            src="/climbers/green/cheer.png"
+            src={`/climbers/${art}/cheer.png`}
             alt=""
             width={96}
             height={140}
@@ -348,9 +362,25 @@ export function Cliff({
         </div>
       )}
 
-      {/* altitude, top-left: how high the run has actually climbed */}
+      {/* the nameplate — a character, not a cursor */}
       {seat && (
-        <div className="pointer-events-none absolute left-4 top-3">
+        <div className="pointer-events-none absolute bottom-5 left-4 z-10">
+          <p className="text-[9px] font-black tracking-[0.35em] text-[var(--dim)]">{cast.code}</p>
+          <p className="display text-3xl leading-none tracking-[0.06em] sm:text-5xl" style={{ color: "#eeecf5", textShadow: "0 0 34px #00000088" }}>
+            {cast.label}
+          </p>
+          <div className="mt-1 flex items-center gap-2">
+            <span className="hatch inline-block h-[8px] w-16" />
+            <span className="text-[10px] font-black tracking-[0.25em] text-[var(--gold)]">
+              {seat.name.toUpperCase()}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* altitude, top-left: the stat panel carries this on desktop */}
+      {seat && (
+        <div className="pointer-events-none absolute left-4 top-3 lg:hidden">
           <p className="text-[9px] font-black tracking-[0.25em] text-[var(--dim)]">ALTITUDE</p>
           <p className="display tabular text-2xl leading-none glow-gold sm:text-3xl">
             {multiple.toFixed(2)}×
