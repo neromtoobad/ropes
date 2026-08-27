@@ -8,6 +8,13 @@ import { useSound, useHeartbeat } from "./sound";
 
 const POLL_MS = 750;
 
+/** What the bell meant for the viewer's own money. */
+type BellVerdict =
+  | { kind: "won"; from: number; to: number }
+  | { kind: "lost" }
+  | { kind: "push" }
+  | null;
+
 /** Identity is a local key + a name. No wallet needed to sit down — the house
  *  executor holds the collateral, and every position is verifiable on-chain. */
 function usePlayerKey() {
@@ -76,7 +83,10 @@ export default function Game() {
         const idx = next.lastResult?.index ?? null;
         if (idx !== null && lastBellIndex.current !== null && idx !== lastBellIndex.current) {
           setBell(next.lastResult);
-          setTimeout(() => setBell(null), 2600);
+          setTimeout(() => setBell(null), 3400);
+          // A bell consumes every pick — showing the old one as "YOUR BET"
+          // would claim a stake that is not on the table.
+          setOptimisticPick(null);
         }
         lastBellIndex.current = idx;
       } catch {
@@ -106,6 +116,8 @@ export default function Game() {
     return json;
   }, []);
 
+  const [seatFlash, setSeatFlash] = useState(false);
+
   const join = async () => {
     if (!playerKey || !name.trim() || busy) return;
     setBusy(true);
@@ -114,6 +126,9 @@ export default function Game() {
     if (r?.runId) {
       localStorage.setItem("lc.runId", r.runId);
       setRunId(r.runId);
+      // The moment the money moves, say so.
+      setSeatFlash(true);
+      setTimeout(() => setSeatFlash(false), 2800);
     }
   };
 
@@ -124,8 +139,23 @@ export default function Game() {
 
   useHeartbeat(secs, Boolean(me?.inRound));
 
+  // Sticky: the poll that delivers the bell also removes a dead seat, so the
+  // name must survive past the seat or the verdict can't find its owner.
   const nameRef = useRef<string | null>(null);
-  nameRef.current = me?.name ?? null;
+  if (me?.name) nameRef.current = me.name;
+
+  // The bell, made personal: did YOUR money win, lose, or carry?
+  const myName = nameRef.current;
+  const mine: BellVerdict = !bell || !myName
+    ? null
+    : bell.voided
+      ? { kind: "push" }
+      : bell.killed.includes(myName)
+        ? { kind: "lost" }
+        : (() => {
+            const s = bell.survived.find((x) => x.name === myName);
+            return s ? { kind: "won" as const, from: s.from, to: s.to } : null;
+          })();
   useEffect(() => {
     if (!bell) return;
     const mine = nameRef.current;
@@ -146,7 +176,18 @@ export default function Game() {
     <main className={`relative z-10 mx-auto min-h-screen max-w-6xl px-4 py-4 ${bell ? "shake" : ""}`}>
       {secs > 0 && secs < 10 && <div className="danger" />}
 
-      <TopBar state={state} urgent={urgent} sound={sound} />
+      <TopBar state={state} urgent={urgent} sound={sound} me={me} />
+
+      {seatFlash && (
+        <div className="pointer-events-none fixed inset-x-0 top-[20%] z-40 text-center">
+          <p className="display text-3xl sm:text-4xl" style={{ color: "var(--down)", textShadow: "0 0 40px var(--down-glow)" }}>
+            SEAT −10.00
+          </p>
+          <p className="mt-1 text-[10px] font-bold tracking-[0.3em] text-[var(--dim)]">
+            YOUR BUY-IN IS STAKED — THE MOST YOU CAN EVER LOSE
+          </p>
+        </div>
+      )}
 
       {/* The HUD: roster rail · the wall · the stat block. */}
       <div className="mt-3 grid gap-3 lg:grid-cols-[72px_minmax(0,1fr)_240px]">
@@ -225,7 +266,7 @@ export default function Game() {
       <div id="runs">
         <Feed state={state} />
       </div>
-      {bell && <Bell result={bell} />}
+      {bell && <Bell result={bell} mine={mine} />}
       <Footnote state={state} />
     </main>
   );
@@ -237,14 +278,19 @@ function TopBar({
   state,
   urgent,
   sound,
+  me,
 }: {
   state: TableState | null;
   urgent: boolean;
   sound: ReturnType<typeof useSound>;
+  me: TableState["seats"][number] | null;
 }) {
   const secs = Math.floor(state?.round?.secondsLeft ?? 0);
   const t = state?.table;
   const roping = t?.status === "filling" && t.seated > 0;
+  // The money line: what the run is worth right now, against the 10 seat.
+  const value = me ? liveMultipleOf(me, state?.price ?? { up: null, down: null }) * me.buyIn : null;
+  const delta = me && value !== null ? value - me.buyIn : null;
   return (
     <header className="flex items-center justify-between gap-4">
       <div className="flex items-center gap-3">
@@ -252,11 +298,21 @@ function TopBar({
         <div>
           <h1 className="display text-base leading-none tracking-[0.2em] sm:text-lg">THE CLIMB</h1>
           <p className="mt-0.5 text-[9px] font-bold tracking-[0.3em] text-[var(--dim)]">
-            {roping
-              ? `ROPING UP · 0:${String(Math.max(0, Math.round(t!.sealsIn))).padStart(2, "0")}`
-              : state?.locked
-                ? "ON THE WALL"
-                : "BTC · 1 MINUTE"}
+            {me && value !== null && delta !== null ? (
+              <>
+                RUN VALUE <span className="tabular text-[var(--text)]">{value.toFixed(2)}</span>
+                <span className="tabular ml-1.5" style={{ color: delta >= 0 ? "var(--up)" : "var(--down)" }}>
+                  {delta >= 0 ? "+" : ""}
+                  {delta.toFixed(2)}
+                </span>
+              </>
+            ) : roping ? (
+              `ROPING UP · 0:${String(Math.max(0, Math.round(t!.sealsIn))).padStart(2, "0")}`
+            ) : state?.locked ? (
+              "ON THE WALL"
+            ) : (
+              "BTC · 1 MINUTE"
+            )}
           </p>
         </div>
       </div>
@@ -422,7 +478,17 @@ function BailBar({
 }) {
   const liveMult = liveMultipleOf(me, price);
   const keep = liveMult * me.buyIn;
+  const sideC = me.pick === "UP" ? "var(--up)" : "var(--down)";
   return (
+    <>
+      {/* the bet slip — what's riding, at what price */}
+      <div className="mb-2 flex items-baseline justify-between text-[10px] font-bold tracking-[0.25em]">
+        <span style={{ color: sideC }}>
+          YOUR BET: {me.pick === "UP" ? "▲ UP" : "▼ DOWN"}
+          {me.fillPrice ? ` · FILLED @ ${me.fillPrice.toFixed(3)}` : ""}
+        </span>
+        <span className="tabular text-[var(--dim)]">STAKE {me.costInRound.toFixed(2)}</span>
+      </div>
     <button
       onClick={onBank}
       disabled={pending}
@@ -441,6 +507,7 @@ function BailBar({
       </span>
       <span className="display tabular text-3xl glow-gold sm:text-4xl">{liveMult.toFixed(2)}×</span>
     </button>
+    </>
   );
 }
 
@@ -460,14 +527,16 @@ function Sides({
   return (
     <>
       <div className="mb-2 flex items-baseline justify-between text-[10px] font-bold tracking-[0.25em] text-[var(--dim)]">
-        <span className={state.locked ? "glow-gold" : ""}>
+        <span className={state.locked || shownPick ? "glow-gold" : ""}>
           {state.table?.status === "filling"
             ? "ROPING UP"
             : state.locked
               ? "LOCKED — WATCH IT PLAY OUT"
-              : canPick
-                ? "PICK YOUR SIDE"
-                : "NEXT ROUND"}
+              : shownPick
+                ? `YOUR BET: ${shownPick === "UP" ? "▲ UP" : "▼ DOWN"} — WHOLE STACK ENTERS AT WINDOW OPEN`
+                : canPick
+                  ? "PICK YOUR SIDE"
+                  : "NEXT ROUND"}
         </span>
         <span className="tabular">
           NEXT BELL 0:{String(Math.floor(state.round?.secondsLeft ?? 0)).padStart(2, "0")}
@@ -570,7 +639,13 @@ function Join({
 
 /* ────────────────────────── bell + feed ──────────────────────────── */
 
-function Bell({ result }: { result: NonNullable<TableState["lastResult"]> }) {
+function Bell({
+  result,
+  mine,
+}: {
+  result: NonNullable<TableState["lastResult"]>;
+  mine: BellVerdict;
+}) {
   const c = result.voided ? "var(--gold)" : result.winner === "UP" ? "var(--up)" : "var(--down)";
   return (
     <div className="bell pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-black/92">
@@ -591,6 +666,35 @@ function Bell({ result }: { result: NonNullable<TableState["lastResult"]> }) {
           <p className="tabular mt-3 text-lg font-bold glow-up">
             {result.survived.map((s) => `${s.name} ${s.from.toFixed(2)} → ${s.to.toFixed(2)}`).join("   ")}
           </p>
+        )}
+
+        {/* the verdict — what this bell did to YOUR money, in dollars */}
+        {mine?.kind === "won" && (
+          <div className="mt-8">
+            <p className="display text-3xl glow-up sm:text-5xl">
+              {/* from/to are dollar stacks, straight from the ledger */}
+              YOU WON +{(mine.to - mine.from).toFixed(2)}
+            </p>
+            <p className="mt-2 text-[10px] font-bold tracking-[0.3em] text-[var(--dim)]">
+              STACK NOW {mine.to.toFixed(2)} — ALREADY RIDING THE NEXT ROUND · BAIL ANYTIME TO CASH OUT
+            </p>
+          </div>
+        )}
+        {mine?.kind === "lost" && (
+          <div className="mt-8">
+            <p className="display text-3xl glow-down sm:text-5xl">YOU LOST</p>
+            <p className="mt-2 text-[10px] font-bold tracking-[0.3em] text-[var(--dim)]">
+              RUN OVER — ONLY YOUR 10.00 SEAT WAS EVER AT RISK
+            </p>
+          </div>
+        )}
+        {mine?.kind === "push" && (
+          <div className="mt-8">
+            <p className="display text-3xl glow-gold sm:text-5xl">PUSH</p>
+            <p className="mt-2 text-[10px] font-bold tracking-[0.3em] text-[var(--dim)]">
+              THE ORACLE VOIDED THIS ROUND — NOBODY FALLS, YOUR STACK CARRIES
+            </p>
+          </div>
         )}
       </div>
     </div>
