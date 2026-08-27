@@ -120,6 +120,50 @@ side rail rather than replacing it. costs half a day, keeps the concept, loses s
 **done when** a single character climbs and slips in time with an actual position we hold on-chain.
 do not add a second character until one is right.
 
+## days 3–4 FINDING — the wall cannot differentiate same-side climbers ⚑
+
+**checked with eight on the wall before building ghost lines against the same
+coordinates. good thing.** four climbers, all reading `1.30×`, in a perfectly straight
+horizontal line.
+
+the cause is a collision between two things already built:
+
+➠ the executor **batches by side at one average fill price** (phase 1, deliberately: same-side
+  players filling at 0.497 and 0.741 "reads as rigged in a game")
+➠ so every UP player has an identical entry, an identical multiple, and an identical height
+➠ and every survivor of a round is on the winning side — so from round 2 the whole field is one
+  correlated bloc
+
+measured over the last 40 settled rounds with 2+ players:
+
+```
+everyone on ONE side     7 of 8
+whole table wiped        3
+field actually thinned   1
+```
+
+**the field almost never thins. it wipes.** a battle royale whose players are perfectly correlated
+cannot shrink 8 → 4 → 2 → 1; it goes 8 → 0.
+
+### what this retracts
+
+"the contrarian visibly outruns the crowd" is **only true across sides, never within one**. two UP
+players are the same climber at the same height, always. that claim has to come out of the pitch.
+
+### the options
+
+1. **the bail becomes the differentiator.** everyone climbs as one or two blocs; the whole game is
+   who jumps and who rides. survivors differ by WHEN THEY JUMPED, not by entry. already built —
+   costs nothing, but the wall shows blocs, not eight individuals.
+2. **variable stake sizing.** commit 25/50/100% each round. a player who sizes small survives a
+   wrong call with something left, so the field thins instead of wiping — and it restores the
+   sizing decision cut earlier. changes "wrong side = dead" and needs executor work.
+3. **stagger entries by pick time.** humans picking at different moments genuinely get different
+   entries. real, but it only spreads a side slightly, and it does nothing about correlation.
+
+**recommendation: 2, with 1.** sizing is the only one that fixes correlation, and correlation is
+what stops the tournament working at all.
+
 ## days 3–4 — 30–31 aug — the cast and the jump
 
 - [ ] cut the pose sheets into sprites. `remove_background` on each sheet, then crop the five poses.
