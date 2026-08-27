@@ -1,10 +1,15 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { ONE } from "@/lib/chain";
+import { joinGame } from "@/executor/game";
 
-/** The fixed seat price. One number, so the table's maths stays legible. */
-const BUY_IN = 10n * ONE;
-
+/**
+ * Buy a seat.
+ *
+ * Delegates to the same joinGame the executor's seed path uses — this route
+ * used to create runs itself and silently skipped the tables refactor, so a
+ * human joining through the UI got a run with no table, invisible on the wall,
+ * paying no pot cut. One join path, ever.
+ */
 export async function POST(req: Request) {
   const { playerKey, name } = await req.json();
   if (!playerKey || !name) {
@@ -12,27 +17,19 @@ export async function POST(req: Request) {
   }
 
   const round = await db.round.findFirst({ orderBy: { index: "desc" } });
-  const roundIndex = round?.index ?? 0;
-
-  const player = await db.player.upsert({
-    where: { wallet: playerKey },
-    create: { wallet: playerKey, displayName: String(name).slice(0, 12) },
-    update: { displayName: String(name).slice(0, 12) },
-  });
-
-  // Banking ends a run and costs you the next round — you cannot immediately
-  // re-buy your way back to the table.
-  if (roundIndex < player.eligibleFromRoundIndex) {
-    return NextResponse.json(
-      { error: `sitting out until round ${player.eligibleFromRoundIndex}` },
-      { status: 409 },
-    );
+  try {
+    const run = await joinGame(playerKey, String(name).slice(0, 12), 0n, round?.index ?? 0);
+    return NextResponse.json({ runId: run.id });
+  } catch (err) {
+    const message = String(err).replace("Error: ", "");
+    // "already has a live run" should hand back the existing seat, not an error.
+    if (message.includes("already has a live run")) {
+      const player = await db.player.findUnique({ where: { wallet: playerKey } });
+      const existing = player
+        ? await db.run.findFirst({ where: { playerId: player.id, status: "alive" } })
+        : null;
+      if (existing) return NextResponse.json({ runId: existing.id });
+    }
+    return NextResponse.json({ error: message }, { status: 409 });
   }
-  const existing = await db.run.findFirst({ where: { playerId: player.id, status: "alive" } });
-  if (existing) return NextResponse.json({ runId: existing.id });
-
-  const run = await db.run.create({
-    data: { playerId: player.id, buyIn: BUY_IN, stack: BUY_IN, startedRoundIndex: roundIndex },
-  });
-  return NextResponse.json({ runId: run.id });
 }

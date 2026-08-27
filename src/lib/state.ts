@@ -25,6 +25,8 @@ export interface SeatView {
   multiple: number;
   /** Rounds survived so far. The number a player actually brags about. */
   rounds: number;
+  /** This player's best-ever finished multiple — their ghost on the wall. */
+  best: number | null;
 }
 
 export interface TableState {
@@ -98,6 +100,12 @@ export interface TableState {
   }[];
   /** The number to beat. A run is measured in rounds survived, not dollars. */
   record: { name: string; rounds: number; multiple: number } | null;
+  /**
+   * The gold ghost on the wall: the best MULTIPLE anyone ever finished with.
+   * Distinct from `record` (the longest run) — a 3R run at 0.4x is a survival
+   * record but painting it as a height target would put the flag on the floor.
+   */
+  wallRecord: { name: string; multiple: number } | null;
 }
 
 const CAP = Number(MAX_ENTRY_PRICE_PCT) / 100;
@@ -128,6 +136,15 @@ export async function getTableState(): Promise<TableState> {
     orderBy: [{ status: "asc" }, { stack: "desc" }],
   });
 
+  // Best finished multiple per player, for the personal ghost line. One query,
+  // grouped, rather than a lookup per seat.
+  const bests = await db.run.groupBy({
+    by: ["playerId"],
+    where: { status: { in: ["banked", "eliminated"] }, finalMultiple: { not: null } },
+    _max: { finalMultiple: true },
+  });
+  const bestByPlayer = new Map(bests.map((b) => [b.playerId, b._max.finalMultiple ?? null]));
+
   const seats: SeatView[] = runs
     .filter((r) => r.status === "alive" && (!activeTable || r.tableId === activeTable.id))
     .map((r) => {
@@ -142,6 +159,7 @@ export async function getTableState(): Promise<TableState> {
         fillPrice: pos ? Number(pos.priceRaw) / Number(ONE) : null,
         multiple: toUsd(r.stack + (pos?.cost ?? 0n)) / toUsd(r.buyIn),
         rounds: r.roundsSurvived,
+        best: bestByPlayer.get(r.playerId) ?? null,
       };
     });
 
@@ -232,6 +250,15 @@ export async function getTableState(): Promise<TableState> {
     include: { player: true },
     orderBy: [{ roundsSurvived: "desc" }, { finalMultiple: "desc" }],
   });
+  const bestRun = await db.run.findFirst({
+    where: { status: { in: ["banked", "eliminated"] }, finalMultiple: { gt: 1 } },
+    orderBy: { finalMultiple: "desc" },
+    include: { player: true },
+  });
+  const wallRecord = bestRun
+    ? { name: bestRun.player.displayName, multiple: bestRun.finalMultiple! }
+    : null;
+
   const record =
     best && best.roundsSurvived > 0
       ? {
@@ -301,5 +328,6 @@ export async function getTableState(): Promise<TableState> {
     board,
     feed,
     record,
+    wallRecord,
   };
 }

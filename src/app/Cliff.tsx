@@ -29,6 +29,15 @@ export function heightFor(entry: number | null, live: number | null) {
   return 0.5 + 0.5 * Math.tanh(CURVE_GAIN * Math.log(live / entry));
 }
 
+/** Where a bare multiple sits on the wall — same curve the climbers ride. */
+export function heightOfMultiple(m: number) {
+  if (m <= 0) return 0;
+  return 0.5 + 0.5 * Math.tanh(CURVE_GAIN * Math.log(m));
+}
+
+/** Wall-fraction → CSS bottom%. One function, so ghosts and climbers agree. */
+const wallBottom = (h: number) => 3 + h * 70;
+
 type Pose = "climb" | "slip" | "leap" | "fall" | "cheer";
 
 /** Which climber art each seat wears. Cut from the Higgsfield pose sheets. */
@@ -42,6 +51,8 @@ export function Cliff({
   falling,
   leaping,
   btc,
+  record,
+  onOvertake,
 }: {
   seats: TableState["seats"];
   price: TableState["price"];
@@ -53,6 +64,10 @@ export function Cliff({
   leaping: string[];
   /** BTC against the line, shown on the wall now the chart is gone. */
   btc: TableState["btc"];
+  /** The all-time record — the gold ghost near the top of the wall. */
+  record: TableState["wallRecord"];
+  /** Fired when the viewer's climber passes someone, with the name passed. */
+  onOvertake?: (name: string) => void;
 }) {
   // Direction of travel decides the pose, so the previous height has to persist
   // across renders. A climber that is rising climbs; one that is losing ground
@@ -105,7 +120,33 @@ export function Cliff({
     };
   });
 
+  // Overtaking. Rank the viewer among the climbers; when someone who was above
+  // them drops below, that is an event with a name on it.
+  const wasAbove = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const mine = climbers.find((c) => c.mine);
+    if (!mine || !mine.seat.inRound) {
+      wasAbove.current = new Set();
+      return;
+    }
+    const above = new Set(
+      climbers.filter((c) => !c.mine && !c.dead && c.height > mine.height).map((c) => c.seat.name),
+    );
+    for (const name of wasAbove.current) {
+      if (!above.has(name) && climbers.some((c) => c.seat.name === name && !c.dead)) {
+        onOvertake?.(name);
+      }
+    }
+    wasAbove.current = above;
+  });
+
   const urgent = secondsLeft > 0 && secondsLeft < 10;
+
+  // The viewer's own ghost: their best finished multiple, painted faintly at
+  // the height that run reached. Crossing it is the private victory.
+  const me = climbers.find((c) => c.mine);
+  const myBest = me?.seat.best ?? null;
+  const bestBeaten = myBest !== null && me !== undefined && me.multiple !== null && me.multiple > myBest;
 
   return (
     <div
@@ -131,6 +172,54 @@ export function Cliff({
           }}
         />
       ))}
+
+      {/* the all-time record — the gold ghost near the top. a target with a
+          name on it, so a climb is toward someone rather than toward nothing */}
+      {record && record.multiple > 1 && (
+        <div
+          className="pointer-events-none absolute inset-x-0"
+          style={{ bottom: `${wallBottom(heightOfMultiple(record.multiple))}%` }}
+        >
+          <div
+            className="h-px w-full"
+            style={{
+              background:
+                "repeating-linear-gradient(90deg, var(--gold) 0 4px, transparent 4px 12px)",
+              opacity: 0.55,
+            }}
+          />
+          <span className="absolute right-3 -top-4 text-[9px] font-black tracking-[0.2em] text-[var(--gold)] opacity-80">
+            ⚑ {record.name.toUpperCase()} · {record.multiple.toFixed(2)}×
+          </span>
+        </div>
+      )}
+
+      {/* the viewer's own best — the private ghost. brightens when beaten */}
+      {myBest !== null && myBest > 1 && (
+        <div
+          className="pointer-events-none absolute inset-x-0"
+          style={{
+            bottom: `${wallBottom(heightOfMultiple(myBest))}%`,
+            transition: "opacity 400ms",
+          }}
+        >
+          <div
+            className="h-px w-full"
+            style={{
+              background:
+                "repeating-linear-gradient(90deg, var(--text) 0 4px, transparent 4px 12px)",
+              opacity: bestBeaten ? 0.7 : 0.22,
+              boxShadow: bestBeaten ? "0 0 12px var(--gold-glow)" : "none",
+            }}
+          />
+          <span
+            className="absolute left-3 -top-4 text-[9px] font-black tracking-[0.2em]"
+            style={{ color: bestBeaten ? "var(--gold)" : "var(--dim)", opacity: bestBeaten ? 1 : 0.7 }}
+          >
+            {bestBeaten ? "★ NEW BEST" : `YOUR BEST · ${myBest.toFixed(2)}×`}
+          </span>
+        </div>
+      )}
 
       {/* the break-even ledge. everyone starts here; above is profit */}
       <div className="pointer-events-none absolute inset-x-0" style={{ bottom: "50%" }}>
@@ -158,7 +247,7 @@ export function Cliff({
               left: `${lane}%`,
               // 3..73% rather than the full wall: a climber at the very top
               // would push its own name label out through the frame.
-              bottom: bailed ? "115%" : dead ? "-22%" : `${3 + height * 70}%`,
+              bottom: bailed ? "115%" : dead ? "-22%" : `${wallBottom(height)}%`,
               transform: bailed ? "translateX(-50%) translateX(70px)" : "translateX(-50%)",
               opacity: bailed ? 0 : 1,
               // A bail leaves fast and upward; a fall is slower and downward.

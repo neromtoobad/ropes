@@ -68,6 +68,8 @@ export default function Table() {
   // Names mid-leap. Held locally so the jump plays on tap rather than waiting
   // for the next poll to confirm — a bail that lags reads as a dropped input.
   const [leaping, setLeaping] = useState<string[]>([]);
+  // The name just overtaken, briefly on screen.
+  const [passed, setPassed] = useState<string | null>(null);
   const [crown, setCrown] = useState<TableState["champion"]>(null);
   const lastCrown = useRef<number | null>(null);
   const lastBellIndex = useRef<number | null>(null);
@@ -183,7 +185,20 @@ export default function Table() {
         falling={bell?.killed ?? []}
         leaping={leaping}
         btc={state?.btc ?? { price: null, strike: null, oracleQuestionId: null }}
+        record={state?.wallRecord ?? null}
+        onOvertake={(name) => {
+          // Passing someone is an event with a name on it, not a silent reorder.
+          sound.play("click");
+          setPassed(name);
+          setTimeout(() => setPassed(null), 2200);
+        }}
       />
+
+      {passed && (
+        <div className="pointer-events-none fixed inset-x-0 top-[30%] z-40 text-center">
+          <span className="display text-3xl glow-gold sm:text-4xl">PASSED {passed.toUpperCase()}</span>
+        </div>
+      )}
 
       {/* One row: pick a side, or bail. Never both — they are different moments. */}
       <div className="mt-3">
