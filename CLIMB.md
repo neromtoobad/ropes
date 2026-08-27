@@ -1,0 +1,158 @@
+# THE CLIMB — build plan
+
+supersedes the game-design half of `SCOPE.md`. everything in `SCOPE.md` about the market, the
+executor, the registry and the gotchas still stands — none of that changes.
+
+**27 aug → submit 7 sep.** deadline 8 sep 18:00. eleven days.
+
+---
+
+## what the game is now
+
+the chart becomes a cliff. your character's **height is your live position value**, second by
+second. pick a side and you start climbing or slipping.
+
+everyone moves at a different rate, honestly: buy UP at 0.30 and you are levered 3.3x, so BTC ticks
+up and you rocket past someone who bought the favourite at 0.85 and is barely inching. **the
+contrarian visibly outruns the crowd, because that is exactly what the payout does.** no speed is
+invented.
+
+**BAIL** at any second and your character leaps clear, keeping the height they reached. ride longer,
+climb higher — but the bell is coming, and anyone below the line when it rings falls off the screen.
+survivors carry their height into the next round. last one on the cliff takes the pot.
+
+---
+
+## what does NOT change
+
+**do not touch these.** they are proven on-chain and they are the whole technical claim.
+
+```
+services/executor    the loop: open → enter → settle → redeem → roll
+contracts/           ArenaRegistry + reactivity, same-block settlement
+src/lib/chain|market|orders|registry    SDK integration and every gotcha in it
+prisma               the ledger (additive changes only)
+```
+
+the pivot is a **presentation layer**. the money, the market and the chain stay exactly as they are.
+any change in that layer risks the one thing that is definitely working.
+
+reused as-is: the palette, the fonts, the sound engine, the logo, the bell, the feed, the near-miss.
+
+---
+
+## day 0 — 27 aug — THE MOTION SPIKE ⚑
+
+**the whole plan rests on one unanswered question: does the climb actually read?**
+
+a character's height is `contracts × live probability`. probability barely moves early in a window
+and then swings violently near expiry. if that means a character sits still for forty seconds and
+then teleports, the cliff is worse than the chart and we need to know today.
+
+- [ ] `scripts/spike/climb.ts` — for a real BTC 1m round, sample every second: live probability,
+      a notional position's value, and the implied character height as a 0-1 fraction
+- [ ] run it across **five consecutive rounds** and dump a CSV
+- [ ] plot it. eyeball the shape
+
+**pass** = height moves visibly and continuously through the round, with the last fifteen seconds
+being the most dramatic. that is a good climb.
+
+**fail** = flat then a cliff-edge jump. then the fix is the MAPPING, not the concept: try a log or
+tanh curve on the value, or scale height by *distance from the strike* rather than raw position
+value. decide it here, on real numbers, before any UI exists.
+
+**hard fallback if the shape is unusable:** keep the chart and put the characters *beside* it on a
+side rail rather than replacing it. costs half a day, keeps the concept, loses some of the drama.
+
+---
+
+## days 1–2 — 28–29 aug — the cliff, one climber ⚑
+
+- [ ] `src/app/Cliff.tsx` replaces `Chart.tsx` as the hero. the wall, the strike as a lit ledge,
+      the bell countdown draining
+- [ ] ONE character, real sprite, driven by a real position from the live executor
+- [ ] climb / slip states switching on direction of travel
+
+**done when** a single character climbs and slips in time with an actual position we hold on-chain.
+do not add a second character until one is right.
+
+## days 3–4 — 30–31 aug — the cast and the jump
+
+- [ ] cut the pose sheets into sprites. `remove_background` on each sheet, then crop the five poses.
+      **five more characters** to generate — 8 total × 5 poses
+- [ ] all eight on the wall, each seat its own climber, names attached
+- [ ] **BAIL becomes the leap.** the existing bank endpoint already does the money; this is the
+      animation plus instant feedback. it must feel like a decision, so: one tap, no confirm dialog
+- [ ] the bell: everyone below the line falls off the bottom of the screen
+
+## day 5 — 1 sep — ghost lines and overtaking
+
+- [ ] **ghost lines**: your personal best height painted faintly on the wall, the all-time record in
+      gold near the top. crossing your own best flashes and repaints it above you
+- [ ] **overtaking**: who is directly above you, by name. passing them is an event — flash, sound,
+      "PASSED BRAM"
+
+these two are why the minute is tense rather than idle. both are free data.
+
+## day 6 — 2 sep — cohorts and the champion
+
+- [ ] finish `src/executor/tables.ts` (written, not wired) and call `manageTables()` from the tick
+- [ ] runs only climb once their table is **sealed**; a filling table watches
+- [ ] the pot on screen, growing as people fall
+- [ ] the champion moment: last climber on the wall, takes the pot, permanent record
+
+## day 7 — 3 sep — the last five seconds
+
+- [ ] camera pushes in on whoever is nearest the line, audio drops out, one character dangles
+- [ ] polish pass, mobile pass at 375px, reduced-motion pass
+
+**this is the remembered moment.** it is free because the price genuinely oscillates around the
+strike — the near-miss is real, not staged.
+
+## day 8 — 4 sep — FREEZE
+
+no new features. bugs only. rehearse the run end to end at least twice.
+
+## day 9 — 5 sep — the real run ⚑
+
+- [ ] 8 humans, one full recorded run. fund their wallets the day before
+- [ ] capture a bail, a multi-player fall, and the champion
+- [ ] keep the raw recording as the fallback
+
+## days 10–11 — 6–7 sep — submission
+
+- [ ] README rewritten around the climb (the proof section survives unchanged)
+- [ ] four slides, video under 3 minutes, built around the bell and the last five seconds
+- [ ] rename `CLAUDE.md` → `AGENTS.md`, delete the working docs, verify git identity on every commit
+- [ ] **submit on the 7th.** do not wait for the 8th
+
+---
+
+## cut list — do NOT build these
+
+they are good ideas and they are not affordable in eleven days.
+
+➠ unlockable characters (progression gate — additive later)
+➠ spectating after death (keeps dead players engaged — additive later)
+➠ the hourly gauntlet
+➠ tethers / co-op rescue
+➠ per-round generated video. the art is pre-made; the animation is real-time. nothing is generated
+  during a round
+
+if days 5–7 come in early, take them in that order.
+
+---
+
+## kill criteria
+
+decide at the boundary, not on the 7th.
+
+| if | then |
+|---|---|
+| motion spike says the climb does not read | remap first; if still bad, characters beside the chart, not replacing it |
+| sprite cutting eats more than a day | ship with 3 characters, not 8 |
+| cohorts not working by **2 sep EOD** | ship without them — the game plays fine, there is just no champion |
+| anything at all slips past **4 sep** | it does not ship. the freeze is the freeze |
+
+**the cliff with one climber that actually works beats eight characters and a broken table.** the
+existing game is complete and proven; every day of this pivot has to earn its place against that.
