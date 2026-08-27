@@ -65,6 +65,9 @@ export default function Table() {
   const [err, setErr] = useState<string | null>(null);
   const [bell, setBell] = useState<TableState["lastResult"]>(null);
   const [auto, setAuto] = useState(false);
+  // Names mid-leap. Held locally so the jump plays on tap rather than waiting
+  // for the next poll to confirm — a bail that lags reads as a dropped input.
+  const [leaping, setLeaping] = useState<string[]>([]);
   const [crown, setCrown] = useState<TableState["champion"]>(null);
   const lastCrown = useRef<number | null>(null);
   const lastBellIndex = useRef<number | null>(null);
@@ -171,6 +174,7 @@ export default function Table() {
         secondsLeft={secs}
         myRunId={runId}
         falling={bell?.killed ?? []}
+        leaping={leaping}
       />
 
       <div className="mt-3">
@@ -219,8 +223,12 @@ export default function Table() {
               if (runId) await post("/api/auto", { runId, on: next, side: me.pick });
             }}
             onBank={async () => {
+              // Play the leap first; the money follows.
+              if (me) setLeaping((n) => [...n, me.name]);
+              sound.play("win");
               const r = await post("/api/bank", { runId });
               if (r?.ok) localStorage.removeItem("lc.runId");
+              setTimeout(() => setLeaping((n) => n.filter((x) => x !== me?.name)), 1400);
             }}
           />
         )}

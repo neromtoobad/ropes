@@ -89,13 +89,47 @@ function splitRun(run: { from: number; to: number }, pieces: number) {
   return bounds.slice(0, -1).map((from, i) => ({ from, to: bounds[i + 1] }));
 }
 
-if (runs.length < POSES.length) {
-  const median = [...runs].sort((a, b) => a.to - a.from - (b.to - b.from))[Math.floor(runs.length / 2)];
-  const unit = median.to - median.from + 1;
-  runs = runs.flatMap((r) => {
-    const pieces = Math.max(1, Math.round((r.to - r.from + 1) / unit));
-    return pieces > 1 ? splitRun(r, pieces) : [r];
-  });
+/**
+ * Reconcile what was found against what must be there.
+ *
+ * We know a sheet holds exactly five poses, so use that rather than guessing a
+ * figure width from the runs themselves — estimating from the median failed on
+ * a sheet whose runs had all merged into one, because then the median IS the
+ * merged run and nothing looks wide enough to split.
+ */
+{
+  const widthOf = (r: { from: number; to: number }) => r.to - r.from + 1;
+
+  // Drop specks: a fragment the background remover left behind is a fraction of
+  // a real figure and would otherwise be counted as a pose.
+  const avgAll = runs.reduce((n, r) => n + widthOf(r), 0) / Math.max(runs.length, 1);
+  runs = runs.filter((r) => widthOf(r) > avgAll * 0.35);
+
+  if (runs.length < POSES.length) {
+    // An average figure is the total inked width shared between the poses.
+    const unit = runs.reduce((n, r) => n + widthOf(r), 0) / POSES.length;
+    let pieces = runs.map((r) => Math.max(1, Math.round(widthOf(r) / unit)));
+
+    // Force the pieces to add up to exactly five, adjusting the run whose
+    // per-piece width is most out of line.
+    const total = () => pieces.reduce((a, b) => a + b, 0);
+    let guard = 0;
+    while (total() !== POSES.length && guard++ < 20) {
+      const perPiece = runs.map((r, i) => widthOf(r) / pieces[i]);
+      if (total() < POSES.length) {
+        const widest = perPiece.indexOf(Math.max(...perPiece));
+        pieces[widest]++;
+      } else {
+        const narrowest = perPiece
+          .map((w, i) => ({ w, i }))
+          .filter(({ i }) => pieces[i] > 1)
+          .sort((a, b) => a.w - b.w)[0];
+        if (!narrowest) break;
+        pieces[narrowest.i]--;
+      }
+    }
+    runs = runs.flatMap((r, i) => (pieces[i] > 1 ? splitRun(r, pieces[i]) : [r]));
+  }
 }
 
 console.log(`${name}: found ${runs.length} figures in ${width}×${height}`);

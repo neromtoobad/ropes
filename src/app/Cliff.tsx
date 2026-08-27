@@ -32,7 +32,7 @@ export function heightFor(entry: number | null, live: number | null) {
 type Pose = "climb" | "slip" | "leap" | "fall" | "cheer";
 
 /** Which climber art each seat wears. Cut from the Higgsfield pose sheets. */
-const CAST = ["green", "red", "gold"] as const;
+const CAST = ["green", "red", "gold", "blue", "violet", "orange", "teal", "pink"] as const;
 
 export function Cliff({
   seats,
@@ -40,6 +40,7 @@ export function Cliff({
   secondsLeft,
   myRunId,
   falling,
+  leaping,
 }: {
   seats: TableState["seats"];
   price: TableState["price"];
@@ -47,6 +48,8 @@ export function Cliff({
   myRunId: string | null;
   /** Names the bell just eliminated — they let go of the wall. */
   falling: string[];
+  /** Names that just bailed. They leap clear rather than fall. */
+  leaping: string[];
 }) {
   // Direction of travel decides the pose, so the previous height has to persist
   // across renders. A climber that is rising climbs; one that is losing ground
@@ -72,18 +75,18 @@ export function Cliff({
     const rising = height > was + 0.004;
     const sinking = height < was - 0.004;
     const dead = falling.includes(seat.name);
+    const bailed = leaping.includes(seat.name);
 
-    const pose: Pose = dead
-      ? "fall"
-      : height > 0.93
-        ? "cheer"
-        : height < HANGING
-          ? "slip"
-          : sinking
+    // A bail beats everything else: it is the one pose the player chose.
+    const pose: Pose = bailed
+      ? "leap"
+      : dead
+        ? "fall"
+        : height > 0.93
+          ? "cheer"
+          : height < HANGING || sinking
             ? "slip"
-            : rising
-              ? "climb"
-              : "climb";
+            : "climb";
 
     return {
       seat,
@@ -91,6 +94,7 @@ export function Cliff({
       multiple,
       pose,
       dead,
+      bailed,
       rising,
       sinking,
       art: CAST[i % CAST.length],
@@ -141,7 +145,7 @@ export function Cliff({
         </span>
       </div>
 
-      {climbers.map(({ seat, height, multiple, pose, dead, art, mine }, i) => {
+      {climbers.map(({ seat, height, multiple, pose, dead, bailed, art, mine }, i) => {
         const lane = climbers.length === 1 ? 50 : 8 + (i * 84) / Math.max(climbers.length - 1, 1);
         return (
           <div
@@ -151,10 +155,14 @@ export function Cliff({
               left: `${lane}%`,
               // 3..73% rather than the full wall: a climber at the very top
               // would push its own name label out through the frame.
-              bottom: dead ? "-22%" : `${3 + height * 70}%`,
-              transform: "translateX(-50%)",
-              // Slow enough to read as climbing, fast enough to feel live.
-              transition: "bottom 900ms cubic-bezier(0.33, 0.9, 0.4, 1)",
+              bottom: bailed ? "115%" : dead ? "-22%" : `${3 + height * 70}%`,
+              transform: bailed ? "translateX(-50%) translateX(70px)" : "translateX(-50%)",
+              opacity: bailed ? 0 : 1,
+              // A bail leaves fast and upward; a fall is slower and downward.
+              // If they share a curve the two outcomes read identically.
+              transition: bailed
+                ? "bottom 700ms cubic-bezier(0.2, 0.9, 0.3, 1), transform 700ms ease-out, opacity 700ms ease-in 300ms"
+                : "bottom 900ms cubic-bezier(0.33, 0.9, 0.4, 1)",
               zIndex: mine ? 20 : 10,
             }}
           >
