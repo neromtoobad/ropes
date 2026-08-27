@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import type { TableState } from "@/lib/state";
 import { usePriceSeries } from "./Chart";
-import { Cliff } from "./Cliff";
+import { Cliff, liveMultipleOf } from "./Cliff";
 import { useSound, useHeartbeat } from "./sound";
 
 const POLL_MS = 750;
@@ -186,17 +186,17 @@ export default function Table() {
         leaping={leaping}
         btc={state?.btc ?? { price: null, strike: null, oracleQuestionId: null }}
         record={state?.wallRecord ?? null}
-        onOvertake={(name) => {
-          // Passing someone is an event with a name on it, not a silent reorder.
-          sound.play("click");
-          setPassed(name);
-          setTimeout(() => setPassed(null), 2200);
+        onMilestone={(m) => {
+          // A ledge climbed past is the solo game's overtake.
+          sound.play("win");
+          setPassed(`${m}×`);
+          setTimeout(() => setPassed(null), 2000);
         }}
       />
 
       {passed && (
-        <div className="pointer-events-none fixed inset-x-0 top-[30%] z-40 text-center">
-          <span className="display text-3xl glow-gold sm:text-4xl">PASSED {passed.toUpperCase()}</span>
+        <div className="pointer-events-none fixed inset-x-0 top-[28%] z-40 text-center">
+          <span className="display text-3xl glow-gold sm:text-4xl">LEDGE {passed}</span>
         </div>
       )}
 
@@ -207,6 +207,7 @@ export default function Table() {
         ) : me.inRound ? (
           <BailBar
             me={me}
+            price={state?.price ?? { up: null, down: null }}
             record={state?.record ?? null}
             onBank={async () => {
               if (me) setLeaping((n) => [...n, me.name]);
@@ -237,26 +238,24 @@ export default function Table() {
   );
 }
 
-/** The cohort strip: which table you are on, how many are left, what is at stake. */
+/** Solo strip: roping up, or on the wall. The cohort UI returns with multiplayer. */
 function TableStrip({ state }: { state: TableState | null }) {
   const t = state?.table;
   if (!t) return null;
-  const filling = t.status === "filling";
+  const roping = t.status === "filling" && t.seated > 0;
+  if (t.status === "filling" && t.seated === 0) return null;
   return (
     <div
       className="chamfer-sm mb-3 flex items-center justify-between border px-4 py-2"
       style={{ borderColor: "var(--edge)", background: "var(--panel)" }}
     >
       <span className="text-[10px] font-black tracking-[0.2em]">
-        TABLE {t.index}
-        <span className="ml-3 font-bold text-[var(--dim)]">
-          {filling
-            ? `FILLING · ${t.seated}/${t.maxSeats} SEATED · SEALS IN 0:${String(Math.max(0, Math.round(t.sealsIn))).padStart(2, "0")}`
-            : `${t.alive} OF ${t.seated} LEFT ON THE WALL`}
-        </span>
+        {roping
+          ? `ROPING UP · CLIMB STARTS IN 0:${String(Math.max(0, Math.round(t.sealsIn))).padStart(2, "0")}`
+          : `ON THE WALL${state?.round ? ` · ROUND ${state.round.index}` : ""}`}
       </span>
       <span className="tabular text-[10px] font-black tracking-[0.2em] text-[var(--dim)]">
-        POT <span className="glow-gold">{t.pot.toFixed(2)}</span>
+        SEAT 10.00
       </span>
     </div>
   );
@@ -269,13 +268,20 @@ function TableStrip({ state }: { state: TableState | null }) {
  */
 function BailBar({
   me,
+  price,
   record,
   onBank,
 }: {
   me: TableState["seats"][number];
+  price: TableState["price"];
   record: TableState["record"];
   onBank: () => void;
 }) {
+  // The LIVE number — same maths as the wall. Promising the cost-basis stack
+  // here showed KEEP 10.00 while the climber hung at 0.10x, which is a lie
+  // about money at the exact moment the player is deciding whether to jump.
+  const liveMult = liveMultipleOf(me, price);
+  const keep = liveMult * me.buyIn;
   return (
     <button
       onClick={onBank}
@@ -289,14 +295,14 @@ function BailBar({
       <span>
         <span className="display text-2xl glow-gold sm:text-3xl">BAIL</span>
         <span className="ml-3 text-[11px] font-bold tracking-widest text-[var(--dim)]">
-          KEEP {me.stack.toFixed(2)}
+          KEEP {keep.toFixed(2)}
           {record && me.rounds > 0 && me.rounds < record.rounds
             ? ` · ${record.rounds - me.rounds} FROM THE RECORD`
             : ""}
         </span>
       </span>
       <span className="display tabular text-3xl glow-gold sm:text-4xl">
-        {me.multiple.toFixed(2)}×
+        {liveMult.toFixed(2)}×
       </span>
     </button>
   );

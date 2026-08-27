@@ -186,6 +186,18 @@ body::after {
 }
 .alive { animation: alive-breathe 3.4s ease-in-out infinite; }
 
+/* Barely holding on: a tight scrabble at the hold. Covers the honest stillness
+   of a deep-underwater position with motion that says the run is not over. */
+@keyframes hang-scrabble {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  20% { transform: translate(-1px, 1px) rotate(-2deg); }
+  45% { transform: translate(1px, -1px) rotate(1.5deg); }
+  70% { transform: translate(-1px, 0) rotate(-1deg); }
+}
+.hanging { animation: hang-scrabble 0.5s ease-in-out infinite; }
+/* The slip pose mirrors via inline transform; the scrabble must not clobber it. */
+.hanging[style*="scaleX"] { animation: none; }
+
 /* ── the cabinet ───────────────────────────────────────────────────────── */
 
 /*

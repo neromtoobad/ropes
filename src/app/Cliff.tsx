@@ -5,42 +5,60 @@ import { useEffect, useRef, useState } from "react";
 import type { TableState } from "@/lib/state";
 
 /**
- * THE CLIMB.
+ * THE CLIMB — solo.
  *
- * The wall replaces the chart. A climber's height is what their position is
- * worth as a multiple of what they paid — so everyone starts level at the
- * break-even ledge and separates from there, and a contrarian entry climbs
- * faster because that is literally what the payout does. No speed is invented.
+ * One climber, and the camera follows THEM: the character holds the middle of
+ * the screen and the wall scrolls past. Nothing sells climbing like the world
+ * moving under you — a fixed wall with a moving dot reads as a chart wearing a
+ * costume, which is exactly what this replaced.
  *
- * The mapping was measured on four live rounds, not guessed (see CLIMB.md):
- * a log scale through tanh, so a doubling and a halving are equal distances and
- * a position entered near certainty cannot send a climber off the top.
+ * Height is the run's CUMULATIVE multiple (free cash plus the live-marked
+ * position, over the seat price), pushed through the same measured tanh curve
+ * as ever, so a doubling and a halving are equal distances of wall.
+ *
+ * The wall itself is annotated with milestone ledges at fixed multiples.
+ * Because the camera moves and they don't, you climb PAST them — each one is a
+ * discrete, chime-worthy event, which is what a lone climber has instead of
+ * overtaking.
  */
 
-/** Measured on real rounds. 1.0 left small climbs invisible; 2.6 clipped the
- *  dramatic ones. 1.8 is the last gain before the good rounds start pinning. */
+/** Measured on real rounds — see CLIMB.md. Do not retune by eye. */
 const CURVE_GAIN = 1.8;
 
-/** Below this a climber is scrabbling at the floor rather than climbing. */
-const HANGING = 0.1;
-
-export function heightFor(entry: number | null, live: number | null) {
-  if (!entry || !live || entry <= 0 || live <= 0) return 0.5;
-  return 0.5 + 0.5 * Math.tanh(CURVE_GAIN * Math.log(live / entry));
+/**
+ * The run's live cumulative multiple: free cash plus the position marked to the
+ * live book, over the seat price. THE number — the wall, the bail bar and the
+ * altitude readout must all say the same thing, so they all call this.
+ */
+export function liveMultipleOf(
+  seat: TableState["seats"][number] | null | undefined,
+  price: TableState["price"],
+) {
+  if (!seat || seat.buyIn <= 0) return 1;
+  const live = seat.pick === "UP" ? price.up : seat.pick === "DOWN" ? price.down : null;
+  const positionLive =
+    seat.inRound && seat.fillPrice && live
+      ? seat.costInRound * (live / seat.fillPrice)
+      : seat.costInRound;
+  return (seat.stack - seat.costInRound + positionLive) / seat.buyIn;
 }
 
-/** Where a bare multiple sits on the wall — same curve the climbers ride. */
 export function heightOfMultiple(m: number) {
   if (m <= 0) return 0;
   return 0.5 + 0.5 * Math.tanh(CURVE_GAIN * Math.log(m));
 }
 
-/** Wall-fraction → CSS bottom%. One function, so ghosts and climbers agree. */
-const wallBottom = (h: number) => 3 + h * 70;
+/** % of viewport height per unit of curve-space. Bigger = faster-feeling wall. */
+const SPREAD = 190;
+
+/** The ledges carved into the wall, as multiples of the seat price. */
+const MILESTONES = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3, 5, 8, 12, 20];
+
+/** Below this the climber is barely holding on. */
+const HANGING = 0.35;
 
 type Pose = "climb" | "slip" | "leap" | "fall" | "cheer";
 
-/** Which climber art each seat wears. Cut from the Higgsfield pose sheets. */
 const CAST = ["green", "red", "gold", "blue", "violet", "orange", "teal", "pink"] as const;
 
 export function Cliff({
@@ -52,132 +70,74 @@ export function Cliff({
   leaping,
   btc,
   record,
-  onOvertake,
+  onMilestone,
 }: {
   seats: TableState["seats"];
   price: TableState["price"];
   secondsLeft: number;
   myRunId: string | null;
-  /** Names the bell just eliminated — they let go of the wall. */
   falling: string[];
-  /** Names that just bailed. They leap clear rather than fall. */
   leaping: string[];
-  /** BTC against the line, shown on the wall now the chart is gone. */
   btc: TableState["btc"];
-  /** The all-time record — the gold ghost near the top of the wall. */
   record: TableState["wallRecord"];
-  /** Fired when the viewer's climber passes someone, with the name passed. */
-  onOvertake?: (name: string) => void;
+  /** Fired when the climber crosses a milestone ledge going UP. */
+  onMilestone?: (multiple: number) => void;
 }) {
-  // Direction of travel decides the pose, so the previous height has to persist
-  // across renders. A climber that is rising climbs; one that is losing ground
-  // slips; near the floor it hangs on.
-  const previous = useRef<Map<string, number>>(new Map());
+  // The climber: the viewer's run, or whoever is on the wall when spectating.
+  const seat = seats.find((s) => s.runId === myRunId) ?? seats[0] ?? null;
+
+  const multiple = liveMultipleOf(seat, price);
+  const meH = heightOfMultiple(multiple);
+
+  // Direction of travel picks the pose; a repaint timer keeps it alive between
+  // identical polls.
+  const prev = useRef(meH);
   const [, force] = useState(0);
   useEffect(() => {
-    // Repaint on a timer so a climber keeps animating even when the poll
-    // returns an identical price — a still sprite reads as a broken game.
     const id = setInterval(() => force((n) => n + 1), 500);
     return () => clearInterval(id);
   }, []);
-
-  const climbers = seats.map((seat, i) => {
-    const live = seat.pick === "UP" ? price.up : seat.pick === "DOWN" ? price.down : null;
-    /**
-     * Height is the CUMULATIVE multiple — everything this run is worth right
-     * now against the seat price. "Survivors keep climbing into the next round
-     * with their new height" is the game; the first cut mapped height to the
-     * per-round multiple instead, which snapped every climber back to the
-     * ledge each minute and quietly deleted the tournament from the wall.
-     *
-     * free cash + this round's position marked to the live book, over buy-in.
-     */
-    const positionLive =
-      seat.inRound && seat.fillPrice && live
-        ? seat.costInRound * (live / seat.fillPrice)
-        : seat.costInRound;
-    const multiple =
-      seat.buyIn > 0 ? (seat.stack - seat.costInRound + positionLive) / seat.buyIn : 1;
-    const height = heightOfMultiple(multiple);
-    const was = previous.current.get(seat.runId) ?? height;
-    previous.current.set(seat.runId, height);
-
-    const rising = height > was + 0.004;
-    const sinking = height < was - 0.004;
-    const dead = falling.includes(seat.name);
-    const bailed = leaping.includes(seat.name);
-
-    // A bail beats everything else: it is the one pose the player chose.
-    const pose: Pose = bailed
-      ? "leap"
-      : dead
-        ? "fall"
-        : height > 0.93
-          ? "cheer"
-          : height < HANGING || sinking
-            ? "slip"
-            : "climb";
-
-    return {
-      seat,
-      height,
-      multiple,
-      pose,
-      dead,
-      bailed,
-      rising,
-      sinking,
-      art: CAST[i % CAST.length],
-      mine: seat.runId === myRunId,
-    };
-  });
-
-  // Overtaking. Rank the viewer among the climbers; when someone who was above
-  // them drops below, that is an event with a name on it.
-  const wasAbove = useRef<Set<string>>(new Set());
+  const rising = meH > prev.current + 0.002;
+  const sinking = meH < prev.current - 0.002;
   useEffect(() => {
-    const mine = climbers.find((c) => c.mine);
-    if (!mine || !mine.seat.inRound) {
-      wasAbove.current = new Set();
-      return;
-    }
-    const above = new Set(
-      climbers.filter((c) => !c.mine && !c.dead && c.height > mine.height).map((c) => c.seat.name),
-    );
-    for (const name of wasAbove.current) {
-      if (!above.has(name) && climbers.some((c) => c.seat.name === name && !c.dead)) {
-        onOvertake?.(name);
-      }
-    }
-    wasAbove.current = above;
+    prev.current = meH;
   });
 
+  // Milestone crossings, upward only. The chime belongs to gains.
+  const lastMult = useRef(multiple);
+  useEffect(() => {
+    const was = lastMult.current;
+    lastMult.current = multiple;
+    if (!seat?.inRound) return;
+    for (const m of MILESTONES) {
+      if (m > 1 && was < m && multiple >= m) onMilestone?.(m);
+    }
+  }, [multiple, seat?.inRound, onMilestone]);
+
+  const dead = seat ? falling.includes(seat.name) : false;
+  const bailed = seat ? leaping.includes(seat.name) : false;
+  const hanging = multiple < HANGING && (seat?.inRound ?? false);
+
+  const pose: Pose = bailed
+    ? "leap"
+    : dead
+      ? "fall"
+      : hanging || sinking
+        ? "slip"
+        : rising
+          ? "climb"
+          : "climb";
+
+  const art = CAST[0];
+  const finale = secondsLeft > 0 && secondsLeft <= 5 && (seat?.inRound ?? false);
   const urgent = secondsLeft > 0 && secondsLeft < 10;
 
-  /**
-   * The last five seconds. The camera pushes in on whoever hangs nearest the
-   * ledge — the climber whose round could still end either way — and everyone
-   * else falls into shadow. The rest of the app goes quiet at the same moment
-   * (the heartbeat cuts out in sound.ts), so the push-in is the only thing
-   * happening on screen. One character dangles; the bell decides.
-   */
-  const finale = secondsLeft > 0 && secondsLeft <= 5;
-  const inPlay = climbers.filter((c) => c.seat.inRound && !c.dead && !c.bailed);
-  const focus =
-    finale && inPlay.length
-      ? inPlay.reduce((a, b) => (Math.abs(a.height - 0.5) <= Math.abs(b.height - 0.5) ? a : b))
-      : null;
-  const focusLane = focus
-    ? climbers.length === 1
-      ? 50
-      : 8 + (climbers.indexOf(focus) * 84) / Math.max(climbers.length - 1, 1)
-    : 50;
+  /** A wall feature at height h, in viewport terms. The camera does the work. */
+  const bottomOf = (h: number) => 50 + (h - meH) * SPREAD;
+  const visible = (b: number) => b > -10 && b < 112;
 
-  // The viewer's own ghost: their best finished multiple, painted faintly at
-  // the height that run reached. Crossing it is the private victory.
-  const me = climbers.find((c) => c.mine);
-  const myBest = me?.seat.best ?? null;
-  const bestBeaten = myBest !== null && me !== undefined && me.multiple !== null && me.multiple > myBest;
+  const myBest = seat?.best ?? null;
+  const bestBeaten = myBest !== null && multiple > myBest;
 
   return (
     <div
@@ -186,156 +146,168 @@ export function Cliff({
         height: 520,
         borderColor: urgent ? "#3d1220" : "var(--edge)",
         background:
-          "linear-gradient(180deg, #171528 0%, #100e1c 45%, #0a0812 100%)",
+          hanging && !dead
+            ? "linear-gradient(180deg, #1c0f1c 0%, #120a14 50%, #0a0812 100%)"
+            : "linear-gradient(180deg, #171528 0%, #100e1c 45%, #0a0812 100%)",
         boxShadow: "inset 0 2px 24px #000000cc",
+        transition: "background 900ms",
       }}
     >
+      {/* the stage: everything that zooms in the finale */}
       <div
         className="absolute inset-0"
         style={{
-          transform: focus ? "scale(1.22)" : "scale(1)",
-          transformOrigin: `${focusLane}% ${100 - wallBottom(focus?.height ?? 0.5)}%`,
+          transform: finale ? "scale(1.25)" : "scale(1)",
+          transformOrigin: "50% 50%",
           transition: "transform 1600ms cubic-bezier(0.25, 0.8, 0.25, 1)",
         }}
       >
-      {/* strata — gives the wall scale, and makes vertical motion legible */}
-      {Array.from({ length: 9 }).map((_, i) => (
-        <div
-          key={i}
-          className="pointer-events-none absolute inset-x-0"
-          style={{
-            bottom: `${(i + 1) * 10}%`,
-            height: 1,
-            background: "#ffffff",
-            opacity: i === 4 ? 0 : 0.03,
-          }}
-        />
-      ))}
+        {/* milestone ledges — fixed on the wall, so the camera slides them past */}
+        {MILESTONES.map((m) => {
+          const b = bottomOf(heightOfMultiple(m));
+          if (!visible(b)) return null;
+          const isEven = m === 1;
+          return (
+            <div
+              key={m}
+              className="pointer-events-none absolute inset-x-0"
+              style={{ bottom: `${b}%`, transition: "bottom 900ms cubic-bezier(0.33, 0.9, 0.4, 1)" }}
+            >
+              <div
+                className="h-[2px] w-full"
+                style={{
+                  background: isEven
+                    ? "repeating-linear-gradient(90deg, var(--gold) 0 10px, transparent 10px 20px)"
+                    : "repeating-linear-gradient(90deg, #ffffff 0 6px, transparent 6px 16px)",
+                  opacity: isEven ? 0.7 : m > 1 ? 0.16 : 0.1,
+                  boxShadow: isEven ? "0 0 14px var(--gold-glow)" : "none",
+                }}
+              />
+              <span
+                className={`tabular absolute right-3 -top-4 text-[9px] font-black tracking-[0.2em] ${
+                  isEven ? "glow-gold" : "text-[var(--dim)]"
+                }`}
+                style={{ opacity: isEven ? 1 : 0.75 }}
+              >
+                {isEven ? "BREAK EVEN" : `${m}×`}
+              </span>
+            </div>
+          );
+        })}
 
-      {/* the all-time record — the gold ghost near the top. a target with a
-          name on it, so a climb is toward someone rather than toward nothing */}
-      {record && record.multiple > 1 && (
-        <div
-          className="pointer-events-none absolute inset-x-0"
-          style={{ bottom: `${wallBottom(heightOfMultiple(record.multiple))}%` }}
-        >
+        {/* the all-time record — a flag planted in the wall */}
+        {record &&
+          record.multiple > 1 &&
+          visible(bottomOf(heightOfMultiple(record.multiple))) && (
+            <div
+              className="pointer-events-none absolute inset-x-0"
+              style={{
+                bottom: `${bottomOf(heightOfMultiple(record.multiple))}%`,
+                transition: "bottom 900ms cubic-bezier(0.33, 0.9, 0.4, 1)",
+              }}
+            >
+              <div
+                className="h-px w-full"
+                style={{
+                  background:
+                    "repeating-linear-gradient(90deg, var(--gold) 0 4px, transparent 4px 12px)",
+                  opacity: 0.55,
+                }}
+              />
+              <span className="absolute left-3 -top-4 text-[9px] font-black tracking-[0.2em] text-[var(--gold)] opacity-90">
+                ⚑ {record.name.toUpperCase()} · {record.multiple.toFixed(2)}×
+              </span>
+            </div>
+          )}
+
+        {/* your own best — brightens the moment you pass it */}
+        {myBest !== null && myBest > 1 && visible(bottomOf(heightOfMultiple(myBest))) && (
           <div
-            className="h-px w-full"
+            className="pointer-events-none absolute inset-x-0"
             style={{
-              background:
-                "repeating-linear-gradient(90deg, var(--gold) 0 4px, transparent 4px 12px)",
-              opacity: 0.55,
-            }}
-          />
-          <span className="absolute right-3 -top-4 text-[9px] font-black tracking-[0.2em] text-[var(--gold)] opacity-80">
-            ⚑ {record.name.toUpperCase()} · {record.multiple.toFixed(2)}×
-          </span>
-        </div>
-      )}
-
-      {/* the viewer's own best — the private ghost. brightens when beaten */}
-      {myBest !== null && myBest > 1 && (
-        <div
-          className="pointer-events-none absolute inset-x-0"
-          style={{
-            bottom: `${wallBottom(heightOfMultiple(myBest))}%`,
-            transition: "opacity 400ms",
-          }}
-        >
-          <div
-            className="h-px w-full"
-            style={{
-              background:
-                "repeating-linear-gradient(90deg, var(--text) 0 4px, transparent 4px 12px)",
-              opacity: bestBeaten ? 0.7 : 0.22,
-              boxShadow: bestBeaten ? "0 0 12px var(--gold-glow)" : "none",
-            }}
-          />
-          <span
-            className="absolute left-3 -top-4 text-[9px] font-black tracking-[0.2em]"
-            style={{ color: bestBeaten ? "var(--gold)" : "var(--dim)", opacity: bestBeaten ? 1 : 0.7 }}
-          >
-            {bestBeaten ? "★ NEW BEST" : `YOUR BEST · ${myBest.toFixed(2)}×`}
-          </span>
-        </div>
-      )}
-
-      {/* the break-even ledge. everyone starts here; above is profit */}
-      <div className="pointer-events-none absolute inset-x-0" style={{ bottom: "50%" }}>
-        <div
-          className="h-[2px] w-full"
-          style={{
-            background:
-              "repeating-linear-gradient(90deg, var(--gold) 0 10px, transparent 10px 20px)",
-            opacity: 0.7,
-            boxShadow: "0 0 14px var(--gold-glow)",
-          }}
-        />
-        <span className="absolute left-3 -top-4 text-[9px] font-black tracking-[0.25em] glow-gold">
-          BREAK EVEN
-        </span>
-      </div>
-
-      {climbers.map(({ seat, height, multiple, pose, dead, bailed, art, mine }, i) => {
-        const lane = climbers.length === 1 ? 50 : 8 + (i * 84) / Math.max(climbers.length - 1, 1);
-        return (
-          <div
-            key={seat.runId}
-            className="absolute flex flex-col items-center"
-            style={{
-              left: `${lane}%`,
-              // 3..73% rather than the full wall: a climber at the very top
-              // would push its own name label out through the frame.
-              bottom: bailed ? "115%" : dead ? "-22%" : `${wallBottom(height)}%`,
-              transform: bailed ? "translateX(-50%) translateX(70px)" : "translateX(-50%)",
-              opacity: bailed ? 0 : 1,
-              // A bail leaves fast and upward; a fall is slower and downward.
-              // If they share a curve the two outcomes read identically.
-              transition: bailed
-                ? "bottom 700ms cubic-bezier(0.2, 0.9, 0.3, 1), transform 700ms ease-out, opacity 700ms ease-in 300ms"
-                : "bottom 900ms cubic-bezier(0.33, 0.9, 0.4, 1)",
-              zIndex: mine ? 20 : 10,
-              filter: focus && focus.seat.runId !== seat.runId ? "brightness(0.4)" : "none",
+              bottom: `${bottomOf(heightOfMultiple(myBest))}%`,
+              transition: "bottom 900ms cubic-bezier(0.33, 0.9, 0.4, 1)",
             }}
           >
             <div
-              className="tabular mb-1 whitespace-nowrap rounded px-1.5 py-0.5 text-[9px] font-black"
+              className="h-px w-full"
               style={{
-                background: mine ? "var(--gold)" : "#00000099",
-                color: mine ? "#000" : "var(--text)",
+                background:
+                  "repeating-linear-gradient(90deg, var(--text) 0 4px, transparent 4px 12px)",
+                opacity: bestBeaten ? 0.7 : 0.22,
+                boxShadow: bestBeaten ? "0 0 12px var(--gold-glow)" : "none",
               }}
+            />
+            <span
+              className="absolute left-3 -top-4 text-[9px] font-black tracking-[0.2em]"
+              style={{ color: bestBeaten ? "var(--gold)" : "var(--dim)" }}
+            >
+              {bestBeaten ? "★ NEW BEST" : `YOUR BEST · ${myBest.toFixed(2)}×`}
+            </span>
+          </div>
+        )}
+
+        {/* the climber — pinned to the middle while the world moves */}
+        {seat && (
+          <div
+            className="absolute left-1/2 flex flex-col items-center"
+            style={{
+              bottom: bailed ? "118%" : dead ? "-30%" : "calc(50% - 58px)",
+              transform: bailed
+                ? "translateX(-50%) translateX(90px)"
+                : "translateX(-50%)",
+              opacity: bailed ? 0 : 1,
+              transition: bailed
+                ? "bottom 700ms cubic-bezier(0.2, 0.9, 0.3, 1), transform 700ms ease-out, opacity 700ms ease-in 300ms"
+                : dead
+                  ? "bottom 1100ms cubic-bezier(0.5, 0, 0.9, 0.4)"
+                  : "none",
+              zIndex: 20,
+            }}
+          >
+            <div
+              className="tabular mb-1 whitespace-nowrap rounded px-2 py-0.5 text-[11px] font-black"
+              style={{ background: "var(--gold)", color: "#000" }}
             >
               {seat.name} {multiple.toFixed(2)}×
             </div>
             <Image
               src={`/climbers/${art}/${pose}.png`}
               alt=""
-              width={64}
-              height={96}
-              className="h-[76px] w-auto sm:h-[104px]"
-              style={{
-                filter: mine ? "drop-shadow(0 0 14px var(--gold-glow))" : "none",
-                transform: pose === "slip" ? "scaleX(-1)" : undefined,
-              }}
+              width={96}
+              height={140}
               priority
               unoptimized
+              className={`h-[110px] w-auto sm:h-[140px] ${hanging && !dead && !bailed ? "hanging" : ""}`}
+              style={{
+                filter: "drop-shadow(0 0 16px var(--gold-glow))",
+                transform: pose === "slip" ? "scaleX(-1)" : undefined,
+              }}
             />
+            {seat.inRound && !dead && !bailed && (
+              <span
+                className="mt-1 text-[9px] font-black tracking-[0.25em]"
+                style={{ color: hanging ? "var(--down)" : "var(--dim)" }}
+              >
+                {hanging ? "HANGING ON" : seat.pick === "UP" ? "▲ RIDING UP" : "▼ RIDING DOWN"}
+              </span>
+            )}
+            {seat && !seat.inRound && !dead && !bailed && (
+              <span className="mt-1 text-[9px] font-black tracking-[0.25em] text-[var(--dim)]">
+                WAITING FOR THE ROUND
+              </span>
+            )}
           </div>
-        );
-      })}
+        )}
+      </div>
 
-      {climbers.length === 0 && (
-        // Sits high on the wall: centred, it lands exactly on the break-even
-        // line and the two strings overprint each other.
+      {!seat && (
         <div className="absolute inset-x-0 top-[22%] text-center text-[10px] tracking-[0.3em] text-[var(--dim)]">
-          NOBODY ON THE WALL
+          NOBODY ON THE WALL — TAKE A SEAT
         </div>
       )}
 
-      </div>
-
-      {/* BTC against the line. The chart no longer sits below the wall, so the
-          number that decides everyone's fate has to be on the wall itself. */}
+      {/* BTC against the line — the market that moves the wall */}
       {btc.price !== null && btc.strike !== null && (
         <div className="pointer-events-none absolute right-4 top-3 text-right">
           <p
@@ -360,14 +332,24 @@ export function Cliff({
         </div>
       )}
 
+      {/* altitude, top-left: how high the run has actually climbed */}
+      {seat && (
+        <div className="pointer-events-none absolute left-4 top-3">
+          <p className="text-[9px] font-black tracking-[0.25em] text-[var(--dim)]">ALTITUDE</p>
+          <p className="display tabular text-2xl leading-none glow-gold sm:text-3xl">
+            {multiple.toFixed(2)}×
+          </p>
+        </div>
+      )}
+
       {/* time, draining */}
       <div className="absolute inset-x-0 bottom-0 h-[3px] bg-[#ffffff0a]">
         <div
           className="h-full transition-[width] duration-1000 ease-linear"
           style={{
             width: `${Math.max(0, Math.min(100, (secondsLeft / 60) * 100))}%`,
-            background: urgent ? "var(--down)" : "var(--gold)",
-            boxShadow: `0 0 16px ${urgent ? "var(--down)" : "var(--gold)"}`,
+            background: secondsLeft < 10 ? "var(--down)" : "var(--gold)",
+            boxShadow: `0 0 16px ${secondsLeft < 10 ? "var(--down)" : "var(--gold)"}`,
           }}
         />
       </div>

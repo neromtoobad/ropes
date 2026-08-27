@@ -17,16 +17,17 @@ import * as registry from "../lib/registry";
 
 /** What a seat costs. */
 export const SEAT_PRICE = 10n * ONE;
-/** Held back from every seat into the pot. You play with the rest. */
-export const POT_CUT = 2n * ONE;
+/** Held back from every seat into the pot. Zero while the game is single
+ *  player — a pot with nobody to take it from is just a fee. */
+export const POT_CUT = 0n;
 /** The stack a run actually starts with, and the basis for its multiple. */
 export const STARTING_STACK = SEAT_PRICE - POT_CUT;
 
 export const MAX_SEATS = 8;
-/** Below this a table is not a battle royale, so it waits. */
-export const MIN_SEATS = 2;
-/** How long a table stays open to arrivals before it seals. */
-export const FILL_WINDOW_MS = 2 * 60_000;
+/** Solo play: one climber is a game. Multiplayer raises this again. */
+export const MIN_SEATS = 1;
+/** Short — a lone climber should be roping up, not queueing. */
+export const FILL_WINDOW_MS = 15_000;
 
 const log = (...a: unknown[]) => console.log(new Date().toISOString().slice(11, 19), ...a);
 
@@ -108,7 +109,23 @@ export async function crownChampions() {
       include: { player: true },
     });
 
+    const seated = await db.run.count({ where: { tableId: table.id } });
+
     if (alive.length > 1) continue;
+
+    // A lone climber is never "last one standing" — there was nobody to
+    // outlast. Their run ends by bail or bust, and the table just closes
+    // behind them. The champion path stays for tables of two or more.
+    if (seated < 2) {
+      if (alive.length === 0) {
+        await db.table.update({
+          where: { id: table.id },
+          data: { status: "finished", finishedAt: new Date() },
+        });
+        log(`TABLE ${table.index} — solo run ended, table closed`);
+      }
+      continue;
+    }
 
     if (alive.length === 1) {
       const champ = alive[0];
