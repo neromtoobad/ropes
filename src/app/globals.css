@@ -186,17 +186,61 @@ body::after {
 }
 .alive { animation: alive-breathe 3.4s ease-in-out infinite; }
 
-/* Barely holding on: a tight scrabble at the hold. Covers the honest stillness
-   of a deep-underwater position with motion that says the run is not over. */
+/* ── the rope ──────────────────────────────────────────────────────────
+   Anchored at the summit, running through the climber's grip. The braid is a
+   diagonal repeat, the knots a band every ~90px; the camera slides the whole
+   texture via background-position, so knots stream past as you move. */
+.rope {
+  background:
+    linear-gradient(90deg, #00000066, transparent 35%, #ffffff1f 50%, transparent 65%, #00000066),
+    repeating-linear-gradient(180deg, transparent 0 82px, #d9a84c55 82px 86px, #2c2013 86px 92px),
+    repeating-linear-gradient(28deg, #7d5f36 0 4px, #4a3820 4px 8px);
+  border-radius: 3px;
+  box-shadow: 0 0 12px #00000099;
+}
+
+/* Every grip state animates around the hands (origin near the top of the
+   sprite), so the body swings below the hold instead of the whole figure
+   floating. All of these ARE the character holding the rope. */
+.climbing,
+.sliding,
+.dangling,
+.hanging { transform-origin: 50% 12%; }
+
+/* Hand over hand: two reaches per cycle, the body kicking slightly. */
+@keyframes rope-climb {
+  0%, 100% { transform: translateY(0) rotate(-2deg); }
+  25% { transform: translateY(-5px) rotate(0.5deg); }
+  50% { transform: translateY(-1px) rotate(2deg); }
+  75% { transform: translateY(-6px) rotate(-0.5deg); }
+}
+.climbing { animation: rope-climb 0.7s ease-in-out infinite; }
+
+/* Losing rope: the mirror is baked in because the slip pose faces the other
+   way — an inline scaleX would be clobbered by the running animation. */
+@keyframes rope-slide {
+  0%, 100% { transform: scaleX(-1) translateY(0) rotate(2deg); }
+  50% { transform: scaleX(-1) translateY(5px) rotate(-1.5deg); }
+}
+.sliding { animation: rope-slide 0.45s ease-in-out infinite; }
+
+/* Holding steady between moves: a slow pendulum under the grip. */
+@keyframes rope-dangle {
+  0%, 100% { transform: rotate(-2deg); }
+  50% { transform: rotate(2deg); }
+}
+.dangling { animation: rope-dangle 2.8s ease-in-out infinite; }
+
+/* Barely holding on: a tight scrabble at the hold, mirrored like the slip
+   pose it always wears. Covers the honest stillness of a deep-underwater
+   position with motion that says the run is not over. */
 @keyframes hang-scrabble {
-  0%, 100% { transform: translate(0, 0) rotate(0deg); }
-  20% { transform: translate(-1px, 1px) rotate(-2deg); }
-  45% { transform: translate(1px, -1px) rotate(1.5deg); }
-  70% { transform: translate(-1px, 0) rotate(-1deg); }
+  0%, 100% { transform: scaleX(-1) translate(0, 0) rotate(0deg); }
+  20% { transform: scaleX(-1) translate(-1px, 1px) rotate(-2.5deg); }
+  45% { transform: scaleX(-1) translate(1px, -1px) rotate(2deg); }
+  70% { transform: scaleX(-1) translate(-1px, 0) rotate(-1.5deg); }
 }
 .hanging { animation: hang-scrabble 0.5s ease-in-out infinite; }
-/* The slip pose mirrors via inline transform; the scrabble must not clobber it. */
-.hanging[style*="scaleX"] { animation: none; }
 
 /* ── the cabinet ───────────────────────────────────────────────────────── */
 

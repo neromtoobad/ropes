@@ -141,6 +141,18 @@ export function Cliff({
           ? "climb"
           : "climb";
 
+  // How the hands work the rope. Off the rope entirely when falling or leaping.
+  const grip =
+    dead || bailed
+      ? ""
+      : hanging
+        ? "hanging"
+        : rising
+          ? "climbing"
+          : sinking
+            ? "sliding"
+            : "dangling";
+
   const art = climber;
   const cast = CAST.find((c) => c.id === climber) ?? CAST[0];
   const finale = secondsLeft > 0 && secondsLeft <= 5 && (seat?.inRound ?? false);
@@ -265,6 +277,21 @@ export function Cliff({
           </div>
         )}
 
+        {/* the rope — anchored at the summit, running through the climber's
+            grip. Its knots are wall features like the ledges: the camera
+            slides the texture, so climbing streams them downward past you and
+            sinking streams them up. 5.2 converts SPREAD (% of the 520px wall
+            per curve unit) into background pixels. */}
+        {seat && (
+          <div
+            className="rope pointer-events-none absolute inset-y-[-12%] left-1/2 z-10 w-[7px] -translate-x-1/2"
+            style={{
+              backgroundPositionY: `${meH * SPREAD * 5.2}px`,
+              transition: "background-position 900ms cubic-bezier(0.33, 0.9, 0.4, 1)",
+            }}
+          />
+        )}
+
         {/* the climber — pinned to the middle while the world moves */}
         {seat && (
           <div
@@ -296,7 +323,7 @@ export function Cliff({
               height={140}
               priority
               unoptimized
-              className={`h-[110px] w-auto sm:h-[140px] ${hanging && !dead && !bailed ? "hanging" : ""}`}
+              className={`h-[110px] w-auto sm:h-[140px] ${grip}`}
               style={{
                 filter: "drop-shadow(0 0 16px var(--gold-glow))",
                 transform: pose === "slip" ? "scaleX(-1)" : undefined,
