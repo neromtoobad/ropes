@@ -11,7 +11,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "executor:once": "tsx src/executor/index.ts"
+    "executor:once": "tsx src/executor/index.ts",
+    "sprites": "tsx scripts/sprites.ts"
   },
   "dependencies": {
     "@prisma/client": "6.19.3",
