@@ -8,9 +8,41 @@ import { Cliff, liveMultipleOf, CAST, type ClimberId } from "./Cliff";
 import { useSound, useHeartbeat } from "./sound";
 import { hasWallet, connect, paySeat, collateralBalance } from "./wallet";
 import { useSmoothed } from "./useSmoothed";
+import { shareRunCard } from "./share";
 
 const SEAT = 10_000_000n; // 10 tUSDC, 6 decimals
 const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
+const usd = (n: number) => `${n >= 0 ? "+" : "−"}${Math.abs(n).toFixed(2)}`;
+
+type View = "climb" | "ledger" | "leaders";
+
+type LedgerData = {
+  totals: { staked: number; returned: number; aliveStack: number; net: number; games: number } | null;
+  badges: { id: string; icon: string; label: string; hint: string }[];
+  runs: {
+    id: string;
+    status: string;
+    buyIn: number;
+    stack: number;
+    multiple: number;
+    rounds: number;
+    net: number;
+    paid: boolean;
+    payoutTx: string | null;
+    perRound: { round: number; side: string; outcome: string | null; after: number; net: number }[];
+  }[];
+  series: number[] | null;
+};
+
+type LeaderRow = {
+  name: string;
+  games: number;
+  net: number;
+  best: number;
+  longest: number;
+  badges: string[];
+  alive: boolean;
+};
 
 const POLL_MS = 750;
 
@@ -211,11 +243,52 @@ export default function Game() {
     localStorage.setItem("lc.climber", id);
   };
 
+  // Which section lives under the wall: the kill feed, MY LEDGER, or LEADERS.
+  const [view, setView] = useState<View>("climb");
+  const [ledger, setLedger] = useState<LedgerData | null>(null);
+  const [leaders, setLeaders] = useState<LeaderRow[] | null>(null);
+
+  // The ledger backs both the LEDGER view and the stat panel's sparkline, so
+  // it refreshes on every bell (each bell can change it) and on view change.
+  useEffect(() => {
+    if (!playerKey) return;
+    let dead = false;
+    fetch(`/api/ledger?playerKey=${encodeURIComponent(playerKey)}`)
+      .then((r) => r.json())
+      .then((j) => !dead && setLedger(j))
+      .catch(() => {});
+    return () => {
+      dead = true;
+    };
+  }, [playerKey, bell, view, runId]);
+
+  useEffect(() => {
+    if (view !== "leaders") return;
+    let dead = false;
+    const load = () =>
+      fetch("/api/leaderboard")
+        .then((r) => r.json())
+        .then((j) => !dead && setLeaders(j.rows))
+        .catch(() => {});
+    load();
+    const id = setInterval(load, 10_000);
+    return () => {
+      dead = true;
+      clearInterval(id);
+    };
+  }, [view]);
+
+  const switchView = (v: View) => {
+    sound.arm();
+    sound.play("click");
+    setView(v);
+  };
+
   return (
     <main className={`relative z-10 mx-auto min-h-screen max-w-6xl px-4 py-4 ${bell ? "shake" : ""}`}>
       {secs > 0 && secs < 10 && <div className="danger" />}
 
-      <TopBar state={state} urgent={urgent} sound={sound} me={me} />
+      <TopBar state={state} urgent={urgent} sound={sound} me={me} view={view} onView={switchView} />
 
       {seatFlash && (
         <div className="pointer-events-none fixed inset-x-0 top-[20%] z-40 text-center">
@@ -304,7 +377,7 @@ export default function Game() {
           </div>
         </div>
 
-        <StatPanel state={state} me={me} climber={climber} />
+        <StatPanel state={state} me={me} climber={climber} series={ledger?.series ?? null} />
       </div>
 
       {passed && (
@@ -314,7 +387,10 @@ export default function Game() {
       )}
 
       <div id="runs">
-        <Feed state={state} />
+        {view === "climb" && <Feed state={state} />}
+        {view === "climb" && !me && <LastRun ledger={ledger} climber={climber} />}
+        {view === "ledger" && <LedgerPanel ledger={ledger} climber={climber} />}
+        {view === "leaders" && <LeadersPanel rows={leaders} myName={nameRef.current} />}
       </div>
       {bell && <Bell result={bell} mine={mine} />}
       <Footnote state={state} />
@@ -329,11 +405,15 @@ function TopBar({
   urgent,
   sound,
   me,
+  view,
+  onView,
 }: {
   state: TableState | null;
   urgent: boolean;
   sound: ReturnType<typeof useSound>;
   me: TableState["seats"][number] | null;
+  view: View;
+  onView: (v: View) => void;
 }) {
   const secs = Math.floor(state?.round?.secondsLeft ?? 0);
   const t = state?.table;
@@ -370,8 +450,16 @@ function TopBar({
       </div>
 
       <nav className="flex items-center gap-1" aria-label="sections">
-        <span className="gametab active hidden sm:inline-block">CLIMB</span>
-        <a className="gametab hidden sm:inline-block" href="#runs">RUNS</a>
+        {(["climb", "ledger", "leaders"] as const).map((v) => (
+          <button
+            key={v}
+            onClick={() => onView(v)}
+            aria-pressed={view === v}
+            className={`gametab ${view === v ? "active" : ""}`}
+          >
+            {v.toUpperCase()}
+          </button>
+        ))}
         <button
           onClick={sound.toggle}
           aria-label={sound.on ? "Mute sound" : "Unmute sound"}
@@ -453,14 +541,38 @@ function Stat({ label, value, frac }: { label: string; value: string; frac: numb
 }
 
 /** The RPG stat block: altitude as the level numeral, then the bars. */
+function Sparkline({ series }: { series: number[] }) {
+  const w = 200;
+  const h = 42;
+  const min = Math.min(...series);
+  const max = Math.max(...series);
+  const span = Math.max(max - min, 0.01);
+  const pts = series.map((v, i) => [
+    (i / Math.max(series.length - 1, 1)) * (w - 8) + 4,
+    h - 6 - ((v - min) / span) * (h - 12),
+  ]);
+  const d = pts.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(" ");
+  const up = series[series.length - 1] >= series[0];
+  const c = up ? "var(--up)" : "var(--down)";
+  const [lx, ly] = pts[pts.length - 1];
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} className="h-[42px] w-full" aria-hidden="true">
+      <polyline points={d} fill="none" stroke={c} strokeWidth="2" strokeLinejoin="round" opacity="0.9" />
+      <circle cx={lx} cy={ly} r="3" fill={c} />
+    </svg>
+  );
+}
+
 function StatPanel({
   state,
   me,
   climber,
+  series,
 }: {
   state: TableState | null;
   me: TableState["seats"][number] | null;
   climber: ClimberId;
+  series: number[] | null;
 }) {
   const cast = CAST.find((c) => c.id === climber) ?? CAST[0];
   const smoothMult = useSmoothed(liveMultipleOf(me, state?.price ?? { up: null, down: null }), 340, 3);
@@ -486,6 +598,12 @@ function StatPanel({
           {mult !== null ? mult.toFixed(2) : "—"}
           {mult !== null && <span className="text-2xl opacity-70">×</span>}
         </p>
+        {series && series.length >= 2 && (
+          <div className="mt-1.5 border-t border-[var(--edge)] pt-1">
+            <p className="text-[8px] font-black tracking-[0.3em] text-[var(--dim)]">THIS RUN, BELL BY BELL</p>
+            <Sparkline series={series} />
+          </div>
+        )}
       </div>
 
       <div className="flex flex-col gap-3">
@@ -854,6 +972,187 @@ function Feed({ state }: { state: TableState | null }) {
             </span>
           </div>
         ))}
+      </div>
+    </section>
+  );
+}
+
+/* ─────────────────────── ledger · leaders · share ─────────────────────── */
+
+function ShareButton({
+  run,
+  climber,
+  name,
+}: {
+  run: LedgerData["runs"][number];
+  climber: ClimberId;
+  name: string;
+}) {
+  const [msg, setMsg] = useState<string | null>(null);
+  return (
+    <button
+      onClick={async () => {
+        const how = await shareRunCard({
+          name,
+          climber,
+          multiple: run.multiple,
+          rounds: run.rounds,
+          status: run.status,
+        });
+        setMsg(how === "copied" ? "COPIED — PASTE ANYWHERE" : "SAVED");
+        setTimeout(() => setMsg(null), 2200);
+      }}
+      className="chamfer-sm border border-[var(--gold)] px-3 py-1.5 text-[10px] font-black tracking-[0.15em] text-[var(--gold)] transition hover:bg-[var(--gold)] hover:text-black"
+    >
+      {msg ?? "SHARE CARD"}
+    </button>
+  );
+}
+
+/** After a run ends, its card waits under the join box — the trophy moment. */
+function LastRun({ ledger, climber }: { ledger: LedgerData | null; climber: ClimberId }) {
+  const last = ledger?.runs.find((r) => r.status !== "alive");
+  if (!last) return null;
+  const won = last.net >= 0;
+  return (
+    <section className="mt-4 flex items-center justify-between border border-[var(--edge)] px-4 py-3 chamfer-sm" style={{ background: "var(--panel)" }}>
+      <span className="text-[11px] font-bold tracking-[0.2em] text-[var(--dim)]">
+        YOUR LAST RUN ·{" "}
+        <span className="tabular" style={{ color: won ? "var(--up)" : "var(--down)" }}>
+          {last.multiple.toFixed(2)}× · {usd(last.net)}
+        </span>{" "}
+        · {last.rounds}R
+      </span>
+      <ShareButton run={last} climber={climber} name="climber" />
+    </section>
+  );
+}
+
+function LedgerPanel({ ledger, climber }: { ledger: LedgerData | null; climber: ClimberId }) {
+  if (!ledger?.totals) {
+    return (
+      <p className="mt-8 text-center text-[11px] font-bold tracking-[0.3em] text-[var(--dim)]">
+        NO RUNS YET — TAKE A SEAT AND THE LEDGER STARTS WRITING
+      </p>
+    );
+  }
+  const t = ledger.totals;
+  const netC = t.net >= 0 ? "var(--up)" : "var(--down)";
+  return (
+    <section className="mt-6">
+      {/* the money, headline first */}
+      <div className="grid grid-cols-3 gap-3">
+        {[
+          { label: "NET GAIN, ALL TIME", value: usd(t.net), c: netC, big: true },
+          { label: "TOTAL STAKED", value: t.staked.toFixed(2), c: "var(--text)" },
+          { label: "BACK + ON THE WALL", value: (t.returned + t.aliveStack).toFixed(2), c: "var(--text)" },
+        ].map((s) => (
+          <div key={s.label} className="chamfer-sm border border-[var(--edge)] p-3" style={{ background: "var(--panel)" }}>
+            <p className="text-[9px] font-black tracking-[0.25em] text-[var(--dim)]">{s.label}</p>
+            <p className={`display tabular mt-1 leading-none ${s.big ? "text-3xl sm:text-4xl" : "text-2xl sm:text-3xl"}`} style={{ color: s.c, textShadow: s.big ? `0 0 30px ${s.c}55` : "none" }}>
+              {s.value}
+            </p>
+          </div>
+        ))}
+      </div>
+
+      {/* badges — earned bright, the rest are the quest log */}
+      <div className="mt-3 flex flex-wrap gap-2">
+        {ledger.badges.map((b) => (
+          <span key={b.id} title={b.hint} className="chamfer-sm border border-[var(--gold)] bg-[#241c07] px-2.5 py-1 text-[10px] font-black tracking-[0.12em] text-[var(--gold)]">
+            {b.icon} {b.label}
+          </span>
+        ))}
+        {ledger.badges.length === 0 && (
+          <span className="text-[10px] font-bold tracking-[0.2em] text-[var(--dim)]">NO BADGES YET — WIN A ROUND FOR FIRST BLOOD</span>
+        )}
+      </div>
+
+      {/* every game, newest first, with the story of each bell */}
+      <div className="mt-4 space-y-1.5">
+        {ledger.runs.map((r) => (
+          <div key={r.id} className="chamfer-sm border border-[var(--edge)] px-4 py-2.5" style={{ background: "var(--panel)" }}>
+            <div className="flex items-center justify-between text-sm">
+              <span className="flex items-center gap-2 font-bold">
+                <span style={{ color: r.status === "alive" ? "var(--gold)" : r.status === "eliminated" ? "var(--down)" : "var(--up)" }}>
+                  {r.status === "alive" ? "▲ ON THE WALL" : r.status === "eliminated" ? "☠ FELL" : "◆ BANKED"}
+                </span>
+                <span className="tabular text-[11px] text-[var(--dim)]">
+                  {r.rounds}R · {r.multiple.toFixed(2)}×{r.paid ? " · PAID SEAT" : ""}
+                </span>
+              </span>
+              <span className="flex items-center gap-3">
+                <span className="tabular text-sm font-black" style={{ color: r.net >= 0 ? "var(--up)" : "var(--down)" }}>
+                  {usd(r.net)}
+                </span>
+                {r.payoutTx && (
+                  <a href={`https://shannon-explorer.somnia.network/tx/${r.payoutTx}`} target="_blank" rel="noreferrer" className="text-[10px] font-bold text-[var(--gold)] underline decoration-dotted">
+                    PAID ↗
+                  </a>
+                )}
+                {r.status !== "alive" && <ShareButton run={r} climber={climber} name="climber" />}
+              </span>
+            </div>
+            {r.perRound.length > 0 && (
+              <div className="mt-1.5 flex flex-wrap gap-1.5">
+                {r.perRound.map((p) => (
+                  <span key={p.round} className="tabular border border-[var(--edge)] px-1.5 py-0.5 text-[10px] font-bold" style={{ color: p.net >= 0 ? "var(--up)" : "var(--down)" }}>
+                    {p.side === "UP" ? "▲" : "▼"} {usd(p.net)}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function LeadersPanel({ rows, myName }: { rows: LeaderRow[] | null; myName: string | null }) {
+  if (!rows) {
+    return <p className="mt-8 text-center text-[11px] font-bold tracking-[0.3em] text-[var(--dim)]">FETCHING THE BOARD…</p>;
+  }
+  return (
+    <section className="mt-6">
+      <div className="mb-2 flex items-baseline justify-between">
+        <h2 className="text-[10px] font-bold tracking-[0.3em] text-[var(--dim)]">ALL CLIMBERS · BY NET GAIN</h2>
+        <span className="text-[9px] font-bold tracking-[0.2em] text-[var(--dim)]">LIVE FROM THE LEDGER</span>
+      </div>
+      <div className="space-y-1">
+        {rows.map((r, i) => {
+          const isMe = myName !== null && r.name === myName;
+          return (
+            <div
+              key={r.name}
+              className="chamfer-sm flex items-center justify-between border px-4 py-2.5"
+              style={{
+                background: "var(--panel)",
+                borderColor: isMe ? "var(--gold)" : "var(--edge)",
+                boxShadow: isMe ? "0 0 24px -12px var(--gold)" : "none",
+              }}
+            >
+              <span className="flex items-center gap-3">
+                <span className={`display tabular w-8 text-lg ${i === 0 ? "glow-gold" : "text-[var(--dim)]"}`}>
+                  {i + 1}
+                </span>
+                <span className="font-bold">
+                  {r.name}
+                  {r.alive && <span className="ml-2 text-[9px] font-black tracking-[0.2em] text-[var(--gold)]">● ON THE WALL</span>}
+                </span>
+                <span className="text-sm">{r.badges.join(" ")}</span>
+              </span>
+              <span className="flex items-baseline gap-4">
+                <span className="tabular hidden text-[10px] font-bold text-[var(--dim)] sm:inline">
+                  {r.games} GAME{r.games === 1 ? "" : "S"} · BEST {r.best.toFixed(2)}× · {r.longest}R
+                </span>
+                <span className="display tabular text-lg" style={{ color: r.net >= 0 ? "var(--up)" : "var(--down)" }}>
+                  {usd(r.net)}
+                </span>
+              </span>
+            </div>
+          );
+        })}
       </div>
     </section>
   );
