@@ -41,7 +41,51 @@ reused as-is: the palette, the fonts, the sound engine, the logo, the bell, the 
 
 ---
 
-## day 0 — 27 aug — THE MOTION SPIKE ⚑
+## day 0 — 27 aug — MOTION SPIKE, PASSED ✓
+
+the cliff reads. `scripts/spike/climb.ts` sampled four live BTC 1m windows every second.
+
+```
+round 2  entry 0.450   prob 0.208 → 0.914   ▅▅▅▅▅▅▅▅▅▃▃▂▂▂▂▂▂▁▁▁▁▁▁▆▆█
+round 3  entry 0.203   prob 0.013 → 0.313   ▆▆▆███▆▆▄▄▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁
+round 4  entry 0.820   prob 0.762 → 0.984   ▃▃▃▃▄▄▄▄▁▁▁▁▂▂▃▃▅███████
+```
+
+**round 2 is the whole game in one line**: a long slide toward death, twenty seconds hanging near
+the floor, then a last-second save. that arc is real and it happens on its own.
+
+### the mapping, measured not guessed
+
+height is `0.5 + 0.5·tanh(k · ln(live/entry))` — your position as a multiple of what you paid, log
+scaled so a doubling and a halving are equal distances, and bounded so it can never explode.
+
+the first attempt, `(live−entry)/(1−entry)`, produced spans of **3.14 on a 0–1 scale** because it
+blows up when a player enters near certainty. discarded.
+
+`k` was chosen by sweeping it across the real rounds:
+
+```
+k=1.0   avg span 0.485   favourite-buyer travels 0.127 of the wall — invisible
+k=1.8   avg span 0.640   that becomes 0.224, and the dramatic round still pins 0%   ← chosen
+k=2.6   avg span 0.726   but the dramatic round pins 12% at the floor, flattening its save
+```
+
+**k = 1.8.** the last gain before the good round starts clipping.
+
+### what the spike also settled
+
+➠ **the dead tail is real and must be handled in animation, not maths.** round 3 sat on the floor
+  for 25 seconds because its position was worth 6% of cost. that is honest — but round 2 proves you
+  can come back from there, so a climber must never be dropped early. a low climber gets a
+  scrabbling **HANGING ON** state; the stillness is covered by the animation, not removed.
+➠ **buying the favourite is meant to be dull.** small climb, small payout. that is the strategy
+  layer working, not a bug to tune away.
+➠ sampling itself needed fixing twice: re-resolving the market every tick cost three network calls
+  a second and cut the sample rate to a third; and `currentMarket` gates on status `Trading`, so a
+  window drops out the moment it locks and the original spike never saw the last seconds at all —
+  which is exactly where the drama is. resolve the window once, then watch it through expiry.
+
+## day 0 — the spike as originally planned ⚑
 
 **the whole plan rests on one unanswered question: does the climb actually read?**
 
