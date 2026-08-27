@@ -125,6 +125,11 @@ model Run {
   /// how long you lasted, not just what you made.
   roundsSurvived Int @default(0)
 
+  /// The player asked to bail. Orders go through the executor's single nonce,
+  /// so the API only raises this flag; the executor sells and banks on its
+  /// next tick. The leap animation plays instantly; the money follows.
+  bailRequested Boolean @default(false)
+
   // The side chosen for the CURRENT round, before the order is placed.
   // Cleared once the position exists. No pick by lock time = sit the round out.
   pendingSide String?

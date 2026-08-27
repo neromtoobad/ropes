@@ -164,3 +164,52 @@ export async function redeemAll(
   const after = await houseCollateral();
   return { redeemed: after - before, txs };
 }
+
+/**
+ * Sell a held position back to the book — the money behind BAIL.
+ *
+ * Sells are quoted in YES terms like everything else: selling UP crosses down
+ * into the YES bid; selling DOWN is SELL_NO, whose acceptable floor in YES
+ * terms is a HIGHER yes price. Proceeds are measured off the wallet, never
+ * inferred from the quote, and a book that cannot serve us returns a zero sale
+ * rather than throwing — the caller decides whether to retry next tick.
+ */
+export async function sellPosition(
+  market: LiveMarket,
+  side: Side,
+  contracts: bigint,
+): Promise<{ sold: bigint; proceeds: bigint; tx?: string }> {
+  const outcomeIdx = side === "UP" ? 0 : 1;
+  const collateralStart = await houseCollateral();
+  const outcomeStart = await outcomeBalance(market.onchain, HOUSE, outcomeIdx);
+
+  const quantity = snap(contracts < outcomeStart ? contracts : outcomeStart, market.lot);
+  if (quantity === 0n) return { sold: 0n, proceeds: 0n };
+
+  // A bail is an exit, not a negotiation: place IOC at the floor and take
+  // whatever the book pays. Reading the touch and crossing a couple of ticks —
+  // the first version — found no touch on a thin late-round book and left the
+  // player stranded on the wall while the bell came. In YES terms the floor is
+  // `tick` for selling UP, and ONE − tick for selling DOWN (the highest yes
+  // price is the lowest NO price).
+  const limit = side === "UP" ? market.tick : ONE - market.tick;
+
+  let lastTx: string | undefined;
+  try {
+    const res = await exchange.trader.placeOrder({
+      pool: market.pool,
+      side: side === "UP" ? "SELL_YES" : "SELL_NO",
+      price: limit,
+      quantity,
+      orderType: ORDER_TYPE_MARKET,
+    });
+    if (res.receipt?.status !== "reverted") lastTx = res.receipt?.transactionHash;
+  } catch (err) {
+    // Nobody on the other side right now. The caller retries next tick.
+    if (!String(err).includes("ImmediateOrCancelNoFill")) throw err;
+  }
+
+  const sold = outcomeStart - (await outcomeBalance(market.onchain, HOUSE, outcomeIdx));
+  const proceeds = (await houseCollateral()) - collateralStart;
+  return { sold, proceeds, tx: lastTx };
+}

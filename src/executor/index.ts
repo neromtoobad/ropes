@@ -8,7 +8,7 @@
  * run one-minute rounds without ever missing a window.
  */
 import { houseCollateral, houseGas, fmtUsd, sleep, HOUSE } from "../lib/chain";
-import { openRound, enterRound, closeRound, db } from "./game";
+import { openRound, enterRound, closeRound, processBails, db } from "./game";
 import { manageTables } from "./tables";
 
 const TICK_MS = 1000;
@@ -64,6 +64,7 @@ async function tick() {
   const { round, market } = opened;
   if (round.status !== "open") return;
   await enterRound(round.id, market);
+  await processBails(round.id, market, round.index);
 }
 
 async function main() {

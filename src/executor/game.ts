@@ -12,7 +12,7 @@ import { db } from "../lib/db";
 import { fmtUsd, fmtProb, ONE } from "../lib/chain";
 import { currentMarket, settlement, type LiveMarket } from "../lib/market";
 import { exchange, ASSET } from "../lib/chain";
-import { buy, redeemAll, type Side } from "../lib/orders";
+import { buy, redeemAll, sellPosition, type Side } from "../lib/orders";
 import * as registry from "../lib/registry";
 import { fillingTable, STARTING_STACK, SEAT_PRICE, POT_CUT, MAX_SEATS } from "./tables";
 
@@ -231,6 +231,8 @@ export async function closeRound(roundId: string) {
   }
 
   for (const pos of round.positions) {
+    // A bailed position was sold back mid-round; it is not in this settlement.
+    if (pos.outcome) continue;
     const won = !s.voided && (pos.side === "UP" ? 0 : 1) === s.winningOutcome;
     // Void: every contract pays 0.5. Win: every contract pays 1. Loss: 0.
     const payout = s.voided ? pos.contracts / 2n : won ? pos.contracts : 0n;
@@ -278,6 +280,61 @@ export async function closeRound(roundId: string) {
     },
   });
   return true;
+}
+
+/**
+ * Fulfil bail requests.
+ *
+ * The API only raises a flag — orders go through this process's single nonce.
+ * With an open position in the live round we sell it back to the book and
+ * credit the measured proceeds; between rounds the stack is already cash. A
+ * book that cannot serve the sale leaves the flag up for the next tick, and if
+ * the bell beats us to it, settlement pays out first and the bank completes
+ * after — the player exits with whichever resolution reached them first.
+ */
+export async function processBails(roundId: string, market: LiveMarket, roundIndex: number) {
+  const requests = await db.run.findMany({
+    where: { status: "alive", bailRequested: true },
+    include: { player: true },
+  });
+
+  for (const run of requests) {
+    const pos = await db.position.findUnique({
+      where: { runId_roundId: { runId: run.id, roundId } },
+    });
+
+    if (pos && !pos.outcome) {
+      const side = pos.side as Side;
+      let sale;
+      try {
+        sale = await sellPosition(market, side, pos.contracts);
+      } catch (err) {
+        log(`  bail sell FAILED for ${run.player.displayName}: ${String(err).slice(0, 100)}`);
+        continue;
+      }
+      if (sale.sold === 0n) {
+        log(`  bail: book cannot fill ${run.player.displayName} yet — retrying next tick`);
+        continue;
+      }
+      // Mark the position exited so settlement cannot pay it a second time.
+      await db.position.update({
+        where: { id: pos.id },
+        data: { outcome: "bailed", stackAfter: run.stack + sale.proceeds },
+      });
+      await db.run.update({
+        where: { id: run.id },
+        data: { stack: run.stack + sale.proceeds, pendingSide: null },
+      });
+      log(`  🪂 ${run.player.displayName} sold ${fmtUsd(sale.sold)} contracts for ${fmtUsd(sale.proceeds)}`);
+    }
+
+    // Stack is now all cash (or always was, between rounds). Bank it.
+    const fresh = await db.run.findUniqueOrThrow({ where: { id: run.id } });
+    if (fresh.status === "alive") {
+      await db.run.update({ where: { id: run.id }, data: { bailRequested: false } });
+      await bank(run.id, roundIndex);
+    }
+  }
 }
 
 /**
