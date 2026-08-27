@@ -157,10 +157,13 @@ export function useHeartbeat(secondsLeft: number, active: boolean) {
 
   useEffect(() => {
     const START = 20; // seconds out at which the heart starts
+    // The heart STOPS five seconds out. Sudden silence right as the camera
+    // pushes in is the drop — the bell lands into it.
+    const CUT = 5;
 
     const beat = () => {
       const s = secs.current;
-      if (live.current && engine.ready && s > 0 && s <= START) {
+      if (live.current && engine.ready && s > CUT && s <= START) {
         const urgency = 1 - s / START;
         engine.heartbeat(urgency);
         // 900ms out at the edge of the window, down to 240ms at the buzzer.

@@ -189,7 +189,7 @@ these two are why the minute is tense rather than idle. both are free data.
 - [ ] the pot on screen, growing as people fall
 - [ ] the champion moment: last climber on the wall, takes the pot, permanent record
 
-## day 7 — 3 sep — the last five seconds
+## day 7 — DONE 27 aug — the last five seconds
 
 - [ ] camera pushes in on whoever is nearest the line, audio drops out, one character dangles
 - [ ] polish pass, mobile pass at 375px, reduced-motion pass

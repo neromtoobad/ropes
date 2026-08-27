@@ -142,6 +142,25 @@ export function Cliff({
 
   const urgent = secondsLeft > 0 && secondsLeft < 10;
 
+  /**
+   * The last five seconds. The camera pushes in on whoever hangs nearest the
+   * ledge — the climber whose round could still end either way — and everyone
+   * else falls into shadow. The rest of the app goes quiet at the same moment
+   * (the heartbeat cuts out in sound.ts), so the push-in is the only thing
+   * happening on screen. One character dangles; the bell decides.
+   */
+  const finale = secondsLeft > 0 && secondsLeft <= 5;
+  const inPlay = climbers.filter((c) => c.seat.inRound && !c.dead && !c.bailed);
+  const focus =
+    finale && inPlay.length
+      ? inPlay.reduce((a, b) => (Math.abs(a.height - 0.5) <= Math.abs(b.height - 0.5) ? a : b))
+      : null;
+  const focusLane = focus
+    ? climbers.length === 1
+      ? 50
+      : 8 + (climbers.indexOf(focus) * 84) / Math.max(climbers.length - 1, 1)
+    : 50;
+
   // The viewer's own ghost: their best finished multiple, painted faintly at
   // the height that run reached. Crossing it is the private victory.
   const me = climbers.find((c) => c.mine);
@@ -159,6 +178,14 @@ export function Cliff({
         boxShadow: "inset 0 2px 24px #000000cc",
       }}
     >
+      <div
+        className="absolute inset-0"
+        style={{
+          transform: focus ? "scale(1.22)" : "scale(1)",
+          transformOrigin: `${focusLane}% ${100 - wallBottom(focus?.height ?? 0.5)}%`,
+          transition: "transform 1600ms cubic-bezier(0.25, 0.8, 0.25, 1)",
+        }}
+      >
       {/* strata — gives the wall scale, and makes vertical motion legible */}
       {Array.from({ length: 9 }).map((_, i) => (
         <div
@@ -256,6 +283,7 @@ export function Cliff({
                 ? "bottom 700ms cubic-bezier(0.2, 0.9, 0.3, 1), transform 700ms ease-out, opacity 700ms ease-in 300ms"
                 : "bottom 900ms cubic-bezier(0.33, 0.9, 0.4, 1)",
               zIndex: mine ? 20 : 10,
+              filter: focus && focus.seat.runId !== seat.runId ? "brightness(0.4)" : "none",
             }}
           >
             <div
@@ -291,6 +319,8 @@ export function Cliff({
           NOBODY ON THE WALL
         </div>
       )}
+
+      </div>
 
       {/* BTC against the line. The chart no longer sits below the wall, so the
           number that decides everyone's fate has to be on the wall itself. */}
