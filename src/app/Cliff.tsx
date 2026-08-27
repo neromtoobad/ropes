@@ -23,9 +23,6 @@ import { useSmoothed } from "./useSmoothed";
  * overtaking.
  */
 
-/** Measured on real rounds — see CLIMB.md. Do not retune by eye. */
-const CURVE_GAIN = 1.8;
-
 /**
  * The run's live cumulative multiple: free cash plus the position marked to the
  * live book, over the seat price. THE number — the wall, the bail bar and the
@@ -44,13 +41,22 @@ export function liveMultipleOf(
   return (seat.stack - seat.costInRound + positionLive) / seat.buyIn;
 }
 
+/**
+ * Screen-space height is the pure log of the multiple.
+ *
+ * The old tanh curve (measured for per-round motion near 1×) SATURATED on
+ * cumulative multiples: at 3× a 10% move slid the wall fifteen times less
+ * than at 1× — the game went visually still exactly when the stakes were
+ * highest. Log mapping makes equal RELATIVE moves equal screen distance at
+ * every altitude: a 1% tick is always ~6px, a double is always most of a
+ * screen, whether it is your first round or your fifth.
+ */
 export function heightOfMultiple(m: number) {
-  if (m <= 0) return 0;
-  return 0.5 + 0.5 * Math.tanh(CURVE_GAIN * Math.log(m));
+  return Math.log(Math.max(m, 0.05));
 }
 
-/** % of viewport height per unit of curve-space. Bigger = faster-feeling wall. */
-const SPREAD = 190;
+/** % of viewport height per ln-unit. 120 ⇒ a +10% move ≈ 12% of the wall. */
+const SPREAD = 120;
 
 /** The ledges carved into the wall, as multiples of the seat price. */
 const MILESTONES = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3, 5, 8, 12, 20];
