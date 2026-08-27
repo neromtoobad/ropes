@@ -69,6 +69,12 @@ export default function Table() {
   const [leaping, setLeaping] = useState<string[]>([]);
   // The name just overtaken, briefly on screen.
   const [passed, setPassed] = useState<string | null>(null);
+  // Optimistic pick: highlight on tap, not on the next poll. Rolls back if the
+  // server refuses. Also the busy latch that keeps every submit single-fire.
+  const [optimisticPick, setOptimisticPick] = useState<"UP" | "DOWN" | null>(null);
+  const [busy, setBusy] = useState(false);
+  // BAIL fired and the executor is selling — the button must not fire twice.
+  const [bailing, setBailing] = useState(false);
   const [crown, setCrown] = useState<TableState["champion"]>(null);
   const lastCrown = useRef<number | null>(null);
   const lastBellIndex = useRef<number | null>(null);
@@ -131,8 +137,10 @@ export default function Table() {
   }, []);
 
   const join = async () => {
-    if (!playerKey || !name.trim()) return;
+    if (!playerKey || !name.trim() || busy) return;
+    setBusy(true);
     const r = await post("/api/join", { playerKey, name: name.trim() });
+    setBusy(false);
     if (r?.runId) {
       localStorage.setItem("lc.runId", r.runId);
       setRunId(r.runId);
@@ -207,11 +215,15 @@ export default function Table() {
             me={me}
             price={state?.price ?? { up: null, down: null }}
             record={state?.record ?? null}
+            pending={bailing}
             onBank={async () => {
+              if (bailing) return;
+              setBailing(true);
               if (me) setLeaping((n) => [...n, me.name]);
               sound.play("win");
               const r = await post("/api/bank", { runId });
               if (r?.ok) localStorage.removeItem("lc.runId");
+              else setBailing(false); // refused — re-arm the button
               setTimeout(() => setLeaping((n) => n.filter((x) => x !== me?.name)), 1400);
             }}
           />
@@ -219,10 +231,18 @@ export default function Table() {
           <Sides
             state={state}
             me={me}
-            onPick={(side) => {
+            optimistic={optimisticPick}
+            onPick={async (side) => {
+              if (busy) return;
               sound.arm();
               sound.play("click");
-              if (runId) post("/api/pick", { runId, side });
+              setOptimisticPick(side);
+              if (runId) {
+                setBusy(true);
+                const r = await post("/api/pick", { runId, side });
+                setBusy(false);
+                if (!r) setOptimisticPick(null); // refused — roll back
+              }
             }}
           />
         ) : null}
@@ -268,11 +288,13 @@ function BailBar({
   me,
   price,
   record,
+  pending,
   onBank,
 }: {
   me: TableState["seats"][number];
   price: TableState["price"];
   record: TableState["record"];
+  pending: boolean;
   onBank: () => void;
 }) {
   // The LIVE number — same maths as the wall. Promising the cost-basis stack
@@ -283,7 +305,8 @@ function BailBar({
   return (
     <button
       onClick={onBank}
-      className="chamfer flex w-full items-center justify-between border px-5 py-4 text-left transition"
+      disabled={pending}
+      className="chamfer flex w-full items-center justify-between border px-5 py-4 text-left transition disabled:opacity-70"
       style={{
         borderColor: "var(--gold)",
         background: "linear-gradient(90deg, #241c07, var(--panel))",
@@ -291,9 +314,9 @@ function BailBar({
       }}
     >
       <span>
-        <span className="display text-2xl glow-gold sm:text-3xl">BAIL</span>
+        <span className="display text-2xl glow-gold sm:text-3xl">{pending ? "SELLING…" : "BAIL"}</span>
         <span className="ml-3 text-[11px] font-bold tracking-widest text-[var(--dim)]">
-          KEEP {keep.toFixed(2)}
+          {pending ? "ON THE BOOK — MONEY LANDS IN A MOMENT" : `KEEP ${keep.toFixed(2)}`}
           {record && me.rounds > 0 && me.rounds < record.rounds
             ? ` · ${record.rounds - me.rounds} FROM THE RECORD`
             : ""}
@@ -340,7 +363,7 @@ function Header({
           </button>
         </div>
         <p className="mt-1 flex items-center gap-2 text-[10px] font-bold tracking-[0.25em] text-[var(--dim)]">
-          {state?.round ? "BATTLE ROYALE ON BITCOIN" : "WAITING FOR A WINDOW"}
+          {state?.round ? "CLIMB THE CANDLE · BTC 1M" : "WAITING FOR A WINDOW"}
           {state?.locked && <span className="glow-gold">● LOCKED</span>}
         </p>
       </div>
@@ -351,7 +374,7 @@ function Header({
           {String(secs).padStart(2, "0")}
         </div>
         <p className="mt-1 text-[10px] font-bold tracking-[0.25em] text-[var(--dim)]">
-          {alive} ALIVE
+          TO THE BELL
         </p>
       </div>
     </header>
@@ -362,12 +385,15 @@ function Sides({
   state,
   me,
   onPick,
+  optimistic,
 }: {
   state: TableState;
   me: TableState["seats"][number] | null;
   onPick: (side: "UP" | "DOWN") => void;
+  optimistic: "UP" | "DOWN" | null;
 }) {
   const canPick = me && !me.inRound;
+  const shownPick = optimistic ?? me?.pick ?? null;
   return (
     <>
       <div className="mt-4 mb-2 flex items-baseline justify-between text-[10px] font-bold tracking-[0.25em] text-[var(--dim)]">
@@ -381,7 +407,7 @@ function Sides({
                 : "NEXT ROUND"}
         </span>
         <span className="tabular">
-          {(state.crowd.liveStake.up + state.crowd.liveStake.down).toFixed(2)} IN PLAY
+          NEXT BELL 0:{String(Math.floor(state.round?.secondsLeft ?? 0)).padStart(2, "0")}
         </span>
       </div>
 
@@ -393,7 +419,7 @@ function Sides({
           const capped = isUp ? state.capped.up : state.capped.down;
           const stake = isUp ? state.crowd.liveStake.up : state.crowd.liveStake.down;
           const calls = isUp ? state.crowd.nextCall.up : state.crowd.nextCall.down;
-          const picked = me?.pick === side;
+          const picked = shownPick === side;
           const c = isUp ? "var(--up)" : "var(--down)";
 
           return (
@@ -414,7 +440,7 @@ function Sides({
                   {isUp ? "▲ UP" : "▼ DOWN"}
                 </span>
                 <span className="tabular whitespace-nowrap text-[10px] font-bold text-[var(--dim)] sm:text-[11px]">
-                  {stake > 0 ? `${stake.toFixed(2)} STAKED` : calls > 0 ? `${calls} CALLING` : "—"}
+                  PAYS IF RIGHT
                 </span>
               </div>
 
@@ -546,7 +572,7 @@ function Join({
         onKeyDown={(e) => e.key === "Enter" && onJoin()}
         placeholder="your name"
         maxLength={12}
-        className="flex-1 rounded-lg border border-[var(--edge)] bg-[var(--panel)] px-4 py-3 text-sm outline-none focus:border-[var(--gold)]"
+        className="flex-1 rounded-lg border border-[var(--edge)] bg-[var(--panel)] px-4 py-3 text-base outline-none focus:border-[var(--gold)]"
       />
       <button
         onClick={onJoin}
@@ -688,11 +714,7 @@ function Feed({ state }: { state: TableState | null }) {
               </span>
               <span className="font-bold">{f.name}</span>
               <span className="text-[11px] tracking-wider text-[var(--dim)]">
-                {f.kind === "died"
-                  ? `OUT ON ROUND ${f.round}`
-                  : f.kind === "swept"
-                    ? `SWEPT ON ROUND ${f.round}`
-                    : `BANKED ON ROUND ${f.round}`}
+                {f.kind === "died" ? "FELL AT THE BELL" : f.kind === "swept" ? "SWEPT" : "BAILED"}
               </span>
             </span>
             <span className="tabular text-[11px] font-bold text-[var(--dim)]">

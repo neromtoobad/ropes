@@ -183,14 +183,18 @@ export function Cliff({
                   boxShadow: isEven ? "0 0 14px var(--gold-glow)" : "none",
                 }}
               />
-              <span
-                className={`tabular absolute right-3 -top-4 text-[9px] font-black tracking-[0.2em] ${
-                  isEven ? "glow-gold" : "text-[var(--dim)]"
-                }`}
-                style={{ opacity: isEven ? 1 : 0.75 }}
-              >
-                {isEven ? "BREAK EVEN" : `${m}×`}
-              </span>
+              {/* The BTC readout owns the top-right corner; a ledge label that
+                  drifts up there would print straight through it. */}
+              {b < 78 && (
+                <span
+                  className={`tabular absolute right-3 -top-4 text-[9px] font-black tracking-[0.2em] ${
+                    isEven ? "glow-gold" : "text-[var(--dim)]"
+                  }`}
+                  style={{ opacity: isEven ? 1 : 0.75 }}
+                >
+                  {isEven ? "BREAK EVEN" : `${m}×`}
+                </span>
+              )}
             </div>
           );
         })}
@@ -302,8 +306,20 @@ export function Cliff({
       </div>
 
       {!seat && (
-        <div className="absolute inset-x-0 top-[22%] text-center text-[10px] tracking-[0.3em] text-[var(--dim)]">
-          NOBODY ON THE WALL — TAKE A SEAT
+        <div className="pointer-events-none absolute inset-x-0 bottom-6 flex flex-col items-center">
+          <Image
+            src="/climbers/green/cheer.png"
+            alt=""
+            width={96}
+            height={140}
+            priority
+            unoptimized
+            className="h-[110px] w-auto opacity-60 sm:h-[130px]"
+            style={{ filter: "grayscale(0.4)" }}
+          />
+          <span className="mt-2 text-[10px] font-black tracking-[0.3em] text-[var(--dim)]">
+            THE WALL IS WAITING — TAKE A SEAT
+          </span>
         </div>
       )}
 
