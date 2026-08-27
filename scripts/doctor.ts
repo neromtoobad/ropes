@@ -73,6 +73,35 @@ for (const r of staleFlags) {
   }
 }
 
+// A payout stuck in "sending" means the executor died mid-transfer. Check the
+// explorer for the house wallet before releasing it — releasing a payout that
+// actually landed double-pays.
+const stuck = await db.run.findMany({
+  where: { payoutTx: "sending" },
+  include: { player: true },
+});
+for (const r of stuck) {
+  bad(
+    `${r.player.displayName}: payout of ${fmtUsd(r.stack)} stuck in "sending" — ` +
+      `verify on the explorer, then --fix releases it for retry`,
+  );
+  if (FIX) {
+    await db.run.update({ where: { id: r.id }, data: { payoutTx: null } });
+    console.log(`    fixed: released for retry (CHECK THE EXPLORER FIRST next time)`);
+  }
+}
+// Ended paid runs still owed money should drain to zero every tick.
+const owed = await db.run.count({
+  where: {
+    status: { in: ["banked", "eliminated"] },
+    payoutAddress: { not: null },
+    payoutTx: null,
+    stack: { gt: 0n },
+  },
+});
+if (owed > 0) bad(`${owed} paid run(s) owed a payout — is the executor running?`);
+else if (!stuck.length) ok("no payouts owed or stuck");
+
 // Every position in a settled round must carry an outcome, or money was
 // redeemed without being attributed to anyone.
 const unresolved = await db.position.findMany({

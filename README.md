@@ -158,8 +158,12 @@ SQLite had happily stored, exposing an order-sizing overspend.
 - **Solo by design, today.** Tables, pots and the last-one-standing champion are built, tested
   (17 Foundry tests) and parked behind the multiplayer flag — one climber's minute had to be
   great first.
-- **No wallet needed to play.** Identity is a local key plus a name, because the executor holds
-  the collateral anyway.
+- **Connect a wallet, or don't.** A connected wallet buys the seat with a real 10 tUSDC
+  transfer (verified by receipt; the payout address is *derived from the deposit's sender*, so
+  claiming someone else's tx just pays them) and the executor sends proceeds back on-chain when
+  the run ends — the feed links the payout tx. No wallet still works: free play on the house
+  bankroll, every trade still real. In-round trading is custodial either way — one sequential
+  writer is what makes a 1-minute cadence possible.
 
 ## Provably fair
 

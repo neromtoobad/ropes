@@ -10,6 +10,7 @@
 import { houseCollateral, houseGas, fmtUsd, sleep, HOUSE } from "../lib/chain";
 import { openRound, enterRound, closeRound, processBails, db } from "./game";
 import { manageTables } from "./tables";
+import { processPayouts } from "../lib/payments";
 
 const TICK_MS = 1000;
 const log = (...a: unknown[]) => console.log(new Date().toISOString().slice(11, 19), ...a);
@@ -57,6 +58,10 @@ async function tick() {
   // 2. Crown anyone who has outlasted their table, then keep a table open for
   //    arrivals and seal it when it is ready.
   await manageTables();
+
+  // 2.5 Pay whoever is owed. Awaited here — the house wallet has one nonce
+  //     and this loop is its only writer.
+  await processPayouts();
 
   // 3. Open the live window and enter it.
   const opened = await openRound();

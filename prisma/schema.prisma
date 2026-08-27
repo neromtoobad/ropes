@@ -134,6 +134,16 @@ model Run {
   // Cleared once the position exists. No pick by lock time = sit the round out.
   pendingSide String?
 
+  /// Paid seats. A run with a payoutAddress bought its seat with a real
+  /// 10 tUSDC transfer (depositTx, replay-proof via unique) and gets its
+  /// proceeds sent back on-chain when it banks (payoutTx). All three null =
+  /// walletless free play on the house bankroll, exactly as before.
+  payoutAddress String?
+  depositTx     String? @unique
+  /// null = nothing owed yet · "sending" = claimed by the executor mid-send
+  /// (doctor flags stale ones) · 0x… = paid, verifiable on the explorer.
+  payoutTx      String?
+
   positions Position[]
 
   @@index([status])

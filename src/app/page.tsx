@@ -3,8 +3,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import type { TableState } from "@/lib/state";
+import type { Address } from "viem";
 import { Cliff, liveMultipleOf, CAST, type ClimberId } from "./Cliff";
 import { useSound, useHeartbeat } from "./sound";
+import { hasWallet, connect, paySeat, collateralBalance } from "./wallet";
+
+const SEAT = 10_000_000n; // 10 tUSDC, 6 decimals
+const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
 
 const POLL_MS = 750;
 
@@ -118,10 +123,10 @@ export default function Game() {
 
   const [seatFlash, setSeatFlash] = useState(false);
 
-  const join = async () => {
+  const join = async (depositTx?: string) => {
     if (!playerKey || !name.trim() || busy) return;
     setBusy(true);
-    const r = await post("/api/join", { playerKey, name: name.trim() });
+    const r = await post("/api/join", { playerKey, name: name.trim(), depositTx });
     setBusy(false);
     if (r?.runId) {
       localStorage.setItem("lc.runId", r.runId);
@@ -130,6 +135,39 @@ export default function Game() {
       setSeatFlash(true);
       setTimeout(() => setSeatFlash(false), 2800);
     }
+  };
+
+  // The player's own wallet — used to pay for the seat and receive payouts.
+  // Play stays custodial either way; a missing wallet just means free play.
+  const [walletReady, setWalletReady] = useState(false);
+  const [addr, setAddr] = useState<Address | null>(null);
+  const [paying, setPaying] = useState(false);
+  useEffect(() => setWalletReady(hasWallet()), []);
+
+  const connectWallet = async () => {
+    sound.arm();
+    try {
+      setAddr(await connect());
+      setErr(null);
+    } catch (e) {
+      setErr(String(e).replace("Error: ", "").slice(0, 160));
+    }
+  };
+
+  const buySeat = async () => {
+    if (!state?.pay || !addr || !name.trim() || paying || busy) return;
+    sound.arm();
+    setPaying(true);
+    setErr(null);
+    try {
+      const bal = await collateralBalance(addr, state.pay.collateral as Address);
+      if (bal < SEAT) throw new Error("not enough tUSDC — a seat costs 10");
+      const tx = await paySeat(addr, state.pay.collateral as Address, state.pay.house as Address, SEAT);
+      await join(tx);
+    } catch (e) {
+      setErr(String(e).replace("Error: ", "").slice(0, 160));
+    }
+    setPaying(false);
   };
 
   const sound = useSound();
@@ -214,7 +252,18 @@ export default function Game() {
           {/* One control, matched to the moment. Never several at once. */}
           <div className="mt-3">
             {!runId || !me ? (
-              <Join name={name} setName={setName} busy={busy} onJoin={() => { sound.arm(); join(); }} />
+              <Join
+                name={name}
+                setName={setName}
+                busy={busy}
+                paying={paying}
+                addr={addr}
+                walletReady={walletReady}
+                onJoin={() => { sound.arm(); join(); }}
+                onConnect={connectWallet}
+                onBuy={buySeat}
+                onPlayFree={() => setAddr(null)}
+              />
             ) : me.inRound ? (
               <BailBar
                 me={me}
@@ -609,30 +658,78 @@ function Join({
   name,
   setName,
   busy,
+  paying,
+  addr,
+  walletReady,
   onJoin,
+  onConnect,
+  onBuy,
+  onPlayFree,
 }: {
   name: string;
   setName: (v: string) => void;
   busy: boolean;
+  paying: boolean;
+  addr: Address | null;
+  walletReady: boolean;
   onJoin: () => void;
+  onConnect: () => void;
+  onBuy: () => void;
+  onPlayFree: () => void;
 }) {
+  const primary = addr ? onBuy : onJoin;
   return (
-    <div className="flex gap-2">
-      <input
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        onKeyDown={(e) => e.key === "Enter" && onJoin()}
-        placeholder="your name"
-        maxLength={12}
-        className="flex-1 rounded-lg border border-[var(--edge)] bg-[var(--panel)] px-4 py-3 text-base outline-none focus:border-[var(--gold)]"
-      />
-      <button
-        onClick={onJoin}
-        disabled={!name.trim() || busy}
-        className="chamfer-sm bg-[var(--gold)] px-6 py-3 text-sm font-black tracking-[0.1em] text-black disabled:opacity-40"
-      >
-        {busy ? "SEATING…" : "TAKE A SEAT · 10"}
-      </button>
+    <div>
+      <div className="flex flex-wrap gap-2">
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && primary()}
+          placeholder="your name"
+          maxLength={12}
+          className="min-w-0 flex-1 rounded-lg border border-[var(--edge)] bg-[var(--panel)] px-4 py-3 text-base outline-none focus:border-[var(--gold)]"
+        />
+        {addr ? (
+          <button
+            onClick={onBuy}
+            disabled={!name.trim() || paying || busy}
+            className="chamfer-sm bg-[var(--gold)] px-6 py-3 text-sm font-black tracking-[0.1em] text-black disabled:opacity-40"
+          >
+            {paying ? "PAYING…" : busy ? "SEATING…" : "BUY SEAT · 10 tUSDC"}
+          </button>
+        ) : (
+          <button
+            onClick={onJoin}
+            disabled={!name.trim() || busy}
+            className="chamfer-sm bg-[var(--gold)] px-6 py-3 text-sm font-black tracking-[0.1em] text-black disabled:opacity-40"
+          >
+            {busy ? "SEATING…" : "TAKE A SEAT · FREE"}
+          </button>
+        )}
+        {walletReady && !addr && (
+          <button
+            onClick={onConnect}
+            className="chamfer-sm border border-[var(--gold)] px-4 py-3 text-xs font-black tracking-[0.1em] text-[var(--gold)]"
+          >
+            CONNECT WALLET
+          </button>
+        )}
+      </div>
+      <p className="mt-1.5 text-[10px] font-bold tracking-wider text-[var(--dim)]">
+        {addr ? (
+          <>
+            PAYING FROM <span className="tabular text-[var(--gold)]">{short(addr)}</span> — WINNINGS
+            RETURN THERE ON-CHAIN ·{" "}
+            <button onClick={onPlayFree} className="underline decoration-dotted hover:text-[var(--gold)]">
+              PLAY FREE INSTEAD
+            </button>
+          </>
+        ) : walletReady ? (
+          "CONNECT TO PLAY WITH REAL TESTNET tUSDC — OR TAKE A FREE SEAT ON THE HOUSE BANKROLL"
+        ) : (
+          "NO WALLET DETECTED — PLAYING FREE ON THE HOUSE BANKROLL. EVERY TRADE IS STILL REAL AND ON-CHAIN."
+        )}
+      </p>
     </div>
   );
 }
@@ -738,6 +835,16 @@ function Feed({ state }: { state: TableState | null }) {
               {f.rounds}R · {f.multiple.toFixed(2)}×
               {f.missedBy !== null && (
                 <span className="ml-3 glow-down">MISSED BY ${f.missedBy.toFixed(2)}</span>
+              )}
+              {f.payoutTx && (
+                <a
+                  href={`https://shannon-explorer.somnia.network/tx/${f.payoutTx}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="ml-3 text-[var(--gold)] underline decoration-dotted underline-offset-2"
+                >
+                  PAID OUT ↗
+                </a>
               )}
             </span>
           </div>

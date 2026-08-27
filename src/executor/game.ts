@@ -401,6 +401,8 @@ export async function joinGame(
   _buyIn: bigint,
   roundIndex: number,
   autoPick?: string,
+  /** Set for a paid seat: binds the run to the wallet that paid for it. */
+  paid?: { payoutAddress: string; depositTx: string },
 ) {
   const player = await db.player.upsert({
     where: { wallet },
@@ -425,6 +427,8 @@ export async function joinGame(
       stack: STARTING_STACK,
       startedRoundIndex: roundIndex,
       autoPick,
+      payoutAddress: paid?.payoutAddress,
+      depositTx: paid?.depositTx,
     },
   });
   await db.table.update({ where: { id: table.id }, data: { pot: { increment: POT_CUT } } });

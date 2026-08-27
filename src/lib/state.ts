@@ -8,7 +8,7 @@
  */
 import { db } from "./db";
 import { ONE, toUsd } from "./chain";
-import { exchange, ASSET } from "./chain";
+import { exchange, ASSET, HOUSE, COLLATERAL } from "./chain";
 import { MAX_ENTRY_PRICE_PCT } from "./orders";
 import { MAX_SEATS } from "../executor/tables";
 
@@ -101,7 +101,11 @@ export interface TableState {
     rounds: number;
     /** How far the wrong side of the line they finished. The near miss. */
     missedBy: number | null;
+    /** Set once the executor sent this run's proceeds on-chain. */
+    payoutTx: string | null;
   }[];
+  /** Where a paid seat's 10 tUSDC goes, and the token it goes in. */
+  pay: { house: string; collateral: string };
   /** The number to beat. A run is measured in rounds survived, not dollars. */
   record: { name: string; rounds: number; multiple: number } | null;
   /**
@@ -248,6 +252,7 @@ export async function getTableState(): Promise<TableState> {
       multiple: r.finalMultiple ?? 0,
       rounds: r.roundsSurvived,
       missedBy,
+      payoutTx: r.payoutTx && r.payoutTx !== "sending" ? r.payoutTx : null,
     };
   });
 
@@ -329,6 +334,7 @@ export async function getTableState(): Promise<TableState> {
       : null,
     champion,
     btc: { price, strike, oracleQuestionId },
+    pay: { house: HOUSE, collateral: COLLATERAL },
     seats,
     lastResult,
     board,
