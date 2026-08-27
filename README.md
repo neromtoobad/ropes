@@ -1,12 +1,22 @@
-# LAST CANDLE
+<p align="center">
+  <img src="public/logo-full.png" alt="THE CLIMB" width="360" />
+</p>
 
-**A battle royale on Bitcoin. Every minute, half the players die.**
+# THE CLIMB
 
-Buy a seat for 10 tUSDC. Every minute a round runs on a real dreamDEX BTC event contract. Pick UP
-or DOWN — your whole stack goes in. Wrong side and you're out. Right side and your stack multiplies
-and is *already staked* in the next round. Bank out any time and walk with what you've got, or push.
+**Climb the candle. A prediction market you can feel.**
 
-Eight players, three minutes, one survivor. Then it starts again.
+Buy a seat for 10 tUSDC. Pick UP or DOWN on a real Bitcoin 1-minute event contract — and instead of
+watching a chart, watch your climber on the wall. Their height **is** your position's live value,
+second by second. The camera follows them; milestone ledges (1.5×, 2×, 3×, 5×…) slide past as you
+gain; the all-time record flies as a gold flag above you.
+
+**BAIL** at any second — your climber leaps clear and the executor *sells your position back to the
+order book at live price*, and you keep what the market pays. Ride longer, climb higher. But the
+bell comes every sixty seconds, and if your side is wrong when it rings, you fall.
+
+Survive, and your winnings are already staked in the next round — your climber starts the next
+minute at the height they earned. Every metre of that wall is real money on a real order book.
 
 > Built for the Somnia × dreamDEX Event Contracts Hackathon.
 > Live on Somnia Shannon testnet (chain 50312).
@@ -15,152 +25,145 @@ Eight players, three minutes, one survivor. Then it starts again.
 
 ## Why this isn't a trading terminal with a skin on it
 
-dreamDEX already ships a fine terminal — order book, position tabs, funding history. It's built for
-traders, and a venue structurally *cannot* be anything else: it has to stay neutral, and it will
-never hold your position across windows.
+dreamDEX ships a fine terminal — order book, position tabs, funding history. Built for traders, and
+a venue structurally can't be anything else: it must stay neutral, and it will never hold your
+position across windows.
 
-So we didn't rebuild it. We took the one thing a venue can't do — **compose consecutive windows into
-a single run** — and found the game that was already hiding inside the mechanics:
-
-**The tournament is not simulated.** Winners take losers' money, the field concentrates, survivors
-compound. That is simply what happens when a crowd repeatedly trades one market. We just drew it.
-
-Three consequences fall straight out of the order book, none of them invented:
+THE CLIMB does the things a venue can't:
 
 | | |
 |---|---|
-| **Your stack grows by 1/p** | Buy at 0.42, redeem at 1.00. That IS the multiplier. |
-| **Contrarianism pays, visibly** | Crowd piles onto UP → UP costs 0.8 and pays 1.25×, DOWN costs 0.2 and pays 5×. The crowd split is on screen, so the pick is a decision, not a coin flip. |
-| **There is no house edge** | dreamDEX sets maker, taker and settlement fees to zero, and we take no cut. If you win, you win in full. You can never lose more than your seat. |
+| **Composition across windows** | A winning round's proceeds are already staked in the next. Your climber's altitude is the *cumulative* multiple of a run, not one bet. |
+| **A body instead of a chart** | Direction of travel picks the pose: climbing, slipping, scrabbling at the hold below 0.35×, leaping on a bail, falling at the bell. Nothing is invented — height is `tanh(1.8·ln(value/cost))`, a curve **measured on live rounds**, not styled. |
+| **A decision every second** | BAIL is always one tap away, and its number is the live mark — sell now and that is what you keep. The market's whipsaw becomes a game of nerve. |
+| **No house edge** | dreamDEX sets maker, taker and settlement fees to zero and we take no cut. The only cost of leaving early is real slippage on a real book. You can never lose more than your seat. |
+
+The strategy layer comes free from the market: enter cheap (contrarian) and every tick moves you
+far; buy the favourite and you inch. The wall makes leverage *visible*.
 
 ---
 
 ## Proof it's real
 
-### The loop — buy → settle → redeem, on a 1-minute market
+Every claim below is a transaction hash or a block number.
+
+### The loop — buy → settle → redeem on a 1-minute market
 
 ```
-MARKET      BTC 1m
 BUY_YES     2 contracts @ ~0.871 IOC       paid      1.7360 tUSDC
-SETTLED     resolved, winner = UP          landed    0.2s after expiry
+SETTLED     winner = UP                    landed    0.2s after expiry
 REDEEM      redeemed 2.0000 tUSDC          net      +0.2640 tUSDC
-
 settle → redeemed        2.7s
 ```
 
 Redeem tx [`0xd122da72…f819a3`](https://shannon-explorer.somnia.network/tx/0xd122da7260adb81096a1597f836f3aa005d3a15d8889813b3c4d7fbf79f819a3).
-An earlier losing run ([`0x451b1140…d70ed0`](https://shannon-explorer.somnia.network/tx/0x451b114029c7d45d7c20520a1a0328d1c23622a3112842cdce88cdc30ad70ed0))
-proved the other branch: redeeming a losing position is correctly a no-op, not a revert.
+That 2.7 seconds inside a 60-second window is why a round is one minute.
 
-**That 2.7 seconds is why a round is one minute.** It's what makes an 8 → 4 → 2 → 1 battle royale
-take three minutes instead of forty-five, which is why the whole game fits in a demo video, live and
-uncut.
+### BAIL is an on-chain sale, not a database edit
 
-### Eliminations land on-chain, in the settlement block
-
-`ArenaRegistry` — [`0xfb31455b…95456A`](https://shannon-explorer.somnia.network/address/0xfb31455b05ea95b7B4cC4c1e98f03219b995456A)
-
-Somnia's reactivity precompile calls the contract's handler from *inside* the block that finalises
-the market. We registered a round, entered two runs, and walked away:
+From a live rehearsal, six seconds from tap to banked:
 
 ```
-REGISTRY SETTLED ITSELF                    block 471965999
-  venue says   resolved=true voided=false winner=1 (DOWN)
-  ada  (UP)     0.0000  ELIMINATED
-  bram (DOWN)  19.0249  alive
+16:29:11  filled   26.42 contracts @ 0.325 (9.98 tUSDC)
+16:29:17  🪂 sold  26.42 contracts back to the book for 4.4384
+16:29:19  💰 banked at 0.59×  (kept 5.86 of 10 instead of riding to zero)
+```
 
+The market had collapsed against the position; the player jumped and kept what was left. That is
+the game working: bail keeps the height you have.
+
+### Settlement lands on-chain, in the settlement block
+
+`ArenaRegistry` — [`0xfb31455b…95456A`](https://shannon-explorer.somnia.network/address/0xfb31455b05ea95b7B4cC4c1e98f03219b995456A)
+— mirrors every round and entry, and Somnia's reactivity precompile calls its handler from *inside*
+the block that finalises the market:
+
+```
 BinarySettlement MarketFinalized   block 471965999
-ArenaRegistry   elimination        block 471965999
+ArenaRegistry    elimination       block 471965999
 SAME BLOCK: YES
 ```
 
-No keeper. No cron. No listener. **The chain runs the tournament.**
+No keeper. No cron. No listener. Re-run it yourself:
+`REGISTRY=0xfb31455b05ea95b7B4cC4c1e98f03219b995456A npx tsx scripts/spike/reactive-e2e.ts`
 
-Re-run it yourself: `REGISTRY=0xfb31455b05ea95b7B4cC4c1e98f03219b995456A npx tsx scripts/spike/reactive-e2e.ts`
+### The verdicts are the chain's verdicts
 
-### A real unattended run
-
-Four bot players, four consecutive live rounds, nobody watching:
-
-```
-r1  UP x2 @ 0.086   DOWN x2         UP wins    ada 10.00 → 116.80  (11.68×)   bram ☠  dez ☠
-r2  UP x2                           UP wins    ada       → 578.29  (57.83×)
-r3  UP x2 @ 0.588                   UP wins    ada       → 860.22  (86.02×)
-
-registry: already settled itself on-chain ✓   × 3
-```
-
-Real orders, real settlement, real compounding. *(Bot players picking blind — the 86× is a genuine
-longshot streak, not a typical run.)*
+After three straight test-run deaths looked suspicious, the last six settled positions were audited
+against the venue's own on-chain resolution: **6 of 6 agree**. The streak was market luck
+(~0.6% combined odds), and the audit is a script anyone can rerun.
 
 ---
 
 ## Architecture
 
 ```
-                    ┌─────────────────────────────────────────┐
-   browser  ◄──────►│  Next 15 · the table                    │
-                    │  countdown · BTC vs the line · seats     │
-                    │  pick · bank · the bell · sound          │
-                    └────────────────┬────────────────────────┘
-                                     │  /api/state · /api/pick · /api/bank
-                    ┌────────────────▼────────────────────────┐
-                    │  SQLite (Prisma) — the ledger            │
-                    │  whose money is whose in a pooled wallet │
-                    └────────────────▲────────────────────────┘
-                                     │
-                    ┌────────────────┴────────────────────────┐
-                    │  Executor — one 1s tick loop             │
-                    │  open → enter (batched by side) →        │
-                    │  settle → redeem → roll                  │
-                    └───┬──────────────────────────────┬──────┘
-                        │ @somnia-chain/markets-sdk    │ viem
-                        ▼                              ▼
-          ┌─────────────────────────┐    ┌──────────────────────────┐
-          │  dreamDEX event         │    │  ArenaRegistry.sol       │
-          │  contracts (BTC 1m)     │    │  the public scoreboard   │
-          │  on-chain CLOB          │    │  holds nothing, trades   │
-          └───────────┬─────────────┘    │  nothing                 │
-                      │                  └──────────▲───────────────┘
-                      │ MarketFinalized             │ onEvent()
-                      ▼                             │ SAME BLOCK
-          ┌─────────────────────────────────────────┴───────────────┐
-          │  Somnia reactivity precompile  0x…0100                   │
-          │  validators call the handler — no keeper, no cron        │
-          └──────────────────────────────────────────────────────────┘
+                 ┌──────────────────────────────────────────────┐
+   browser ◄────►│  Next 15 · the wall                          │
+                 │  climber (camera-follow) · milestone ledges  │
+                 │  record flag · BAIL bar · the bell · sound   │
+                 └───────────────┬──────────────────────────────┘
+                                 │ /api/state · /join · /pick · /bank
+                 ┌───────────────▼──────────────────────────────┐
+                 │  SQLite (Prisma) — the ledger                │
+                 │  whose money is whose in a pooled wallet     │
+                 └───────────────▲──────────────────────────────┘
+                                 │
+                 ┌───────────────┴──────────────────────────────┐
+                 │  Executor — one 1s tick loop                 │
+                 │  open → enter → sell bails → settle →        │
+                 │  redeem → roll                               │
+                 └───┬──────────────────────────────────┬───────┘
+                     │ @somnia-chain/markets-sdk        │ viem
+                     ▼                                  ▼
+       ┌─────────────────────────┐       ┌──────────────────────────┐
+       │  dreamDEX event         │       │  ArenaRegistry.sol       │
+       │  contracts (BTC 1m)     │       │  public scoreboard —     │
+       │  on-chain CLOB          │       │  holds nothing, trades   │
+       └───────────┬─────────────┘       │  nothing                 │
+                   │ MarketFinalized     └──────────▲───────────────┘
+                   ▼                                │ onEvent()
+       ┌────────────────────────────────────────────┴──────────────┐
+       │  Somnia reactivity precompile  0x…0100                    │
+       │  validators call the handler — SAME BLOCK as settlement   │
+       └───────────────────────────────────────────────────────────┘
 ```
 
 **Both sponsor products, stacked.** dreamDEX event contracts are every round; Somnia's on-chain
 reactivity is what ends them.
 
-### The technical insight
+**The one-nonce rule shapes the design.** The executor wallet has a single nonce manager (the
+SDK's), so *every* order — entries and bail sales — goes through the executor's tick. The BAIL
+button only raises a flag; the leap plays instantly and the sale lands one tick behind it. If the
+book can't fill, the flag survives to the next tick; if the bell wins the race, settlement resolves
+the player instead — whichever reaches them first.
 
-The registry is a **mirror, never the source of truth** — and that's what makes a custodial executor
-auditable. You don't have to trust our database: every round, entry, advance and elimination is an
-event, so the whole game can be replayed from the chain.
-
-It also caught a real bug. `enterMany` rejected a negative remainder, which is how we discovered the
-executor could *overspend a player's budget*: it sized orders against the touch while being willing
-to pay up to the limit, so walking the book cost 22.5379 against a 22.3464 stack. A `uint128`
-on-chain refused what SQLite had happily stored.
+**The registry is a mirror, never the source of truth** — and that's what makes a custodial
+executor auditable. It also caught a real bug: a `uint128` rejected a negative remainder that
+SQLite had happily stored, exposing an order-sizing overspend.
 
 ---
 
 ## Honest disclosures
 
-- **The executor is custodial on testnet.** One house wallet holds every stack and places every
-  order. The registry is what makes that auditable rather than something you have to take on faith.
-  Per-user escrow is the right production design and was deliberately out of scope.
-- **Prices shown are indicative.** The 1m book is empty for the first 5–10 seconds of a window, so
-  your fill is whatever the market gives you when it appears. The UI never promises a price.
-- **The executor declines any entry above 0.90.** A window that has made its mind up quotes the
-  favourite at 0.99 — risking a full stack for a 1% gain. It sits the round out instead.
-- **No wallet needed to play.** Identity is a local key plus a name, because the executor holds the
-  collateral anyway and eight people need to sit down inside three minutes.
+- **Custodial, on testnet.** One house wallet holds every stack and places every order; the
+  on-chain registry is what makes that auditable rather than taken on faith. Per-user escrow is
+  the production design and was deliberately out of scope.
+- **Prices are indicative until filled.** The 1m book is empty for the first 5–10 seconds of a
+  window; your fill is what the market gives when it appears. The UI never promises a price.
+- **Entries above 0.90 are declined.** Risking a full stack for a 1% gain is a bad trade; the
+  executor sits the round out instead.
+- **Bail pays what the book pays.** The sale is IOC at the floor — an exit, not a negotiation.
+  Slippage is the fee for leaving, and it is the only fee anywhere in the game.
+- **Solo by design, today.** Tables, pots and the last-one-standing champion are built, tested
+  (17 Foundry tests) and parked behind the multiplayer flag — one climber's minute had to be
+  great first.
+- **No wallet needed to play.** Identity is a local key plus a name, because the executor holds
+  the collateral anyway.
 
 ## Provably fair
 
-Every market carries an `oracleQuestionId`, deep-linked from the footer to
+Every market carries an `oracleQuestionId`, deep-linked from the app to
 `prd.oracle.somnia.host/questions/{id}?view=graph` — every price source behind that round's
 settlement, the median, and how many sources had to agree. Not a claim; a link.
 
@@ -172,30 +175,22 @@ settlement, the median, and how many sources had to agree. Not a claim; a link.
 npm install
 cp .env.example .env          # add a THROWAWAY testnet key
 npx prisma db push            # create the ledger
-npm run dev                   # the table on :3000
-npm run executor              # the game loop (separate terminal)
+npm run dev                   # the wall on :3000
+npm run executor              # the game loop (separate terminal — always via the supervisor)
 ```
 
-Fund the wallet with testnet STT for gas. tUSDC mints itself — `exchange.trader.faucet()` gives
-10,000 per call, and the executor does it automatically.
+Fund the wallet with testnet STT for gas; tUSDC mints itself (`exchange.trader.faucet()`, 10,000
+per call — the executor does it automatically).
 
 ```bash
-npm run seed 4                # seat 4 bot players, for testing with no humans
-npm run spike                 # the day-0 buy → settle → redeem proof
+npm run doctor                # does the money add up? (--fix repairs the safe ones)
+npm run spike                 # day-0 buy → settle → redeem proof
+npx tsx scripts/spike/climb.ts   # the motion study behind the height curve
 forge test                    # 17 tests on ArenaRegistry
 ```
 
-To deploy your own registry:
-
-```bash
-forge create contracts/src/ArenaRegistry.sol:ArenaRegistry \
-  --rpc-url somnia_testnet --private-key $PK --broadcast --gas-limit 80000000 \
-  --constructor-args 0x0000000000000000000000000000000000000100 0xbF4a49e0Dfd092e5FBE8E5761064C49533e6Ed23
-REGISTRY=0x… npx tsx scripts/subscribe.ts
-```
-
-Set `REGISTRY` in `.env` and the executor mirrors every round on-chain. Leave it unset and the game
-runs exactly as before.
+Set `REGISTRY` in `.env` and the executor mirrors every round on-chain; leave it unset and the game
+runs exactly the same without the public log.
 
 ## Stack
 
@@ -203,38 +198,37 @@ Next 15 · React 19 · Tailwind 4 · TypeScript · `@somnia-chain/markets-sdk` 0
 `@somnia-chain/reactivity` 0.2.1 · viem 2 · Prisma 6 + SQLite · Foundry · Solidity 0.8.28
 
 ```
-src/app/          the table, the chart, the sound, the API routes
-src/executor/     the tick loop and the game rules
-src/lib/          chain, market, orders, registry, state
+src/app/          the wall, the climber, sound, API routes
+src/executor/     the tick loop, game rules, tables (multiplayer, parked)
+src/lib/          chain, market, orders (buy/sell/redeem), registry, state
 contracts/        ArenaRegistry.sol + 17 tests
-scripts/spike/    day-0 proofs, kept as evidence
+scripts/          doctor, sprites pipeline, day-0 proofs kept as evidence
+public/climbers/  8 characters × 5 poses, generated and auto-cut
 ```
 
 ## Three traps, if you're building on this
 
-Each of these cost us hours and none is in the docs.
+Each cost us hours and none is in the docs.
 
 1. **The SDK's `binarySettlementEventsAbi` is wrong.** It declares a trailing `uint8
    winningOutcome`; the deployed contract emits `uint256[] payoutNumerators`. Subscribing to the
-   topic0 that ABI implies matches **nothing, silently** — no error, no callback, just a
-   subscription that never fires. Verify a topic0 against real logs before trusting any ABI.
-2. **`ORDER_TYPE` 1 is FillOrKill, 2 is IOC.** Using 1 works fine until an order is big enough to be
-   unfillable, then it reverts and pays gas every retry.
-3. **`forge script --broadcast` ignores `--gas-limit`.** Two deploys reverted with `gasUsed` exactly
-   equal to the estimate. Somnia's gas schedule is far dearer than mainnet's — use `forge create`
-   with an explicit limit, and pass explicit `gas` on every viem write.
+   topic0 that ABI implies matches **nothing, silently**. Verify topic0 against real logs.
+2. **`ORDER_TYPE` 1 is FillOrKill, 2 is IOC.** Using 1 works until an order is big enough to be
+   unfillable, then it reverts and pays gas on every retry.
+3. **`forge script --broadcast` ignores `--gas-limit`.** Somnia's gas schedule is far dearer than
+   mainnet's — this contract needed >20M actual against a 1.4M estimate. Use `forge create
+   --gas-limit 80000000`, and explicit `gas` on every viem write.
 
-Testnet also runs **1m and 5m** markets, not just the 15m/1h the docs list — that's mainnet. The
-1-minute window is the entire reason this game works.
+Also: testnet runs **1m and 5m** markets, not just the 15m/1h the docs list. The one-minute window
+is the entire reason this game works.
 
 ## AI tools
 
-The logo — a candlestick whose body is a candle, wicks and all — was generated with
-Higgsfield (`nano_banana_pro`) and cropped for the app mark and favicon. The visual system
-(retro-futurism, Russo One / Chakra Petch, CRT scanlines) came from running the product through a
-design-system skill rather than being guessed at.
+The eight climbers (five poses each) and both logos were generated with Higgsfield
+(`nano_banana_pro`), then auto-cut into sprites by a pipeline that splits pose sheets on
+column-density valleys and keeps the largest connected blob per frame. The height curve was not
+designed — it was **measured**, by sampling live rounds every second and sweeping the gain until
+the smallest climbs became visible without clipping the dramatic ones.
 
-Everything else built with Claude Code (Claude Opus). It wrote the executor, the contract and its tests, and the
-table, and — more usefully — found the wrong settlement ABI by dumping live logs and brute-forcing
-the event signature against the observed topic0 when the subscription silently never fired.
-Every claim in this README is a transaction hash or a block number, not a model's word for it.
+Everything else built with Claude Code (Claude Opus). Every claim in this README is a transaction
+hash, a block number, or a script you can rerun — not a model's word for it.
