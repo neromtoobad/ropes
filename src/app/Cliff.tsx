@@ -79,7 +79,9 @@ export const CAST = [
 export type ClimberId = (typeof CAST)[number]["id"];
 
 /** Who has a cut 6-frame climb cycle in public/climbers/<id>/cycle/. */
-const CYCLE_READY = new Set<ClimberId>(["green"]);
+const CYCLE_READY = new Set<ClimberId>([
+  "green", "red", "gold", "blue", "violet", "orange", "teal", "pink",
+]);
 
 export function Cliff({
   seats,
@@ -213,11 +215,12 @@ export function Cliff({
   const art = climber;
   const cast = CAST.find((c) => c.id === climber) ?? CAST[0];
 
-  // Characters with a generated 6-frame hand-over-hand cycle. The rest keep
-  // the pose sprites until their strips are generated and cut.
+  // On the rope = showing a cycle frame (the rope is baked into them).
+  // Off the rope (falling, leaping) = the pose sprites, which have none.
   const hasCycle = CYCLE_READY.has(art);
+  const onRope = hasCycle && !dead && !bailed;
   const [frame, setFrame] = useState(0);
-  const cycleActive = hasCycle && !dead && !bailed && !hanging && (rising || sinking);
+  const cycleActive = onRope && !hanging && (rising || sinking);
   useEffect(() => {
     if (!cycleActive) return;
     // Rising plays the cycle forward, sinking plays it backward (hand under
@@ -353,21 +356,10 @@ export function Cliff({
           </div>
         )}
 
-        {/* the rope — anchored at the summit, running through the climber's
-            grip. Its knots are wall features like the ledges: the camera
-            slides the texture, so climbing streams them downward past you and
-            sinking streams them up. 5.2 converts SPREAD (% of the 520px wall
-            per curve unit) into background pixels. */}
-        {seat && (
-          <div
-            className="rope pointer-events-none absolute inset-y-[-12%] left-1/2 z-10 w-[7px] -translate-x-1/2"
-            style={{
-              backgroundPositionY: `${meH * SPREAD * 5.2}px`,
-            }}
-          />
-        )}
-
-        {/* the climber — pinned to the middle while the world moves */}
+        {/* the climber — pinned to the middle while the world moves. The rope
+            lives INSIDE the cycle frames now: every character carries their
+            own strand, so there is no separate background rope to disagree
+            with the grip. */}
         {seat && (
           <div
             className="absolute left-1/2 flex flex-col items-center"
@@ -392,19 +384,22 @@ export function Cliff({
               {seat.name} {multiple.toFixed(2)}×
             </div>
             <Image
-              src={cycleActive ? `/climbers/${art}/cycle/${frame}.png` : `/climbers/${art}/${pose}.png`}
+              src={onRope ? `/climbers/${art}/cycle/${frame}.png` : `/climbers/${art}/${pose}.png`}
               alt=""
               width={96}
-              height={cycleActive ? 300 : 140}
+              height={onRope ? 300 : 140}
               priority
               unoptimized
               // Cycle frames carry their own rope above and below the figure,
-              // so they render taller to keep the CHARACTER the same size —
-              // and the frames themselves are the animation, no CSS bob.
-              className={cycleActive ? "h-[180px] w-auto sm:h-[225px]" : `h-[110px] w-auto sm:h-[140px] ${grip}`}
+              // so they render taller to keep the CHARACTER the same size.
+              // While moving, the frames ARE the animation; holding still
+              // gets the dangle sway, barely-alive gets the scrabble.
+              className={`w-auto ${onRope ? "h-[180px] sm:h-[225px]" : "h-[110px] sm:h-[140px]"} ${
+                cycleActive ? "" : onRope ? (hanging ? "hanging" : "dangling") : grip
+              }`}
               style={{
                 filter: "drop-shadow(0 0 16px var(--gold-glow))",
-                transform: !cycleActive && pose === "slip" ? "scaleX(-1)" : undefined,
+                transform: !onRope && pose === "slip" ? "scaleX(-1)" : undefined,
               }}
             />
             {seat.inRound && !dead && !bailed && (

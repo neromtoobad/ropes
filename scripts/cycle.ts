@@ -113,11 +113,14 @@ await mkdir(`public/climbers/${name}/cycle`, { recursive: true });
 for (let i = 0; i < Math.min(runs.length, FRAMES); i++) {
   const left = Math.max(0, runs[i].from - PAD);
   const right = Math.min(width - 1, runs[i].to + PAD);
+  // Clamp hard: the baked ropes run to the strip's edges, so bottom+PAD can
+  // overflow the image (sprites.ts never hit this — figures floated clear).
+  const boxTop = Math.max(0, top - PAD);
   const box = {
     left,
-    top: Math.max(0, top - PAD),
+    top: boxTop,
     width: right - left + 1,
-    height: Math.min(height, bottom + PAD) - Math.max(0, top - PAD) + 1,
+    height: Math.min(height - 1, bottom + PAD) - boxTop + 1,
   };
 
   const crop = await sharp(input).extract(box).raw().toBuffer({ resolveWithObject: true });

@@ -186,19 +186,6 @@ body::after {
 }
 .alive { animation: alive-breathe 3.4s ease-in-out infinite; }
 
-/* ── the rope ──────────────────────────────────────────────────────────
-   Anchored at the summit, running through the climber's grip. The braid is a
-   diagonal repeat, the knots a band every ~90px; the camera slides the whole
-   texture via background-position, so knots stream past as you move. */
-.rope {
-  background:
-    linear-gradient(90deg, #00000066, transparent 35%, #ffffff1f 50%, transparent 65%, #00000066),
-    repeating-linear-gradient(180deg, transparent 0 82px, #d9a84c55 82px 86px, #2c2013 86px 92px),
-    repeating-linear-gradient(28deg, #7d5f36 0 4px, #4a3820 4px 8px);
-  border-radius: 3px;
-  box-shadow: 0 0 12px #00000099;
-}
-
 /* Every grip state animates around the hands (origin near the top of the
    sprite), so the body swings below the hold instead of the whole figure
    floating. All of these ARE the character holding the rope. */
