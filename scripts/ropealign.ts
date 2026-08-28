@@ -13,7 +13,9 @@
  */
 import sharp from "sharp";
 
-const CHARS = ["green", "red", "gold", "blue", "violet", "orange", "teal", "pink"];
+const ALL = ["green", "red", "gold", "blue", "violet", "orange", "teal", "pink"];
+/** Optionally align a single character: npx tsx scripts/ropealign.ts teal */
+const CHARS = process.argv[2] ? [process.argv[2]] : ALL;
 const ALPHA_FLOOR = 24;
 
 for (const c of CHARS) {
