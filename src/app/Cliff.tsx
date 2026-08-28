@@ -78,6 +78,9 @@ export const CAST = [
 ] as const;
 export type ClimberId = (typeof CAST)[number]["id"];
 
+/** Who has a cut 6-frame climb cycle in public/climbers/<id>/cycle/. */
+const CYCLE_READY = new Set<ClimberId>(["green"]);
+
 export function Cliff({
   seats,
   price,
@@ -209,6 +212,27 @@ export function Cliff({
 
   const art = climber;
   const cast = CAST.find((c) => c.id === climber) ?? CAST[0];
+
+  // Characters with a generated 6-frame hand-over-hand cycle. The rest keep
+  // the pose sprites until their strips are generated and cut.
+  const hasCycle = CYCLE_READY.has(art);
+  const [frame, setFrame] = useState(0);
+  const cycleActive = hasCycle && !dead && !bailed && !hanging && (rising || sinking);
+  useEffect(() => {
+    if (!cycleActive) return;
+    // Rising plays the cycle forward, sinking plays it backward (hand under
+    // hand). The slide is slower — losing ground drags.
+    const ms = rising ? 130 : 190;
+    const id = setInterval(() => setFrame((f) => (f + (rising ? 1 : 5)) % 6), ms);
+    return () => clearInterval(id);
+  }, [cycleActive, rising]);
+  useEffect(() => {
+    if (!hasCycle) return;
+    for (let i = 0; i < 6; i++) {
+      const im = new window.Image();
+      im.src = `/climbers/${art}/cycle/${i}.png`;
+    }
+  }, [hasCycle, art]);
   const finale = secondsLeft > 0 && secondsLeft <= 5 && (seat?.inRound ?? false);
   const urgent = secondsLeft > 0 && secondsLeft < 10;
 
@@ -368,16 +392,19 @@ export function Cliff({
               {seat.name} {multiple.toFixed(2)}×
             </div>
             <Image
-              src={`/climbers/${art}/${pose}.png`}
+              src={cycleActive ? `/climbers/${art}/cycle/${frame}.png` : `/climbers/${art}/${pose}.png`}
               alt=""
               width={96}
-              height={140}
+              height={cycleActive ? 300 : 140}
               priority
               unoptimized
-              className={`h-[110px] w-auto sm:h-[140px] ${grip}`}
+              // Cycle frames carry their own rope above and below the figure,
+              // so they render taller to keep the CHARACTER the same size —
+              // and the frames themselves are the animation, no CSS bob.
+              className={cycleActive ? "h-[180px] w-auto sm:h-[225px]" : `h-[110px] w-auto sm:h-[140px] ${grip}`}
               style={{
                 filter: "drop-shadow(0 0 16px var(--gold-glow))",
-                transform: pose === "slip" ? "scaleX(-1)" : undefined,
+                transform: !cycleActive && pose === "slip" ? "scaleX(-1)" : undefined,
               }}
             />
             {seat.inRound && !dead && !bailed && (
