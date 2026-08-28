@@ -10,7 +10,7 @@
 import { houseCollateral, houseGas, fmtUsd, sleep, HOUSE } from "../lib/chain";
 import { openRound, enterRound, closeRound, processBails, db } from "./game";
 import { manageTables } from "./tables";
-import { processPayouts } from "../lib/payments";
+import { processPayouts, processWithdrawals } from "../lib/payments";
 
 const TICK_MS = 1000;
 const log = (...a: unknown[]) => console.log(new Date().toISOString().slice(11, 19), ...a);
@@ -59,9 +59,11 @@ async function tick() {
   //    arrivals and seal it when it is ready.
   await manageTables();
 
-  // 2.5 Pay whoever is owed. Awaited here — the house wallet has one nonce
-  //     and this loop is its only writer.
+  // 2.5 Settle money: ended paid runs credit their player's bankroll, and
+  //     requested withdrawals leave on-chain. Awaited here — the house
+  //     wallet has one nonce and this loop is its only writer.
   await processPayouts();
+  await processWithdrawals();
 
   // 3. Open the live window and enter it.
   const opened = await openRound();

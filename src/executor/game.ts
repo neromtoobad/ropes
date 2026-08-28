@@ -15,6 +15,7 @@ import { exchange, ASSET } from "../lib/chain";
 import { buy, redeemAll, sellPosition, type Side } from "../lib/orders";
 import * as registry from "../lib/registry";
 import { fillingTable, STARTING_STACK, SEAT_PRICE, POT_CUT, MAX_SEATS } from "./tables";
+import { debitSeat } from "../lib/payments";
 
 export { db };
 
@@ -421,8 +422,9 @@ export async function joinGame(
   _buyIn: bigint,
   roundIndex: number,
   autoPick?: string,
-  /** Set for a paid seat: binds the run to the wallet that paid for it. */
-  paid?: { payoutAddress: string; depositTx: string },
+  /** Funded seat: debit the player's bankroll and mark the run real-money
+   *  (its proceeds credit the balance back when it ends). */
+  funded?: boolean,
 ) {
   const player = await db.player.upsert({
     where: { wallet },
@@ -439,18 +441,34 @@ export async function joinGame(
   const seated = await db.run.count({ where: { tableId: table.id } });
   if (seated >= MAX_SEATS) throw new Error("this table is full — the next one opens shortly");
 
-  const run = await db.run.create({
-    data: {
-      playerId: player.id,
-      tableId: table.id,
-      buyIn: STARTING_STACK,
-      stack: STARTING_STACK,
-      startedRoundIndex: roundIndex,
-      autoPick,
-      payoutAddress: paid?.payoutAddress,
-      depositTx: paid?.depositTx,
-    },
-  });
+  let payoutAddress: string | undefined;
+  if (funded) {
+    const fresh = await db.player.findUniqueOrThrow({ where: { id: player.id } });
+    if (!fresh.address) throw new Error("no funded account — deposit first");
+    await debitSeat(player.id, SEAT_PRICE);
+    payoutAddress = fresh.address;
+  }
+
+  let run;
+  try {
+    run = await db.run.create({
+      data: {
+        playerId: player.id,
+        tableId: table.id,
+        buyIn: STARTING_STACK,
+        stack: STARTING_STACK,
+        startedRoundIndex: roundIndex,
+        autoPick,
+        payoutAddress,
+      },
+    });
+  } catch (err) {
+    // The seat never existed — the money goes straight back.
+    if (funded) {
+      await db.player.update({ where: { id: player.id }, data: { balance: { increment: SEAT_PRICE } } });
+    }
+    throw err;
+  }
   await db.table.update({ where: { id: table.id }, data: { pot: { increment: POT_CUT } } });
   return run;
 }

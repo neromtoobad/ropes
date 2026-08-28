@@ -1,20 +1,19 @@
 /**
- * Real money in, real money out — for players who connect a wallet.
+ * The bankroll: real money in, real money out — deposit once, play forever.
  *
- * A paid seat is a plain 10 tUSDC ERC-20 transfer from the player's wallet to
- * the house, verified here by receipt. Proceeds go back the same way when the
- * run ends. In-round trading stays custodial: the 1-minute cadence needs one
- * sequential writer (the one-nonce rule), which is the whole reason the house
- * wallet exists.
+ * A verified deposit CREDITS the player's balance. Seats DEBIT it (no wallet
+ * popup once funded). A paid run's proceeds credit it back the moment the
+ * run ends, so winnings roll into the next seat with zero friction. The
+ * balance leaves the house only when the player asks — a withdrawal flag the
+ * executor honors on its next tick.
  *
- * Two invariants keep this honest with zero auth:
- * - the payout address is DERIVED from the deposit's `from`, never taken from
- *   the browser — claiming someone else's deposit tx just pays them, not you.
- * - depositTx is unique in the ledger, so a transfer buys exactly one seat.
- *
- * Payouts run ONLY inside the executor's tick (never from a Next API route):
- * the house wallet has one nonce and the SDK owns it — a second concurrent
- * writer races it and both lose.
+ * Invariants that keep this honest with zero auth:
+ * - the withdrawal address is DERIVED from the first deposit's sender, never
+ *   taken from the browser — hijacking a playerKey pays the depositor.
+ * - deposit txs are consumed once (unique in CashFlow.tx via check).
+ * - ONLY real money touches a balance: free seats stake the house directly
+ *   and their proceeds never credit anyone.
+ * - all sends happen inside the executor tick (the one-nonce rule).
  */
 import { createWalletClient, http, erc20Abi, parseEventLogs } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
@@ -35,16 +34,13 @@ const GAS = 1_000_000n;
 const log = (...a: unknown[]) => console.log(new Date().toISOString().slice(11, 19), ...a);
 
 /**
- * Verify a seat deposit: the tx must be a successful tUSDC transfer of at
- * least `minAmount` to the house. Returns who paid and how much — the payer
- * IS the payout address, whatever the browser claims.
+ * Verify a deposit tx (a tUSDC transfer to the house) and credit the
+ * player's balance with EXACTLY what arrived. Replay-proof: each tx credits
+ * once. Also pins the player's withdrawal address on first deposit.
  */
-export async function verifyDeposit(
-  txHash: `0x${string}`,
-  minAmount: bigint,
-): Promise<{ from: `0x${string}`; amount: bigint }> {
-  const used = await db.run.findUnique({ where: { depositTx: txHash } });
-  if (used) throw new Error("that deposit already bought a seat");
+export async function creditDeposit(playerKey: string, txHash: `0x${string}`) {
+  const used = await db.cashFlow.findFirst({ where: { kind: "deposit", tx: txHash } });
+  if (used) throw new Error("that deposit was already credited");
 
   const receipt = await exchange.client
     .getViemClient()
@@ -58,19 +54,44 @@ export async function verifyDeposit(
     (t) =>
       t.address.toLowerCase() === COLLATERAL.toLowerCase() &&
       t.args.to.toLowerCase() === HOUSE.toLowerCase() &&
-      t.args.value >= minAmount,
+      t.args.value > 0n,
   );
-  if (!paid) throw new Error(`no tUSDC transfer of ${fmtUsd(minAmount)} to the house in that tx`);
-  return { from: paid.args.from, amount: paid.args.value };
+  if (!paid) throw new Error("no tUSDC transfer to the house in that tx");
+
+  const player = await db.player.upsert({
+    where: { wallet: playerKey },
+    create: { wallet: playerKey, displayName: "climber", address: paid.args.from },
+    update: {},
+  });
+  await db.player.update({
+    where: { id: player.id },
+    data: {
+      balance: { increment: paid.args.value },
+      // First deposit pins the withdrawal address; later deposits from other
+      // wallets still credit, but the money only ever leaves to the original.
+      ...(player.address ? {} : { address: paid.args.from }),
+    },
+  });
+  await db.cashFlow.create({
+    data: { playerId: player.id, kind: "deposit", amount: paid.args.value, tx: txHash },
+  });
+  return { amount: paid.args.value, address: paid.args.from };
+}
+
+/** Debit a seat from the balance. Throws if the bankroll can't cover it. */
+export async function debitSeat(playerId: string, price: bigint) {
+  const taken = await db.player.updateMany({
+    where: { id: playerId, balance: { gte: price } },
+    data: { balance: { decrement: price } },
+  });
+  if (taken.count !== 1) throw new Error("balance can't cover a seat — deposit first");
+  await db.cashFlow.create({ data: { playerId, kind: "seat", amount: price } });
 }
 
 /**
- * Send every payout that is owed. Called from the executor tick, awaited.
- *
- * Owed = a run that ended (banked, or eliminated with an undeployed remainder
- * — money that never reached the market is still the player's), bound to a
- * wallet, not yet paid. The "sending" claim makes a crashed send visible to
- * the doctor instead of double-paying on restart.
+ * Credit every ended paid run's proceeds to its player's balance. Runs in
+ * the executor tick. payoutTx="balance" marks the run settled into the
+ * bankroll (the feed's explorer link only renders for 0x hashes).
  */
 export async function processPayouts() {
   const owed = await db.run.findMany({
@@ -86,29 +107,65 @@ export async function processPayouts() {
   for (const run of owed) {
     const claimed = await db.run.updateMany({
       where: { id: run.id, payoutTx: null },
-      data: { payoutTx: "sending" },
+      data: { payoutTx: "balance" },
     });
-    if (claimed.count !== 1) continue; // someone else got there
+    if (claimed.count !== 1) continue;
+    await db.player.update({
+      where: { id: run.playerId },
+      data: { balance: { increment: run.stack } },
+    });
+    await db.cashFlow.create({
+      data: { playerId: run.playerId, kind: "win", amount: run.stack },
+    });
+    log(
+      `  💰 ${fmtUsd(run.stack)} → ${run.player.displayName}'s bankroll ` +
+        `(balance ${fmtUsd(run.player.balance + run.stack)})`,
+    );
+  }
+}
 
+/**
+ * Send requested withdrawals on-chain. The whole balance goes at once — a
+ * bankroll is either playing or leaving. Claim-then-send so a crash mid-
+ * transfer is visible (balance already zeroed, flow row holds "sending")
+ * rather than double-paid; the doctor flags stuck rows.
+ */
+export async function processWithdrawals() {
+  const asking = await db.player.findMany({
+    where: { withdrawRequested: true, balance: { gt: 0n }, address: { not: null } },
+  });
+
+  for (const p of asking) {
+    const amount = p.balance;
+    const claimed = await db.player.updateMany({
+      where: { id: p.id, balance: amount, withdrawRequested: true },
+      data: { balance: 0n, withdrawRequested: false },
+    });
+    if (claimed.count !== 1) continue;
+
+    const flow = await db.cashFlow.create({
+      data: { playerId: p.id, kind: "withdrawal", amount, tx: "sending" },
+    });
     try {
       const hash = await wallet.writeContract({
         address: COLLATERAL,
         abi: erc20Abi,
         functionName: "transfer",
-        args: [run.payoutAddress as `0x${string}`, run.stack],
+        args: [p.address as `0x${string}`, amount],
         gas: GAS,
       });
       const receipt = await exchange.client.getViemClient().waitForTransactionReceipt({ hash });
-      if (receipt.status !== "success") throw new Error(`payout reverted: ${hash}`);
-      await db.run.update({ where: { id: run.id }, data: { payoutTx: hash } });
-      log(
-        `  💸 PAID OUT ${fmtUsd(run.stack)} → ${run.payoutAddress!.slice(0, 8)}… ` +
-          `(${run.player.displayName})  ${hash}`,
-      );
+      if (receipt.status !== "success") throw new Error(`withdrawal reverted: ${hash}`);
+      await db.cashFlow.update({ where: { id: flow.id }, data: { tx: hash } });
+      log(`  💸 WITHDREW ${fmtUsd(amount)} → ${p.address!.slice(0, 8)}… (${p.displayName})  ${hash}`);
     } catch (err) {
-      // Release the claim so the next tick retries; never stall the game.
-      await db.run.update({ where: { id: run.id }, data: { payoutTx: null } });
-      log(`  payout failed for ${run.player.displayName}: ${String(err).slice(0, 140)}`);
+      // Put the money back and let the next tick retry.
+      await db.player.update({
+        where: { id: p.id },
+        data: { balance: { increment: amount }, withdrawRequested: true },
+      });
+      await db.cashFlow.delete({ where: { id: flow.id } });
+      log(`  withdrawal failed for ${p.displayName}: ${String(err).slice(0, 140)}`);
     }
   }
 }

@@ -1,25 +1,21 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { joinGame } from "@/executor/game";
-import { verifyDeposit } from "@/lib/payments";
+import { creditDeposit } from "@/lib/payments";
 import { SEAT_PRICE } from "@/executor/tables";
 
 /**
- * Buy a seat.
+ * Buy a seat. One join path, ever (via joinGame).
  *
- * Delegates to the same joinGame the executor's seed path uses — this route
- * used to create runs itself and silently skipped the tables refactor, so a
- * human joining through the UI got a run with no table, invisible on the wall,
- * paying no pot cut. One join path, ever.
+ * Three ways in:
+ * - bankroll (default when the balance covers a seat): debit and sit. No
+ *   wallet popup — winnings already credited the balance, so a winner rolls
+ *   into the next seat with one click.
+ * - depositTx: a fresh on-chain deposit — credit the bankroll first, then
+ *   sit from it. The withdrawal address derives from the transfer's sender.
+ * - free: no balance, no tx — house-bankroll play, unchanged.
  *
- * Two ways in:
- * - walletless (no depositTx): free play on the house bankroll, as ever.
- * - paid (depositTx): the tx must be a real 10 tUSDC transfer to the house.
- *   The payout address is DERIVED from the transfer's `from` — the browser's
- *   word is never trusted, so claiming someone else's deposit pays them.
- *
- * This route never sends a transaction. The house wallet has one nonce and
- * the executor owns it; deposits are incoming and payouts happen in the tick.
+ * This route never sends a transaction (one-nonce rule).
  */
 export async function POST(req: Request) {
   const { playerKey, name, depositTx } = await req.json();
@@ -27,15 +23,16 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "playerKey and name required" }, { status: 400 });
   }
 
-  let paid: { payoutAddress: string; depositTx: string } | undefined;
   if (depositTx) {
     try {
-      const d = await verifyDeposit(depositTx as `0x${string}`, SEAT_PRICE);
-      paid = { payoutAddress: d.from, depositTx };
+      await creditDeposit(playerKey, depositTx as `0x${string}`);
     } catch (err) {
       return NextResponse.json({ error: String(err).replace("Error: ", "") }, { status: 402 });
     }
   }
+
+  const player = await db.player.findUnique({ where: { wallet: playerKey } });
+  const funded = Boolean(player && player.address && player.balance >= SEAT_PRICE);
 
   const round = await db.round.findFirst({ orderBy: { index: "desc" } });
   try {
@@ -45,16 +42,16 @@ export async function POST(req: Request) {
       0n,
       round?.index ?? 0,
       undefined,
-      paid,
+      funded,
     );
-    return NextResponse.json({ runId: run.id, paid: Boolean(paid) });
+    return NextResponse.json({ runId: run.id, paid: funded });
   } catch (err) {
     const message = String(err).replace("Error: ", "");
     // "already has a live run" should hand back the existing seat, not an error.
     if (message.includes("already has a live run")) {
-      const player = await db.player.findUnique({ where: { wallet: playerKey } });
-      const existing = player
-        ? await db.run.findFirst({ where: { playerId: player.id, status: "alive" } })
+      const p = await db.player.findUnique({ where: { wallet: playerKey } });
+      const existing = p
+        ? await db.run.findFirst({ where: { playerId: p.id, status: "alive" } })
         : null;
       if (existing) return NextResponse.json({ runId: existing.id });
     }

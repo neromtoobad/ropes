@@ -73,24 +73,17 @@ for (const r of staleFlags) {
   }
 }
 
-// A payout stuck in "sending" means the executor died mid-transfer. Check the
-// explorer for the house wallet before releasing it — releasing a payout that
-// actually landed double-pays.
-const stuck = await db.run.findMany({
-  where: { payoutTx: "sending" },
+// A withdrawal stuck in "sending" means the executor died mid-transfer:
+// the balance is already zeroed and the money may or may not have left.
+// Check the explorer before doing anything by hand.
+const stuck = await db.cashFlow.findMany({
+  where: { kind: "withdrawal", tx: "sending" },
   include: { player: true },
 });
-for (const r of stuck) {
-  bad(
-    `${r.player.displayName}: payout of ${fmtUsd(r.stack)} stuck in "sending" — ` +
-      `verify on the explorer, then --fix releases it for retry`,
-  );
-  if (FIX) {
-    await db.run.update({ where: { id: r.id }, data: { payoutTx: null } });
-    console.log(`    fixed: released for retry (CHECK THE EXPLORER FIRST next time)`);
-  }
+for (const f of stuck) {
+  bad(`${f.player.displayName}: withdrawal of ${fmtUsd(f.amount)} stuck in "sending" — check the explorer`);
 }
-// Ended paid runs still owed money should drain to zero every tick.
+// Ended paid runs should credit the bankroll within a tick.
 const owed = await db.run.count({
   where: {
     status: { in: ["banked", "eliminated"] },
@@ -99,8 +92,17 @@ const owed = await db.run.count({
     stack: { gt: 0n },
   },
 });
-if (owed > 0) bad(`${owed} paid run(s) owed a payout — is the executor running?`);
-else if (!stuck.length) ok("no payouts owed or stuck");
+if (owed > 0) bad(`${owed} paid run(s) not yet credited to a bankroll — is the executor running?`);
+else if (!stuck.length) ok("no bankroll credits owed, no withdrawals stuck");
+// The sum of balances is a hard liability on the wallet, alongside stacks.
+const players = await db.player.aggregate({ _sum: { balance: true } });
+const bankrolls = players._sum.balance ?? 0n;
+console.log(`  bankrolls  ${fmtUsd(bankrolls)} tUSDC across players`);
+if (collateral < liability + bankrolls) {
+  bad(`INSOLVENT incl. bankrolls: wallet ${fmtUsd(collateral)} < stacks ${fmtUsd(liability)} + bankrolls ${fmtUsd(bankrolls)}`);
+} else {
+  ok(`solvent incl. bankrolls: headroom ${fmtUsd(collateral - liability - bankrolls)}`);
+}
 
 // Every position in a settled round must carry an outcome, or money was
 // redeemed without being attributed to anyone.

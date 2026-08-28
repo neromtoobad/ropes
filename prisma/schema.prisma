@@ -51,7 +51,35 @@ model Player {
   // buy a new seat — this is the round index they become eligible again.
   eligibleFromRoundIndex Int @default(0)
 
-  runs Run[]
+  /// The bankroll: real tUSDC credit held by the house for this player.
+  /// Deposits and paid-run proceeds credit it; seats debit it; withdrawals
+  /// drain it back on-chain. ONLY real money ever lands here — free play
+  /// stakes the house directly and never touches a balance.
+  balance BigInt @default(0)
+  /// Where withdrawals go. Set from the sender of the first verified
+  /// deposit — never from anything the browser claims.
+  address String?
+  /// Player asked to cash the balance out. The executor sends it (one-nonce
+  /// rule: the API only raises the flag).
+  withdrawRequested Boolean @default(false)
+
+  runs  Run[]
+  flows CashFlow[]
+}
+
+/// Every movement of real money in or out of a player's bankroll — the
+/// wallet page's history, and the audit trail for the balance.
+model CashFlow {
+  id       String   @id @default(cuid())
+  playerId String
+  player   Player   @relation(fields: [playerId], references: [id])
+  /// deposit | seat | win | withdrawal
+  kind     String
+  amount   BigInt
+  tx       String?
+  createdAt DateTime @default(now())
+
+  @@index([playerId, createdAt])
 }
 
 model Round {
