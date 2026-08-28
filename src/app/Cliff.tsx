@@ -532,7 +532,7 @@ export function Cliff({
           </p>
           <div className="mt-1 flex items-center gap-2">
             <span className="hatch inline-block h-[8px] w-16" />
-            <span className="text-[10px] font-black tracking-[0.25em] text-[var(--gold)]">
+            <span className="text-[10px] font-black tracking-[0.25em] text-[var(--accent)]">
               {seat.name.toUpperCase()}
             </span>
           </div>

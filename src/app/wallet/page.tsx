@@ -10,13 +10,14 @@ import type { Address } from "viem";
 import type { TableState } from "@/lib/state";
 import { hasWallet, connect, paySeat, collateralBalance } from "../wallet";
 import {
-  PageHeader, LedgerPanel, usePlayerKey, useLedger, usd, short,
+  PageHeader, LedgerPanel, usePlayerKey, useLedger, useClimberTheme, usd, short,
 } from "../shared";
 import { CAST, type ClimberId } from "../Cliff";
 
 const DEPOSIT_CHOICES = [10n, 50n, 100n] as const;
 
 export default function Wallet() {
+  useClimberTheme();
   const playerKey = usePlayerKey();
   const [refresh, setRefresh] = useState(0);
   const ledger = useLedger(playerKey, refresh);

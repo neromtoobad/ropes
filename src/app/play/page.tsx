@@ -9,7 +9,7 @@ import { useSound, useHeartbeat } from "../sound";
 import { hasWallet, connect, paySeat, collateralBalance } from "../wallet";
 import { useSmoothed } from "../useSmoothed";
 import {
-  usd, short, pad, usePlayerKey, useLedger, SiteNav, HowItWorks, ShareButton,
+  usd, short, pad, usePlayerKey, useLedger, useClimberTheme, SiteNav, HowItWorks, ShareButton,
   type LedgerData,
 } from "../shared";
 
@@ -165,6 +165,8 @@ export default function Game() {
   const urgent = secs > 0 && secs < 15;
 
   useHeartbeat(secs, Boolean(me?.inRound));
+  // The chosen climber's colours paint the whole site.
+  useClimberTheme(climber);
 
   // Sticky: the poll that delivers the bell also removes a dead seat, so the
   // name must survive past the seat or the verdict can't find its owner.

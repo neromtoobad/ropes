@@ -8,9 +8,10 @@ import Link from "next/link";
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import type { TableState } from "@/lib/state";
-import { HowItWorks, SiteNav, type LeaderRow, usd } from "./shared";
+import { HowItWorks, SiteNav, useClimberTheme, type LeaderRow, usd } from "./shared";
 
 export default function Landing() {
+  useClimberTheme();
   const [state, setState] = useState<TableState | null>(null);
   const [top, setTop] = useState<LeaderRow[] | null>(null);
 

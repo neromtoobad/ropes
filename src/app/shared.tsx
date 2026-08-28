@@ -16,6 +16,15 @@ export const usd = (n: number) => `${n >= 0 ? "+" : "−"}${Math.abs(n).toFixed(
 export const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
 export const pad = (n: number) => String(Math.max(0, Math.floor(n))).padStart(2, "0");
 
+/** Paint the world in the chosen climber's colours. Reads localStorage so
+ *  every page (landing, wallet, board) wears the theme, not just the game. */
+export function useClimberTheme(override?: string) {
+  useEffect(() => {
+    const id = override ?? localStorage.getItem("lc.climber") ?? "green";
+    document.documentElement.dataset.climber = id;
+  }, [override]);
+}
+
 /** Identity is a local key + a name. The ledger knows the rest. */
 export function usePlayerKey() {
   const [key, setKey] = useState<string | null>(null);

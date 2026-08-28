@@ -2,9 +2,10 @@
 
 /** The board: everyone who ever sat down, ranked by lifetime net gain. */
 import { useEffect, useState } from "react";
-import { LeadersPanel, PageHeader, usePlayerKey, useLedger, type LeaderRow } from "../shared";
+import { LeadersPanel, PageHeader, usePlayerKey, useLedger, useClimberTheme, type LeaderRow } from "../shared";
 
 export default function Leaders() {
+  useClimberTheme();
   const playerKey = usePlayerKey();
   const ledger = useLedger(playerKey);
   const [rows, setRows] = useState<LeaderRow[] | null>(null);

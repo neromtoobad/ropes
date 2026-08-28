@@ -32,6 +32,10 @@
   --aurora-a: #c44dff;
   --aurora-b: #2de2ff;
   --aurora-c: #ff2f8a;
+  /* The chosen climber's colour: selection chrome, tabs, corner ticks and
+     the whole sky retint per character. NEVER money (gold) or sides. */
+  --accent: #e8b33d;
+  --accent-glow: #e8b33d66;
 
   /* Semantic. Identical across every surface palette — UP is always this
      green, DOWN is always this red, and the line to beat is always gold. */
@@ -337,7 +341,7 @@ body::after {
   position: absolute;
   width: 14px;
   height: 14px;
-  border: 2px solid var(--gold);
+  border: 2px solid var(--accent);
   opacity: 0.55;
   pointer-events: none;
   z-index: 30;
@@ -349,7 +353,7 @@ body::after {
 .hatch {
   background-image: repeating-linear-gradient(
     -45deg,
-    var(--gold) 0 6px,
+    var(--accent) 0 6px,
     transparent 6px 14px
   );
   opacity: 0.14;
@@ -383,8 +387,8 @@ body::after {
   .slot:hover { border-color: var(--dim); }
 }
 .slot.sel {
-  border-color: var(--gold);
-  box-shadow: 0 0 22px -8px var(--gold), inset 0 0 14px -8px var(--gold);
+  border-color: var(--accent);
+  box-shadow: 0 0 22px -8px var(--accent), inset 0 0 14px -8px var(--accent);
 }
 .slot.sel::after {
   content: "";
@@ -393,7 +397,7 @@ body::after {
   top: 10%;
   bottom: 10%;
   width: 2px;
-  background: var(--gold);
+  background: var(--accent);
 }
 
 /* Game-tab nav. One active pill, everything else recedes. */
@@ -407,9 +411,9 @@ body::after {
   transition: color 150ms ease;
 }
 .gametab.active {
-  color: var(--gold);
-  border-color: var(--gold);
-  box-shadow: 0 0 16px -8px var(--gold);
+  color: var(--accent);
+  border-color: var(--accent);
+  box-shadow: 0 0 16px -8px var(--accent);
 }
 
 /* ── the feed ──────────────────────────────────────────────────────────── */
@@ -464,6 +468,19 @@ a[href] {
     opacity: 1;
   }
 }
+
+/* ── character themes ──────────────────────────────────────────────────
+   Picking a climber retints the WORLD: chrome accent + the three aurora
+   tokens that drive the page glow, the wall nebulas, the star tints and
+   the grid floor. Money stays gold, UP stays green, DOWN stays red. */
+[data-climber="green"]  { --accent:#3ddc84; --accent-glow:#3ddc8466; --aurora-a:#2fbf71; --aurora-b:#2de2ff; --aurora-c:#a3ff5d; --ambient:#143523; }
+[data-climber="red"]    { --accent:#ff5d6e; --accent-glow:#ff5d6e66; --aurora-a:#ff2f5e; --aurora-b:#ff8a2d; --aurora-c:#c44dff; --ambient:#361420; }
+[data-climber="gold"]   { --accent:#e8b33d; --accent-glow:#e8b33d66; --aurora-a:#ffb32d; --aurora-b:#ff6b2d; --aurora-c:#ffe23d; --ambient:#342a12; }
+[data-climber="blue"]   { --accent:#5db8ff; --accent-glow:#5db8ff66; --aurora-a:#2d7bff; --aurora-b:#2de2ff; --aurora-c:#7a5dff; --ambient:#13223d; }
+[data-climber="violet"] { --accent:#a86bff; --accent-glow:#a86bff66; --aurora-a:#c44dff; --aurora-b:#2de2ff; --aurora-c:#ff2f8a; --ambient:#251d45; }
+[data-climber="orange"] { --accent:#ff8a3d; --accent-glow:#ff8a3d66; --aurora-a:#ff5e2d; --aurora-b:#ffc44d; --aurora-c:#ff2f8a; --ambient:#342112; }
+[data-climber="teal"]   { --accent:#2de2c8; --accent-glow:#2de2c866; --aurora-a:#2de2c8; --aurora-b:#2d8aff; --aurora-c:#7dffb0; --ambient:#103430; }
+[data-climber="pink"]   { --accent:#ff5dd6; --accent-glow:#ff5dd666; --aurora-a:#ff2f8a; --aurora-b:#c44dff; --aurora-c:#2de2ff; --ambient:#34142c; }
 
 /* ── the sky inside the wall ───────────────────────────────────────────
    Two star layers at different parallax speeds (driven from Cliff via
