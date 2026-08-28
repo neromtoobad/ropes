@@ -17,6 +17,7 @@ const usd = (n: number) => `${n >= 0 ? "+" : "−"}${Math.abs(n).toFixed(2)}`;
 type View = "climb" | "ledger" | "leaders";
 
 type LedgerData = {
+  name: string | null;
   totals: { staked: number; returned: number; aliveStack: number; net: number; games: number } | null;
   badges: { id: string; icon: string; label: string; hint: string }[];
   runs: {
@@ -154,7 +155,7 @@ export default function Game() {
     return json;
   }, []);
 
-  const [seatFlash, setSeatFlash] = useState(false);
+  const [seatFlash, setSeatFlash] = useState<null | "paid" | "free">(null);
 
   const join = async (depositTx?: string) => {
     if (!playerKey || !name.trim() || busy) return;
@@ -164,9 +165,9 @@ export default function Game() {
     if (r?.runId) {
       localStorage.setItem("lc.runId", r.runId);
       setRunId(r.runId);
-      // The moment the money moves, say so.
-      setSeatFlash(true);
-      setTimeout(() => setSeatFlash(false), 2800);
+      // The moment the money moves, say so — and say whose money it was.
+      setSeatFlash(r.paid ? "paid" : "free");
+      setTimeout(() => setSeatFlash(null), 2800);
     }
   };
 
@@ -294,11 +295,13 @@ export default function Game() {
 
       {seatFlash && (
         <div className="pointer-events-none fixed inset-x-0 top-[20%] z-40 text-center">
-          <p className="display text-3xl sm:text-4xl" style={{ color: "var(--down)", textShadow: "0 0 40px var(--down-glow)" }}>
-            SEAT −10.00
+          <p className="display text-3xl sm:text-4xl" style={{ color: seatFlash === "paid" ? "var(--down)" : "var(--gold)", textShadow: `0 0 40px ${seatFlash === "paid" ? "var(--down-glow)" : "var(--gold-glow)"}` }}>
+            {seatFlash === "paid" ? "SEAT −10.00" : "SEAT STAKED · 10.00"}
           </p>
           <p className="mt-1 text-[10px] font-bold tracking-[0.3em] text-[var(--dim)]">
-            YOUR BUY-IN IS STAKED — THE MOST YOU CAN EVER LOSE
+            {seatFlash === "paid"
+              ? "PAID FROM YOUR WALLET — THE MOST YOU CAN EVER LOSE"
+              : "ON THE HOUSE — THE MOST A SEAT CAN EVER LOSE"}
           </p>
         </div>
       )}
@@ -421,11 +424,11 @@ function TopBar({
   const t = state?.table;
   const roping = t?.status === "filling" && t.seated > 0;
   return (
-    <header className="flex items-center justify-between gap-4">
+    <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
       <div className="flex items-center gap-3">
         <Image src="/mark.png" alt="" width={26} height={40} priority className="h-9 w-auto" />
         <div>
-          <h1 className="display text-base leading-none tracking-[0.2em] sm:text-lg">THE CLIMB</h1>
+          <h1 className="display whitespace-nowrap text-base leading-none tracking-[0.2em] sm:text-lg">THE CLIMB</h1>
           <p className="mt-0.5 text-[9px] font-bold tracking-[0.3em] text-[var(--dim)]">
             {roping
               ? `ROPING UP · 0:${String(Math.max(0, Math.round(t!.sealsIn))).padStart(2, "0")}`
@@ -436,7 +439,10 @@ function TopBar({
         </div>
       </div>
 
-      <nav className="flex items-center gap-1" aria-label="sections">
+      <nav
+        className="order-3 flex w-full items-center justify-center gap-1 sm:order-none sm:w-auto"
+        aria-label="sections"
+      >
         {(["climb", "ledger", "leaders"] as const).map((v) => (
           <button
             key={v}
@@ -1065,7 +1071,7 @@ function LastRun({ ledger, climber }: { ledger: LedgerData | null; climber: Clim
         </span>{" "}
         · {last.rounds}R
       </span>
-      <ShareButton run={last} climber={climber} name="climber" />
+      <ShareButton run={last} climber={climber} name={ledger?.name ?? "climber"} />
     </section>
   );
 }
@@ -1132,7 +1138,7 @@ function LedgerPanel({ ledger, climber }: { ledger: LedgerData | null; climber: 
                     PAID ↗
                   </a>
                 )}
-                {r.status !== "alive" && <ShareButton run={r} climber={climber} name="climber" />}
+                {r.status !== "alive" && <ShareButton run={r} climber={climber} name={ledger?.name ?? "climber"} />}
               </span>
             </div>
             {r.perRound.length > 0 && (

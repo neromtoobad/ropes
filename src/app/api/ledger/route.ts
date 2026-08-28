@@ -14,7 +14,7 @@ export async function GET(req: Request) {
 
   const player = await db.player.findUnique({ where: { wallet: playerKey } });
   if (!player) {
-    return NextResponse.json({ totals: null, badges: [], runs: [], series: null });
+    return NextResponse.json({ name: null, totals: null, badges: [], runs: [], series: null });
   }
 
   const runs = await db.run.findMany({
@@ -59,6 +59,7 @@ export async function GET(req: Request) {
   const series = alive ? [alive.buyIn, ...alive.perRound.map((p) => p.after)] : null;
 
   return NextResponse.json({
+    name: player.displayName,
     totals: {
       staked,
       returned,
