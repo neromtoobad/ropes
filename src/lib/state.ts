@@ -90,6 +90,8 @@ export interface TableState {
     redeemTx: string | null;
     killed: string[];
     survived: { name: string; from: number; to: number }[];
+    /** How far past the line BTC closed, in dollars. The verdict's margin. */
+    closedBy: number | null;
   } | null;
   board: { name: string; multiple: number; status: string; rounds: number }[];
   /** Recent deaths and exits, newest first. A battle royale needs a kill feed. */
@@ -212,6 +214,10 @@ export async function getTableState(): Promise<TableState> {
             from: toUsd(p.stackBefore),
             to: toUsd(p.stackAfter ?? p.stackBefore),
           })),
+        closedBy:
+          settled.strike != null && settled.close != null
+            ? settled.close - settled.strike
+            : null,
       }
     : null;
 

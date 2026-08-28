@@ -865,10 +865,19 @@ function Bell({
       <div className="text-center">
         <p className="text-xs font-bold tracking-[0.5em] text-[var(--dim)]">THE BELL</p>
         <p
-          className="display mt-2 text-[4.5rem] leading-[0.8] tracking-tight sm:text-[9rem]"
+          className="display mt-2 text-[3rem] leading-[0.85] tracking-tight sm:text-[6rem]"
           style={{ color: c, textShadow: `0 0 90px ${c}` }}
         >
-          {result.voided ? "VOID" : result.winner}
+          {result.voided ? "NO VERDICT" : result.winner === "UP" ? "▲ ABOVE THE LINE" : "▼ BELOW THE LINE"}
+        </p>
+        <p className="tabular mt-3 text-sm font-bold tracking-[0.2em] text-[var(--dim)]">
+          {result.voided
+            ? "THE ORACLE COULD NOT SETTLE — EVERYONE'S STACK CARRIES"
+            : `BTC CLOSED ${
+                result.closedBy !== null
+                  ? `$${Math.abs(result.closedBy).toFixed(2)} ${result.closedBy >= 0 ? "OVER" : "UNDER"} THE LINE`
+                  : result.winner === "UP" ? "OVER THE LINE" : "UNDER THE LINE"
+              } — ${result.winner} RIDERS SURVIVE`}
         </p>
         {result.killed.length > 0 && (
           <p className="display mt-6 text-xl glow-down sm:text-3xl">
