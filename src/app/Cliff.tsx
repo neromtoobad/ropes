@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { TableState } from "@/lib/state";
 import { useSmoothed } from "./useSmoothed";
 
@@ -112,9 +112,46 @@ export function Cliff({
   const multiple = useSmoothed(target, 340, 3);
   const meH = heightOfMultiple(multiple);
 
-  // Direction of travel = which way the glide is still chasing the target.
-  const rising = heightOfMultiple(target) > meH + 0.0015;
-  const sinking = heightOfMultiple(target) < meH - 0.0015;
+  // BTC's last move, held for a beat so a tick reads as motion, not a blink.
+  // The feed repeats the same number across polls (see the chart gotcha), so
+  // direction only updates on an actual change.
+  const btcRef = useRef<{ last: number | null; dir: number; at: number }>({
+    last: null,
+    dir: 0,
+    at: 0,
+  });
+  if (btc.price !== null) {
+    const b = btcRef.current;
+    if (b.last !== null && btc.price !== b.last) {
+      b.dir = Math.sign(btc.price - b.last);
+      b.at = Date.now();
+    }
+    b.last = btc.price;
+  }
+  const btcDir = Date.now() - btcRef.current.at < 3000 ? btcRef.current.dir : 0;
+  // Riding DOWN inverts the read: BTC falling IS you winning. Idle mirrors
+  // BTC plainly — the wall must never sit still while the tape moves.
+  const sideSign = seat?.inRound && seat.pick === "DOWN" ? -1 : 1;
+  const marketDir = btcDir * sideSign;
+
+  // Every BTC tick lands in the body: a reach up or a sag down, then settle.
+  // A nudge is cosmetic lean, never altitude — the tag and BAIL don't move.
+  const [nudge, setNudge] = useState(0);
+  useEffect(() => {
+    if (btc.price === null || btcRef.current.dir === 0) return;
+    setNudge(-btcRef.current.dir * sideSign * 12);
+    const t = setTimeout(() => setNudge(0), 380);
+    return () => clearTimeout(t);
+    // Keyed on the price on purpose: a repeated value is not a tick.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [btc.price, sideSign]);
+
+  // Direction of travel: the value glide when it is moving, the market when
+  // the glide is settled — the climber works the rope the way BTC is going.
+  const glideUp = heightOfMultiple(target) > meH + 0.0015;
+  const glideDown = heightOfMultiple(target) < meH - 0.0015;
+  const rising = glideUp || (!glideDown && marketDir > 0);
+  const sinking = glideDown || (!glideUp && marketDir < 0);
 
   // Milestone crossings, upward only. The chime belongs to gains.
   const lastMult = useRef(multiple);
@@ -297,13 +334,13 @@ export function Cliff({
               bottom: bailed ? "118%" : dead ? "-30%" : "calc(50% - 58px)",
               transform: bailed
                 ? "translateX(-50%) translateX(90px)"
-                : "translateX(-50%)",
+                : `translateX(-50%) translateY(${dead ? 0 : nudge}px)`,
               opacity: bailed ? 0 : 1,
               transition: bailed
                 ? "bottom 700ms cubic-bezier(0.2, 0.9, 0.3, 1), transform 700ms ease-out, opacity 700ms ease-in 300ms"
                 : dead
                   ? "bottom 1100ms cubic-bezier(0.5, 0, 0.9, 0.4)"
-                  : "none",
+                  : "transform 380ms cubic-bezier(0.34, 1.3, 0.5, 1)",
               zIndex: 20,
             }}
           >
