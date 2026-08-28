@@ -9,7 +9,7 @@
  * money is whose; never read a player's position off the wallet.
  */
 import { db } from "../lib/db";
-import { fmtUsd, fmtProb, ONE } from "../lib/chain";
+import { fmtUsd, fmtProb, ONE , INTERVAL_SEC } from "../lib/chain";
 import { currentMarket, settlement, type LiveMarket } from "../lib/market";
 import { exchange, ASSET } from "../lib/chain";
 import { buy, redeemAll, sellPosition, type Side } from "../lib/orders";
@@ -86,7 +86,27 @@ function sideFor(run: { pendingSide: string | null; autoPick: string | null }): 
  * as rigged in a game. Batching by side makes every player on a side pay
  * exactly the same price, and costs one transaction instead of N.
  */
+/**
+ * Entries only land in the first ENTRY_WINDOW_S seconds of a window. It makes
+ * the round a discrete thing: everyone in it entered at (nearly) the same
+ * price picture, and a bet placed mid-ride queues for the next window instead
+ * of buying a 20-second sprint at whatever the book has become. The retry
+ * loop for the empty-at-open book lives entirely inside this grace period.
+ */
+export const ENTRY_WINDOW_S = 20;
+let lockedLogFor = -1;
+
 export async function enterRound(roundId: string, market: LiveMarket) {
+  const round = await db.round.findUniqueOrThrow({ where: { id: roundId } });
+  const remaining = (round.expiresAt.getTime() - Date.now()) / 1000;
+  if (remaining < INTERVAL_SEC - ENTRY_WINDOW_S) {
+    if (lockedLogFor !== round.index) {
+      lockedLogFor = round.index;
+      log(`  entries locked for round ${round.index} — late bets ride the next window`);
+    }
+    return [];
+  }
+
   // Only sealed tables play. A run in a filling table is seated and watching —
   // its field is not fixed yet, so it cannot be in a battle royale.
   const alive = await db.run.findMany({

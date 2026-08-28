@@ -7,10 +7,11 @@
  * must present these as "pays about", never as a promise.
  */
 import { db } from "./db";
-import { ONE, toUsd } from "./chain";
+import { ONE, toUsd, INTERVAL_SEC } from "./chain";
 import { exchange, ASSET, HOUSE, COLLATERAL } from "./chain";
 import { MAX_ENTRY_PRICE_PCT } from "./orders";
 import { MAX_SEATS } from "../executor/tables";
+import { ENTRY_WINDOW_S } from "../executor/game";
 
 export interface SeatView {
   runId: string;
@@ -40,6 +41,9 @@ export interface TableState {
     expiresAt: string;
     secondsLeft: number;
     status: string;
+    /** Seconds until entries close for THIS window (0 = closed; bets now
+     *  queue for the next). The executor enforces the same cutoff. */
+    betsCloseIn: number;
   } | null;
   /** Live probability of each side, 0-1. null when the book is empty. */
   price: { up: number | null; down: number | null };
@@ -314,13 +318,17 @@ export async function getTableState(): Promise<TableState> {
 
   return {
     round: round
-      ? {
-          index: round.index,
-          marketId: round.marketId,
-          expiresAt: round.expiresAt.toISOString(),
-          secondsLeft: Math.max(0, (round.expiresAt.getTime() - Date.now()) / 1000),
-          status: round.status,
-        }
+      ? (() => {
+          const secondsLeft = Math.max(0, (round.expiresAt.getTime() - Date.now()) / 1000);
+          return {
+            index: round.index,
+            marketId: round.marketId,
+            expiresAt: round.expiresAt.toISOString(),
+            secondsLeft,
+            status: round.status,
+            betsCloseIn: Math.max(0, secondsLeft - (INTERVAL_SEC - ENTRY_WINDOW_S)),
+          };
+        })()
       : null,
     price: { up, down },
     pays: { up: up ? 1 / up : null, down: down ? 1 / down : null },

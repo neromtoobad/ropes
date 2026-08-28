@@ -13,6 +13,7 @@ import { shareRunCard } from "./share";
 const SEAT = 10_000_000n; // 10 tUSDC, 6 decimals
 const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
 const usd = (n: number) => `${n >= 0 ? "+" : "−"}${Math.abs(n).toFixed(2)}`;
+const pad = (n: number) => String(Math.max(0, Math.floor(n))).padStart(2, "0");
 
 type View = "climb" | "ledger" | "leaders";
 
@@ -328,6 +329,8 @@ export default function Game() {
             }}
           />
 
+          {me && state?.round && <PhaseStrip state={state} me={me} />}
+
           {/* One control, matched to the moment. Never several at once. */}
           <div className="mt-3">
             {!runId || !me ? (
@@ -627,6 +630,71 @@ function StatPanel({
   );
 }
 
+/* ─────────────────────────── phase strip ─────────────────────────── */
+
+/**
+ * The round as a ritual: BET → ENTER → RIDE → BELL, with the viewer's own
+ * run highlighted on the step it is at and a countdown for what's next.
+ * One glance answers "what is happening and when is my moment".
+ */
+function PhaseStrip({ state, me }: { state: TableState; me: TableState["seats"][number] }) {
+  const r = state.round!;
+  const secs = Math.floor(r.secondsLeft);
+  const betsIn = Math.floor(r.betsCloseIn);
+  const phase = me.inRound ? 2 : me.pick ? 1 : 0;
+
+  const steps = [
+    {
+      label: "BET",
+      detail:
+        phase === 0
+          ? betsIn > 0
+            ? `OPEN · 0:${pad(betsIn)}`
+            : `NEXT · 0:${pad(secs)}`
+          : "PLACED",
+    },
+    {
+      label: "ENTER",
+      detail:
+        phase === 1 ? (betsIn > 0 ? "FILLING…" : `OPENS 0:${pad(secs)}`) : phase > 1 ? "FILLED" : "·",
+    },
+    { label: "RIDE", detail: phase === 2 ? `LIVE · 0:${pad(secs)}` : "·" },
+    { label: "BELL", detail: `RND ${r.index}` },
+  ];
+
+  return (
+    <div className="mt-3 grid grid-cols-4 gap-1.5" aria-label="round phases">
+      {steps.map((s, i) => {
+        const active = i === phase;
+        const done = i < phase;
+        return (
+          <div
+            key={s.label}
+            className="chamfer-sm border px-2 py-1.5 text-center"
+            style={{
+              borderColor: active ? "var(--gold)" : "var(--edge)",
+              background: active ? "#241c07" : "var(--panel)",
+              opacity: done ? 0.55 : 1,
+              boxShadow: active ? "0 0 24px -12px var(--gold)" : "none",
+            }}
+          >
+            <p
+              className="text-[10px] font-black tracking-[0.25em]"
+              style={{ color: active ? "var(--gold)" : done ? "var(--up)" : "var(--dim)" }}
+            >
+              {done ? "✓ " : `${i + 1} `}
+              {s.label}
+            </p>
+            <p className="tabular mt-0.5 text-[9px] font-bold tracking-[0.15em] text-[var(--dim)]">
+              {s.detail}
+            </p>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 /* ─────────────────────────── action bar ──────────────────────────── */
 
 function BailBar({
@@ -697,13 +765,18 @@ function Sides({
             : state.locked
               ? "LOCKED — WATCH IT PLAY OUT"
               : shownPick
-                ? `YOUR BET: ${shownPick === "UP" ? "▲ UP" : "▼ DOWN"} — WHOLE STACK ENTERS AT WINDOW OPEN`
+                ? `YOUR BET: ${shownPick === "UP" ? "▲ UP" : "▼ DOWN"} — WHOLE STACK, ${
+                    (state.round?.betsCloseIn ?? 0) > 0 ? "ENTERING NOW" : "NEXT WINDOW"
+                  }`
                 : canPick
-                  ? "PICK YOUR SIDE"
+                  ? (state.round?.betsCloseIn ?? 0) > 0
+                    ? `BETS OPEN — CLOSE IN 0:${pad(state.round!.betsCloseIn)}`
+                    : `BETS CLOSED — NEXT WINDOW IN 0:${pad(state.round?.secondsLeft ?? 0)}`
                   : "NEXT ROUND"}
         </span>
         <span className="tabular">
-          NEXT BELL 0:{String(Math.floor(state.round?.secondsLeft ?? 0)).padStart(2, "0")}
+          {state.round ? `ROUND ${state.round.index} · ` : ""}BELL 0:
+          {pad(state.round?.secondsLeft ?? 0)}
         </span>
       </div>
 
@@ -770,6 +843,30 @@ function Sides({
   );
 }
 
+/** The rules, exactly, before anyone spends anything. Four lines, no lore. */
+function HowItWorks() {
+  const steps = [
+    { n: "1", t: "BUY A SEAT", d: "10 tUSDC from your wallet — or free on the house" },
+    { n: "2", t: "BET UP OR DOWN", d: "whole stack rides each 1-min window · bets close 20s in" },
+    { n: "3", t: "THE BELL", d: "right side: stack multiplies, auto-rides on. wrong: you're out" },
+    { n: "4", t: "BAIL ANYTIME", d: "sells at live price mid-ride — paid straight to your wallet" },
+  ];
+  return (
+    <div className="mb-3 grid grid-cols-2 gap-1.5 lg:grid-cols-4">
+      {steps.map((s) => (
+        <div key={s.n} className="chamfer-sm border border-[var(--edge)] px-2.5 py-2" style={{ background: "var(--panel)" }}>
+          <p className="text-[10px] font-black tracking-[0.2em] text-[var(--gold)]">
+            {s.n} · {s.t}
+          </p>
+          <p className="mt-0.5 text-[9px] font-bold leading-relaxed tracking-wide text-[var(--dim)]">
+            {s.d.toUpperCase()}
+          </p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function Join({
   name,
   setName,
@@ -796,6 +893,7 @@ function Join({
   const primary = addr ? onBuy : onJoin;
   return (
     <div>
+      <HowItWorks />
       <div className="flex flex-wrap gap-2">
         <input
           value={name}
