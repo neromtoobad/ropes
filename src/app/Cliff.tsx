@@ -129,29 +129,46 @@ export function Cliff({
     b.last = btc.price;
   }
   const btcDir = Date.now() - btcRef.current.at < 3000 ? btcRef.current.dir : 0;
-  // Riding DOWN inverts the read: BTC falling IS you winning. Idle mirrors
-  // BTC plainly — the wall must never sit still while the tape moves.
-  const sideSign = seat?.inRound && seat.pick === "DOWN" ? -1 : 1;
-  const marketDir = btcDir * sideSign;
 
-  // Every BTC tick lands in the body: a reach up or a sag down, then settle.
-  // A nudge is cosmetic lean, never altitude — the tag and BAIL don't move.
+  // Every BTC tick lands in the body: a reach up on an up-tick, a sag on a
+  // down-tick — RAW, never inverted. The character IS bitcoin; a DOWN bettor
+  // wants to watch their climber dive. A nudge is cosmetic lean, never
+  // altitude — the tag and BAIL don't move.
   const [nudge, setNudge] = useState(0);
   useEffect(() => {
     if (btc.price === null || btcRef.current.dir === 0) return;
-    setNudge(-btcRef.current.dir * sideSign * 12);
+    setNudge(-btcRef.current.dir * 12);
     const t = setTimeout(() => setNudge(0), 380);
     return () => clearTimeout(t);
     // Keyed on the price on purpose: a repeated value is not a tick.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [btc.price, sideSign]);
+  }, [btc.price]);
 
-  // Direction of travel: the value glide when it is moving, the market when
-  // the glide is settled — the climber works the rope the way BTC is going.
+  /**
+   * In-round, the climber's position on screen IS bitcoin against the line:
+   * center = the strike, above = UP winning, below = DOWN winning. A DOWN
+   * bettor cheers the dive. Money never leaves the numbers — tag, altitude
+   * and BAIL keep the honest mark — but the BODY belongs to BTC.
+   *
+   * The cumulative altitude (ledges, records) is the camera's anchor; the
+   * bell settles the round and the anchor glides to the new height.
+   */
+  const OFFSET_PER_POINT = 1.1; // % of wall per BTC point off the strike
+  const MAX_OFFSET = 34;
+  const rawOffset =
+    seat?.inRound && btc.price !== null && btc.strike !== null
+      ? Math.max(-MAX_OFFSET, Math.min(MAX_OFFSET, (btc.price - btc.strike) * OFFSET_PER_POINT))
+      : 0;
+  const offset = useSmoothed(rawOffset, 300, 200);
+
+  // Direction of travel, in screen truth: the BTC offset while it moves, the
+  // anchor glide while it settles, the last tick when both are quiet.
   const glideUp = heightOfMultiple(target) > meH + 0.0015;
   const glideDown = heightOfMultiple(target) < meH - 0.0015;
-  const rising = glideUp || (!glideDown && marketDir > 0);
-  const sinking = glideDown || (!glideUp && marketDir < 0);
+  const offUp = rawOffset > offset + 0.4;
+  const offDown = rawOffset < offset - 0.4;
+  const rising = offUp || (!offDown && glideUp) || (!offDown && !glideDown && btcDir > 0);
+  const sinking = offDown || (!offUp && glideDown) || (!offUp && !glideUp && btcDir < 0);
 
   // Milestone crossings, upward only. The chime belongs to gains.
   const lastMult = useRef(multiple);
@@ -331,7 +348,7 @@ export function Cliff({
           <div
             className="absolute left-1/2 flex flex-col items-center"
             style={{
-              bottom: bailed ? "118%" : dead ? "-30%" : "calc(50% - 58px)",
+              bottom: bailed ? "118%" : dead ? "-30%" : `calc(${50 + offset}% - 58px)`,
               transform: bailed
                 ? "translateX(-50%) translateX(90px)"
                 : `translateX(-50%) translateY(${dead ? 0 : nudge}px)`,
