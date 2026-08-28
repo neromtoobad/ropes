@@ -1103,14 +1103,14 @@ function MoneyBar({
       <div className="chamfer-sm flex items-baseline justify-between border px-4 py-2.5"
         style={{ borderColor: "var(--edge)", background: "linear-gradient(180deg, var(--panel-2), var(--panel))" }}>
         <div>
-          <p className="text-[9px] font-black tracking-[0.3em] text-[var(--dim)]">ON THE WALL</p>
+          <p className="whitespace-nowrap text-[9px] font-black tracking-[0.3em] text-[var(--dim)]">ON THE WALL</p>
           <p className="display tabular text-3xl leading-none sm:text-4xl"
             style={onWall !== null ? { color: upC, textShadow: `0 0 34px ${upC}55` } : { color: "var(--dim)" }}>
             {onWall !== null ? onWall.toFixed(2) : "—"}
           </p>
         </div>
         {delta !== null && (
-          <span className="tabular text-sm font-black" style={{ color: upC }}>
+          <span className="tabular hidden whitespace-nowrap text-sm font-black min-[480px]:inline" style={{ color: upC }}>
             THIS RUN {usd(delta)}
           </span>
         )}

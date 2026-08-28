@@ -21,13 +21,17 @@
    * keep that separation and stop the page reading as a terminal, not enough to
    * make the surface itself something you notice.
    */
-  --bg: #0b0a13;
-  --panel: #14131f;
-  --panel-2: #1a1929;
-  --edge: #2c2a3d;
-  --dim: #85839c;
+  --bg: #0d0a1c;
+  --panel: #161329;
+  --panel-2: #1d1936;
+  --edge: #332c52;
+  --dim: #8d8ab0;
   --text: #eeecf5;
-  --ambient: #1e1c2e;
+  --ambient: #251d45;
+  /* Atmosphere only — never on text or semantics. The sky's own colours. */
+  --aurora-a: #c44dff;
+  --aurora-b: #2de2ff;
+  --aurora-c: #ff2f8a;
 
   /* Semantic. Identical across every surface palette — UP is always this
      green, DOWN is always this red, and the line to beat is always gold. */
@@ -77,14 +81,25 @@ body {
   letter-spacing: 0.02em;
 }
 
-/* A vignette stops the flat-black page reading as an empty div. */
+/* Not a vignette — a sky. Three aurora glows drifting slowly behind the
+   whole page, so the surface breathes instead of sitting there. The drift
+   dies under prefers-reduced-motion and the static gradient stays. */
 body::before {
   content: "";
   position: fixed;
-  inset: 0;
+  inset: -12%;
   pointer-events: none;
   z-index: 0;
-  background: radial-gradient(120% 90% at 50% 0%, var(--ambient) 0%, transparent 62%);
+  background:
+    radial-gradient(52% 38% at 82% 6%, color-mix(in srgb, var(--aurora-a) 16%, transparent) 0%, transparent 70%),
+    radial-gradient(46% 34% at 10% 84%, color-mix(in srgb, var(--aurora-b) 12%, transparent) 0%, transparent 70%),
+    radial-gradient(60% 42% at 46% 108%, color-mix(in srgb, var(--aurora-c) 14%, transparent) 0%, transparent 72%),
+    radial-gradient(120% 90% at 50% 0%, var(--ambient) 0%, transparent 62%);
+  animation: aurora-drift 26s ease-in-out infinite alternate;
+}
+@keyframes aurora-drift {
+  from { transform: translate3d(0, 0, 0) scale(1); }
+  to { transform: translate3d(2.5%, -2%, 0) scale(1.06); }
 }
 
 /*
@@ -448,4 +463,52 @@ a[href] {
   .bell {
     opacity: 1;
   }
+}
+
+/* ── the sky inside the wall ───────────────────────────────────────────
+   Two star layers at different parallax speeds (driven from Cliff via
+   background-position, like the old rope knots) plus nebulas that breathe.
+   This is what makes the wall a PLACE — altitude you can see. */
+.stars-far {
+  background-image:
+    radial-gradient(1px 1px at 22% 31%, #ffffffcc 50%, transparent 51%),
+    radial-gradient(1px 1px at 71% 12%, color-mix(in srgb, var(--aurora-a) 48%, transparent) 50%, transparent 51%),
+    radial-gradient(1px 1px at 47% 74%, #ffffff55 50%, transparent 51%),
+    radial-gradient(1px 1px at 89% 56%, color-mix(in srgb, var(--aurora-b) 42%, transparent) 50%, transparent 51%),
+    radial-gradient(1px 1px at 9% 88%, #ffffff4a 50%, transparent 51%),
+    radial-gradient(1px 1px at 33% 52%, #ffffff40 50%, transparent 51%);
+  background-size: 260px 260px;
+}
+.stars-near {
+  background-image:
+    radial-gradient(1.5px 1.5px at 66% 43%, #ffffffcc 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 14% 64%, color-mix(in srgb, var(--gold) 55%, transparent) 50%, transparent 51%),
+    radial-gradient(2px 2px at 38% 16%, #ffffffa0 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 84% 85%, color-mix(in srgb, var(--aurora-c) 52%, transparent) 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 55% 92%, #ffffff70 50%, transparent 51%);
+  background-size: 340px 340px;
+}
+.nebula {
+  background:
+    radial-gradient(60% 45% at 78% 18%, color-mix(in srgb, var(--aurora-a) 14%, transparent) 0%, transparent 70%),
+    radial-gradient(55% 40% at 18% 72%, color-mix(in srgb, var(--aurora-b) 11%, transparent) 0%, transparent 70%),
+    radial-gradient(70% 55% at 50% 105%, color-mix(in srgb, var(--aurora-c) 12%, transparent) 0%, transparent 70%);
+  animation: nebula-breathe 14s ease-in-out infinite alternate;
+}
+@keyframes nebula-breathe {
+  from { opacity: 0.65; }
+  to { opacity: 1; }
+}
+
+/* The synthwave floor: a perspective grid glowing up from the base of the
+   wall. Pure arcade — the depth you would fall into. */
+.grid-floor {
+  background:
+    repeating-linear-gradient(90deg, color-mix(in srgb, var(--aurora-a) 26%, transparent) 0 1px, transparent 1px 42px),
+    repeating-linear-gradient(0deg, color-mix(in srgb, var(--aurora-b) 18%, transparent) 0 1px, transparent 1px 26px),
+    linear-gradient(to top, color-mix(in srgb, var(--aurora-c) 16%, transparent), transparent 75%);
+  transform: perspective(340px) rotateX(58deg);
+  transform-origin: 50% 100%;
+  mask-image: linear-gradient(to top, black 30%, transparent 95%);
+  -webkit-mask-image: linear-gradient(to top, black 30%, transparent 95%);
 }

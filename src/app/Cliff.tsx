@@ -254,12 +254,29 @@ export function Cliff({
         borderColor: urgent ? "#3d1220" : "var(--edge)",
         background:
           hanging && !dead
-            ? "linear-gradient(180deg, #1c0f1c 0%, #120a14 50%, #0a0812 100%)"
-            : "linear-gradient(180deg, #171528 0%, #100e1c 45%, #0a0812 100%)",
+            ? "linear-gradient(180deg, #251029 0%, #150b1a 50%, #0b0814 100%)"
+            : "linear-gradient(180deg, #1c1738 0%, #131028 45%, #0b0917 100%)",
         boxShadow: "inset 0 2px 24px #000000cc",
         transition: "background 900ms",
       }}
     >
+      {/* the sky: two star layers parallaxing with altitude (near moves
+          faster than far — depth you can feel every time you climb) and
+          nebulas breathing in the corners. This is what makes the wall a
+          PLACE instead of a panel. */}
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div
+          className="stars-far absolute inset-0"
+          style={{ backgroundPositionY: `${meH * SPREAD * 1.6}px` }}
+        />
+        <div
+          className="stars-near absolute inset-0"
+          style={{ backgroundPositionY: `${meH * SPREAD * 3.4}px` }}
+        />
+        <div className="nebula absolute inset-0" />
+        <div className="grid-floor absolute inset-x-[-15%] bottom-0 h-[42%]" />
+      </div>
+
       {/* the stage: everything that zooms in the finale */}
       <div
         className="absolute inset-0"
