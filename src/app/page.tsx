@@ -1126,8 +1126,20 @@ function LedgerPanel({ ledger, climber }: { ledger: LedgerData | null; climber: 
                   {r.status === "alive" ? "▲ ON THE WALL" : r.status === "eliminated" ? "☠ FELL" : "◆ BANKED"}
                 </span>
                 <span className="tabular text-[11px] text-[var(--dim)]">
-                  {r.rounds}R · {r.multiple.toFixed(2)}×{r.paid ? " · PAID SEAT" : ""}
+                  {r.rounds}R · {r.multiple.toFixed(2)}×
                 </span>
+                {r.paid ? (
+                  <span className="border border-[var(--gold)] px-1.5 py-0.5 text-[9px] font-black tracking-[0.15em] text-[var(--gold)]">
+                    PAID SEAT
+                  </span>
+                ) : (
+                  <span
+                    className="border border-[var(--edge)] px-1.5 py-0.5 text-[9px] font-black tracking-[0.15em] text-[var(--dim)]"
+                    title="free seat on the house bankroll — winnings count for the board, not for withdrawal"
+                  >
+                    HOUSE MONEY
+                  </span>
+                )}
               </span>
               <span className="flex items-center gap-3">
                 <span className="tabular text-sm font-black" style={{ color: r.net >= 0 ? "var(--up)" : "var(--down)" }}>
