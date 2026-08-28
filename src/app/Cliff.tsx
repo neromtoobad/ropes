@@ -246,6 +246,9 @@ export function Cliff({
   const myBest = seat?.best ?? null;
   const bestBeaten = myBest !== null && multiple > myBest;
 
+  // How deep into space the run has climbed: 0 at break-even, 1 at 12×.
+  const spaceT = Math.max(0, Math.min(1, Math.log(Math.max(multiple, 1)) / Math.log(12)));
+
   return (
     <div
       className="ticks relative overflow-hidden rounded-2xl border"
@@ -263,18 +266,41 @@ export function Cliff({
       {/* the sky: two star layers parallaxing with altitude (near moves
           faster than far — depth you can feel every time you climb) and
           nebulas breathing in the corners. This is what makes the wall a
-          PLACE instead of a panel. */}
+          PLACE instead of a panel.
+
+          And the sky REACTS to altitude: spaceT runs 0 at break-even to 1
+          at 12× — the higher the run, the deeper into space it climbs.
+          The wall darkens toward void, stars sharpen, nebulas bloom, and
+          the neon ground fades away far below. Altitude you can feel. */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div
+          className="absolute inset-0"
+          style={{
+            background: "linear-gradient(180deg, #040210 0%, #0b0426 60%, #0d0620 100%)",
+            opacity: spaceT * 0.8,
+          }}
+        />
+        <div
           className="stars-far absolute inset-0"
-          style={{ backgroundPositionY: `${meH * SPREAD * 1.6}px` }}
+          style={{
+            backgroundPositionY: `${meH * SPREAD * 1.6}px`,
+            opacity: 0.55 + 0.45 * spaceT,
+          }}
         />
         <div
           className="stars-near absolute inset-0"
-          style={{ backgroundPositionY: `${meH * SPREAD * 3.4}px` }}
+          style={{
+            backgroundPositionY: `${meH * SPREAD * 3.4}px`,
+            opacity: 0.6 + 0.4 * spaceT,
+          }}
         />
-        <div className="nebula absolute inset-0" />
-        <div className="grid-floor absolute inset-x-[-15%] bottom-0 h-[42%]" />
+        <div className="absolute inset-0" style={{ opacity: 0.7 + 0.3 * spaceT }}>
+          <div className="nebula absolute inset-0" />
+        </div>
+        <div
+          className="grid-floor absolute inset-x-[-15%] bottom-0 h-[42%]"
+          style={{ opacity: 1 - spaceT * 0.85 }}
+        />
       </div>
 
       {/* the stage: everything that zooms in the finale */}
@@ -371,6 +397,17 @@ export function Cliff({
               {bestBeaten ? "★ NEW BEST" : `YOUR BEST · ${myBest.toFixed(2)}×`}
             </span>
           </div>
+        )}
+
+        {/* the rope above: the frames carry the strand through the grip, and
+            this continues it up past the top of the wall — anchored at the
+            summit, like a rope actually is. It tucks 140px down INTO the
+            sprite so the join hides behind the character at both sizes. */}
+        {seat && !dead && !bailed && (
+          <div
+            className="rope-ext pointer-events-none absolute left-1/2 z-10 w-[5px] -translate-x-1/2"
+            style={{ top: "-5%", bottom: `calc(${50 + offset}% + 82px)` }}
+          />
         )}
 
         {/* the climber — pinned to the middle while the world moves. The rope

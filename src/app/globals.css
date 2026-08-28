@@ -512,3 +512,13 @@ a[href] {
   mask-image: linear-gradient(to top, black 30%, transparent 95%);
   -webkit-mask-image: linear-gradient(to top, black 30%, transparent 95%);
 }
+
+/* The rope above the grip — continues the strand baked into the cycle
+   frames up to the summit. Colour-matched to the generated ropes. */
+.rope-ext {
+  background:
+    linear-gradient(90deg, #2a2015 0%, transparent 25%, transparent 75%, #2a2015 100%),
+    repeating-linear-gradient(32deg, #8b6f4a 0 4px, #5f4832 4px 8px);
+  border-radius: 2px;
+  box-shadow: 0 0 6px #00000066;
+}
