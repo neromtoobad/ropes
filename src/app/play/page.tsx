@@ -206,12 +206,12 @@ export default function Game() {
   const ledger = useLedger(playerKey, `${bell?.index ?? 0}-${runId}`);
 
   return (
-    <main className={`relative z-10 mx-auto min-h-screen max-w-6xl px-4 py-4 ${bell ? "shake" : ""}`}>
+    <main className={`relative z-10 mx-auto flex min-h-screen max-w-6xl flex-col px-4 py-3 lg:h-screen lg:max-h-screen lg:overflow-hidden ${bell ? "shake" : ""}`}>
       {secs > 0 && secs < 10 && <div className="danger" />}
 
       <TopBar state={state} urgent={urgent} sound={sound} me={me} />
 
-      <MoneyBar me={me} price={state?.price ?? { up: null, down: null }} ledger={ledger} />
+      <div className="shrink-0"><MoneyBar me={me} price={state?.price ?? { up: null, down: null }} ledger={ledger} /></div>
 
       {seatFlash && (
         <div className="pointer-events-none fixed inset-x-0 top-[20%] z-40 text-center">
@@ -226,11 +226,15 @@ export default function Game() {
         </div>
       )}
 
-      {/* The HUD: roster rail · the wall · the stat block. */}
-      <div className="mt-3 grid gap-3 lg:grid-cols-[72px_minmax(0,1fr)_240px]">
-        <Rail climber={climber} onPick={pickClimber} lockedIn={Boolean(me)} />
+      {/* The HUD: roster rail · the wall · the stat block. One viewport,
+          no scroll — the wall flexes to fill whatever height is left. */}
+      <div className="mt-2 grid gap-3 lg:min-h-0 lg:flex-1 lg:grid-cols-[72px_minmax(0,1fr)_240px]">
+        <div className="lg:min-h-0 lg:overflow-y-auto">
+          <Rail climber={climber} onPick={pickClimber} lockedIn={Boolean(me)} />
+        </div>
 
-        <div className="min-w-0">
+        <div className="flex min-w-0 flex-col lg:min-h-0">
+          <div className="lg:min-h-0 lg:flex-1">
           <Cliff
             seats={state?.seats ?? []}
             price={state?.price ?? { up: null, down: null }}
@@ -247,11 +251,12 @@ export default function Game() {
               setTimeout(() => setPassed(null), 2000);
             }}
           />
+          </div>
 
           {me && state?.round && <PhaseStrip state={state} me={me} />}
 
           {/* One control, matched to the moment. Never several at once. */}
-          <div className="mt-3">
+          <div className="mt-2 shrink-0">
             {!runId || !me ? (
               <Join
                 name={name}
@@ -314,12 +319,12 @@ export default function Game() {
         </div>
       )}
 
-      <div id="runs">
+      <div id="runs" className="lg:hidden">
         <Feed state={state} />
         {!me && <LastRun ledger={ledger} climber={climber} />}
       </div>
       {bell && <Bell result={bell} mine={mine} />}
-      <Footnote state={state} />
+      <div className="lg:hidden"><Footnote state={state} /></div>
     </main>
   );
 }
@@ -482,7 +487,7 @@ function StatPanel({
   const btc = state?.btc;
 
   return (
-    <aside className="ticks chamfer-sm hidden flex-col gap-4 border p-4 lg:flex"
+    <aside className="ticks chamfer-sm hidden flex-col gap-4 border p-4 lg:flex lg:h-full lg:min-h-0 lg:overflow-y-auto"
       style={{ borderColor: "var(--edge)", background: "linear-gradient(180deg, var(--panel-2), var(--panel))" }}>
       <div>
         <p className="text-[9px] font-black tracking-[0.3em] text-[var(--dim)]">{cast.code}</p>
@@ -527,6 +532,36 @@ function StatPanel({
             TO BEAT {btc.strike.toLocaleString(undefined, { maximumFractionDigits: 2 })}
           </p>
         </div>
+      )}
+
+      {/* the feed lives HERE on desktop, so the page never scrolls */}
+      {state?.feed && state.feed.length > 0 && (
+        <div className="border-t border-[var(--edge)] pt-2">
+          <p className="text-[8px] font-black tracking-[0.3em] text-[var(--dim)]">LATEST BELLS</p>
+          <div className="mt-1.5 space-y-1">
+            {state.feed.slice(0, 3).map((f, i) => (
+              <div key={`${f.name}-${f.round}-${i}`} className="flex items-center justify-between text-[10px] font-bold">
+                <span className="flex items-center gap-1.5 truncate">
+                  <span style={{ color: f.kind === "died" ? "var(--down)" : f.kind === "swept" ? "var(--dim)" : "var(--gold)" }}>
+                    {f.kind === "died" ? "☠" : f.kind === "swept" ? "⌁" : "◆"}
+                  </span>
+                  <span className="truncate">{f.name}</span>
+                </span>
+                <span className="tabular text-[var(--dim)]">{f.multiple.toFixed(2)}×</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {state?.btc.oracleQuestionId && (
+        <a
+          className="text-[8px] font-bold tracking-[0.2em] text-[var(--dim)] underline decoration-dotted hover:text-[var(--gold)]"
+          href={`https://prd.oracle.somnia.host/questions/${state.btc.oracleQuestionId}?view=graph`}
+          target="_blank"
+          rel="noreferrer"
+        >
+          PROVABLY FAIR — SETTLEMENT SOURCES ↗
+        </a>
       )}
     </aside>
   );

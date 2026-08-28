@@ -251,9 +251,8 @@ export function Cliff({
 
   return (
     <div
-      className="ticks relative overflow-hidden rounded-2xl border"
+      className="ticks relative h-[520px] overflow-hidden rounded-2xl border lg:h-full lg:min-h-[360px]"
       style={{
-        height: 520,
         borderColor: urgent ? "#3d1220" : "var(--edge)",
         background:
           hanging && !dead
