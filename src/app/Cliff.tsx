@@ -399,14 +399,21 @@ export function Cliff({
           </div>
         )}
 
-        {/* the rope above: the frames carry the strand through the grip, and
-            this continues it up past the top of the wall — anchored at the
-            summit, like a rope actually is. It tucks 140px down INTO the
-            sprite so the join hides behind the character at both sizes. */}
+        {/* the rope above: THE ACTUAL ROPE. A tile cut from this character's
+            own frames (scripts/ropealign.ts) repeats from above the summit
+            down into the grip — same pixels, same twist, and the frames are
+            re-centered on the rope so the strand never jumps sideways. It
+            tucks into the sprite so the join hides behind the body. */}
         {seat && !dead && !bailed && (
           <div
-            className="rope-ext pointer-events-none absolute left-1/2 z-10 w-[5px] -translate-x-1/2"
-            style={{ top: "-5%", bottom: `calc(${50 + offset}% + 82px)` }}
+            className="pointer-events-none absolute left-1/2 z-10 w-[8px] -translate-x-1/2"
+            style={{
+              top: "-5%",
+              bottom: `calc(${50 + offset}% + 82px)`,
+              backgroundImage: `url(/climbers/${art}/rope.png)`,
+              backgroundRepeat: "repeat-y",
+              backgroundSize: "100% auto",
+            }}
           />
         )}
 
