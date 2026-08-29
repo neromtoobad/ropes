@@ -502,6 +502,19 @@ lonely side pays a lot. show the crowd's split on screen — that is the strateg
   losing id, so skip on 0 rather than sending a tx that pays nothing.
 ➠ **`cd` inside a Bash tool call persists across calls.** a `cd node_modules/...` wrote `.env` and
   `.gitignore` into the package directory instead of the repo. always `cd` back to the repo root.
+➠ **killing the executor by pattern leaves ORPHANS that keep trading.** the real long-running
+  process is `node --require tsx/preflight.cjs … src/executor/index.ts` — patterns like
+  `pkill -f "tsx src/executor"` only kill the npm/tsx wrappers, the node child survives orphaned,
+  and `run-executor.sh`'s until-loop respawns another on top. three executors ended up racing one
+  wallet and one SQLite for 15 minutes: `position.create` P2002 collisions, and — because `buy`
+  and `sellPosition` measure cost/proceeds off wallet-balance DELTAS — every number poisoned by
+  the siblings' concurrent orders (a "20-budget" entry recorded 38.86 spent; a 28-contract sale
+  recorded 43.43 proceeds). match `[e]xecutor/index` (the child's cmdline) and kill the supervisor
+  bash FIRST, then verify the count is zero before restarting.
+➠ **auto-bail must mark off DEPTH, not the touch.** the first version compared the target against
+  best-bid × size; a thin book showed a touch ≥ target, fired, and the IOC sale walked the book —
+  a 10.00 stake realized 1.70. `realizableProceeds` walks the resting levels for the WHOLE size
+  and refuses to fire when the book can't absorb it.
 
 ## things NOT to do
 

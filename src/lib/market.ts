@@ -20,6 +20,10 @@ export interface LiveMarket {
   /** Best resting YES ask / bid, raw units. undefined when that side is empty. */
   yesAsk?: bigint;
   yesBid?: bigint;
+  /** Full resting depth, best level first — for marks that must answer "what
+   *  would the book ACTUALLY pay for this whole size", not "what's the touch". */
+  yesBidLevels: { price: bigint; quantity: bigint }[];
+  yesAskLevels: { price: bigint; quantity: bigint }[];
   tick: bigint;
   lot: bigint;
   /** The line to beat: the window's opening price. Row is scaled by 100. */
@@ -70,6 +74,8 @@ export async function currentMarket(minSecondsLeft = 5): Promise<LiveMarket | nu
       secondsLeft,
       yesAsk: book.yesAsks[0]?.price,
       yesBid: book.yesBids[0]?.price,
+      yesBidLevels: book.yesBids.map((l) => ({ price: l.price, quantity: l.quantity })),
+      yesAskLevels: book.yesAsks.map((l) => ({ price: l.price, quantity: l.quantity })),
       tick: grid.tickSize ?? 1000n,
       lot: grid.lotSize ?? 1000n,
       strike: row.strike ? Number(row.strike) / 100 : 0,

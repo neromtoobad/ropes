@@ -361,6 +361,70 @@ export async function processBails(roundId: string, market: LiveMarket, roundInd
 }
 
 /**
+ * What an IOC sale of `contracts` would ACTUALLY realize against the resting
+ * depth — walk the levels, never the touch. Selling UP consumes YES bids at
+ * their price; selling DOWN consumes YES asks, each paying ONE − price. A book
+ * that cannot absorb the whole size returns null: there is no honest mark, so
+ * a trigger reading this must wait rather than fire into the void. (Found the
+ * hard way: a touch-priced trigger fired a 10.00 stake into a book that paid
+ * 1.70 for it.)
+ */
+function realizableProceeds(side: Side, contracts: bigint, market: LiveMarket): bigint | null {
+  const levels = side === "UP" ? market.yesBidLevels : market.yesAskLevels;
+  let left = contracts;
+  let proceeds = 0n;
+  for (const l of levels) {
+    if (left === 0n) break;
+    const take = l.quantity < left ? l.quantity : left;
+    proceeds += (take * (side === "UP" ? l.price : ONE - l.price)) / ONE;
+    left -= take;
+  }
+  return left > 0n ? null : proceeds;
+}
+
+/**
+ * Auto-bail: the discipline tool. A run carrying a target multiple bails
+ * ITSELF the tick its sellable value crosses the line. This only raises the
+ * same flag the BAIL button does — the sale still goes through the single
+ * sequential writer and pays whatever the book actually pays, so the target
+ * is a trigger, never a promised price.
+ */
+export async function armAutoBails(roundId: string, market: LiveMarket) {
+  const armed = await db.run.findMany({
+    where: { status: "alive", bailRequested: false, autoBailAt: { not: null } },
+    include: { player: true },
+  });
+
+  for (const run of armed) {
+    const pos = await db.position.findUnique({
+      where: { runId_roundId: { runId: run.id, roundId } },
+    });
+
+    let mult: number;
+    if (pos && !pos.outcome) {
+      // Depth-aware: the mark is what the book would pay for the WHOLE
+      // position right now. A thin book gives no mark and the trigger waits.
+      const proceeds = realizableProceeds(pos.side as Side, pos.contracts, market);
+      if (proceeds == null) continue;
+      mult = Number(run.stack + proceeds) / Number(run.buyIn);
+    } else {
+      // Between rounds the stack is already cash. A bell that carried it past
+      // the target banks it here — otherwise a set-and-walk-away player whose
+      // win LANDED at settlement would sit above their line forever, unbanked.
+      mult = Number(run.stack) / Number(run.buyIn);
+    }
+
+    if (mult >= run.autoBailAt!) {
+      await db.run.update({ where: { id: run.id }, data: { bailRequested: true } });
+      log(
+        `  ⚡ auto-bail: ${run.player.displayName} at ${mult.toFixed(2)}× ≥ target ` +
+          `${run.autoBailAt!.toFixed(2)}× — ${pos && !pos.outcome ? "selling" : "banking"}`,
+      );
+    }
+  }
+}
+
+/**
  * A stack this small is not a player any more.
  *
  * Below the buy-in's floor a run cannot compound its way back — it just holds a

@@ -32,6 +32,8 @@ export interface SeatView {
   costInRound: number;
   /** The seat price this run started from — the denominator of every multiple. */
   buyIn: number;
+  /** The multiple at which this run sells itself, or null when unarmed. */
+  autoBailAt: number | null;
 }
 
 export interface TableState {
@@ -100,6 +102,9 @@ export interface TableState {
     /** How far past the line BTC closed, in dollars. The verdict's margin. */
     closedBy: number | null;
   } | null;
+  /** The wall remembers: the last settled windows, oldest first. The market's
+   *  own coin-flip history, drawn where the player stares between rounds. */
+  bells: { index: number; winner: "UP" | "DOWN" | null; voided: boolean; closedBy: number | null }[];
   board: { name: string; multiple: number; status: string; rounds: number }[];
   /** Recent deaths and exits, newest first. A battle royale needs a kill feed. */
   feed: {
@@ -179,6 +184,7 @@ export async function getTableState(): Promise<TableState> {
         best: bestByPlayer.get(r.playerId) ?? null,
         costInRound: toUsd(pos?.cost ?? 0n),
         buyIn: toUsd(r.buyIn),
+        autoBailAt: r.autoBailAt,
       };
     });
 
@@ -230,6 +236,21 @@ export async function getTableState(): Promise<TableState> {
             : null,
       }
     : null;
+
+  // The ribbon: how the last windows actually closed, oldest → newest.
+  const bellRows = await db.round.findMany({
+    where: { status: { in: ["settled", "voided"] } },
+    orderBy: { index: "desc" },
+    take: 16,
+    select: { index: true, winningOutcome: true, status: true, strike: true, close: true },
+  });
+  const bells = bellRows.reverse().map((r) => ({
+    index: r.index,
+    winner:
+      r.winningOutcome === null ? null : r.winningOutcome === 0 ? ("UP" as const) : ("DOWN" as const),
+    voided: r.status === "voided",
+    closedBy: r.strike != null && r.close != null ? r.close - r.strike : null,
+  }));
 
   // The external feed the market settles against.
   let price: number | null = null;
@@ -357,6 +378,7 @@ export async function getTableState(): Promise<TableState> {
     pay: { house: HOUSE, collateral: COLLATERAL },
     seats,
     lastResult,
+    bells,
     board,
     feed,
     record,

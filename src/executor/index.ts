@@ -8,7 +8,7 @@
  * run one-minute rounds without ever missing a window.
  */
 import { houseCollateral, houseGas, fmtUsd, sleep, HOUSE } from "../lib/chain";
-import { openRound, enterRound, closeRound, processBails, db } from "./game";
+import { openRound, enterRound, closeRound, processBails, armAutoBails, db } from "./game";
 import { manageTables } from "./tables";
 import { processPayouts, processWithdrawals } from "../lib/payments";
 
@@ -71,6 +71,8 @@ async function tick() {
   const { round, market } = opened;
   if (round.status !== "open") return;
   await enterRound(round.id, market);
+  // Arm before processing so a crossed target sells in this same tick.
+  await armAutoBails(round.id, market);
   await processBails(round.id, market, round.index);
 }
 

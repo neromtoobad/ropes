@@ -90,6 +90,7 @@ export function Cliff({
   myRunId,
   falling,
   leaping,
+  bells,
   btc,
   record,
   climber,
@@ -102,6 +103,8 @@ export function Cliff({
   /** Run ids mid-death-fall / mid-bail-leap. Ids, not names — names collide. */
   falling: string[];
   leaping: string[];
+  /** The last settled windows, oldest → newest — the wall's own memory. */
+  bells: TableState["bells"];
   btc: TableState["btc"];
   record: TableState["wallRecord"];
   /** Which of the eight climbers the player chose in the rail. */
@@ -524,6 +527,30 @@ export function Cliff({
           <p className="tabular mt-0.5 text-[9px] font-bold tracking-widest text-[var(--dim)]">
             TO BEAT {btc.strike.toLocaleString(undefined, { maximumFractionDigits: 2 })}
           </p>
+        </div>
+      )}
+
+      {/* the wall remembers: how the last windows closed, oldest fading out
+          on the left, the newest bell at full strength on the right */}
+      {bells.length > 0 && (
+        <div className="absolute inset-x-0 top-2 z-10 hidden justify-center gap-[5px] sm:flex">
+          {bells.map((b, i) => (
+            <span
+              key={b.index}
+              title={`RND ${b.index}${
+                b.closedBy != null
+                  ? ` · closed ${b.closedBy >= 0 ? "+$" : "−$"}${Math.abs(b.closedBy).toFixed(2)}`
+                  : ""
+              }${b.voided ? " · VOID — push" : ""}`}
+              className="text-[10px] font-black leading-none"
+              style={{
+                color: b.voided ? "var(--dim)" : b.winner === "UP" ? "var(--up)" : "var(--down)",
+                opacity: 0.4 + (0.6 * (i + 1)) / bells.length,
+              }}
+            >
+              {b.voided ? "○" : b.winner === "UP" ? "▲" : "▼"}
+            </span>
+          ))}
         </div>
       )}
 

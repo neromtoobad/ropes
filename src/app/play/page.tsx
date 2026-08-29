@@ -184,6 +184,23 @@ export default function Game() {
     if (!me && bailing) setBailing(false);
   }, [me, bailing]);
 
+  // Auto-bail: the server owns the value; a click paints instantly and the
+  // optimistic overlay retires the moment the poll agrees (or the seat ends).
+  const [abOptimistic, setAbOptimistic] = useState<number | null | undefined>(undefined);
+  const autoBail = abOptimistic !== undefined ? abOptimistic : (me?.autoBailAt ?? null);
+  useEffect(() => {
+    if (abOptimistic !== undefined && (!me || me.autoBailAt === abOptimistic)) {
+      setAbOptimistic(undefined);
+    }
+  }, [me, abOptimistic]);
+  const setAutoBail = async (at: number | null) => {
+    if (!runId) return;
+    sound.play("click");
+    setAbOptimistic(at);
+    const r = await post("/api/autobail", { runId, at });
+    if (!r) setAbOptimistic(undefined);
+  };
+
   // The bell, made personal: did YOUR money win, lose, or carry? Matched by
   // runId, never display name — names are free text and can collide, and the
   // runId state outlives the seat the settling poll removes.
@@ -254,6 +271,7 @@ export default function Game() {
             secondsLeft={secs}
             myRunId={runId}
             falling={(bell?.killed ?? []).map((k) => k.runId)}
+            bells={state?.bells ?? []}
             leaping={leaping}
             btc={state?.btc ?? { price: null, strike: null, oracleQuestionId: null }}
             record={state?.wallRecord ?? null}
@@ -290,6 +308,8 @@ export default function Game() {
                 price={state?.price ?? { up: null, down: null }}
                 pending={bailing}
                 onBank={bankOut}
+                autoBail={autoBail}
+                onAutoBail={setAutoBail}
               />
             ) : state?.round ? (
               <Sides
@@ -640,16 +660,22 @@ function PhaseStrip({ state, me }: { state: TableState; me: TableState["seats"][
 
 /* ─────────────────────────── action bar ──────────────────────────── */
 
+const AUTO_BAIL_PRESETS = [1.5, 2, 3, 5] as const;
+
 function BailBar({
   me,
   price,
   pending,
   onBank,
+  autoBail,
+  onAutoBail,
 }: {
   me: TableState["seats"][number];
   price: TableState["price"];
   pending: boolean;
   onBank: () => void;
+  autoBail: number | null;
+  onAutoBail: (at: number | null) => void;
 }) {
   const liveMult = useSmoothed(liveMultipleOf(me, price), 340, 3);
   const keep = liveMult * me.buyIn;
@@ -682,6 +708,35 @@ function BailBar({
       </span>
       <span className="display tabular text-3xl glow-gold sm:text-4xl">{liveMult.toFixed(2)}×</span>
     </button>
+
+      {/* The discipline tool: pick a line once and the executor pulls the
+          ripcord for you, at whatever the book pays when it crosses. */}
+      <div className="mt-1.5 flex items-center gap-1.5 text-[10px] font-black tracking-[0.2em]">
+        <span className="mr-1 text-[var(--dim)]">⚡ AUTO-BAIL</span>
+        {AUTO_BAIL_PRESETS.map((at) => {
+          const active = autoBail === at;
+          return (
+            <button
+              key={at}
+              onClick={() => onAutoBail(active ? null : at)}
+              className="chamfer-sm border px-2.5 py-1 transition"
+              style={{
+                borderColor: active ? "var(--gold)" : "var(--edge)",
+                color: active ? "var(--gold)" : "var(--dim)",
+                background: active ? "#241c07" : "transparent",
+              }}
+            >
+              {at}×
+            </button>
+          );
+        })}
+        {autoBail !== null && !AUTO_BAIL_PRESETS.includes(autoBail as (typeof AUTO_BAIL_PRESETS)[number]) && (
+          <span className="text-[var(--gold)]">{autoBail}×</span>
+        )}
+        {autoBail !== null && (
+          <span className="ml-auto text-[var(--gold)]">SELLS AT {autoBail}× — TAP TO DISARM</span>
+        )}
+      </div>
     </>
   );
 }
@@ -720,6 +775,9 @@ function Sides({
                     ? `BETS OPEN — CLOSE IN 0:${pad(state.round!.betsCloseIn)}`
                     : `BETS CLOSED — NEXT WINDOW IN 0:${pad(state.round?.secondsLeft ?? 0)}`
                   : "NEXT ROUND"}
+          {me?.autoBailAt != null && (
+            <span className="ml-2 text-[var(--gold)]">⚡ AUTO-BAIL {me.autoBailAt}×</span>
+          )}
         </span>
         {/* The exit door: between rounds the stack banks as it stands. Lives
             in this header row so the one-viewport layout pays no height. */}

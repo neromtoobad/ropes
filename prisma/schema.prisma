@@ -158,6 +158,12 @@ model Run {
   /// next tick. The leap animation plays instantly; the money follows.
   bailRequested Boolean @default(false)
 
+  /// The discipline tool: bail automatically the tick the run's SELLABLE value
+  /// crosses this multiple of the buy-in. Persists across rounds until the run
+  /// ends or the player clears it; the executor arms bailRequested, so the sale
+  /// takes the exact same path as the button.
+  autoBailAt Float?
+
   // The side chosen for the CURRENT round, before the order is placed.
   // Cleared once the position exists. No pick by lock time = sit the round out.
   pendingSide String?
