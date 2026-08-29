@@ -34,7 +34,7 @@ THE CLIMB does the things a venue can't:
 | | |
 |---|---|
 | **Composition across windows** | A winning round's proceeds are already staked in the next. Your climber's altitude is the *cumulative* multiple of a run, not one bet. |
-| **A body instead of a chart** | Direction of travel picks the pose: climbing, slipping, scrabbling at the hold below 0.35×, leaping on a bail, falling at the bell. Nothing is invented — height is `tanh(1.8·ln(value/cost))`, a curve **measured on live rounds**, not styled. |
+| **A body instead of a chart** | Direction of travel picks the pose: climbing, slipping, scrabbling at the hold below 0.35×, leaping on a bail, falling at the bell. Nothing is invented — height is `ln(value/cost)`, so equal relative moves are equal metres at any altitude, a scale **measured on live rounds**, not styled. |
 | **A decision every second** | BAIL is always one tap away, and its number is the live mark — sell now and that is what you keep. The market's whipsaw becomes a game of nerve. |
 | **No house edge** | dreamDEX sets maker, taker and settlement fees to zero and we take no cut. The only cost of leaving early is real slippage on a real book. You can never lose more than your seat. |
 
@@ -71,6 +71,16 @@ From a live rehearsal, six seconds from tap to banked:
 
 The market had collapsed against the position; the player jumped and kept what was left. That is
 the game working: bail keeps the height you have.
+
+### The full money loop, recorded, with a real wallet
+
+One session, no cuts: 50 tUSDC deposited into a bankroll across five verified txs, a seat that
+died at the bell (loss capped at the 10-tUSDC seat), a re-seat from the bankroll with no wallet
+popup, two winning bells compounding 10 → 19.39 → 26.69 (2.67×), banked, then **WITHDRAW ALL**
+paying the whole balance back on-chain —
+[`0x30252564…f203d`](https://shannon-explorer.somnia.network/tx/0x30252564ca60859a534c6ed61c77bd0e691adaa0fcc37198141fe813a6af203d),
+block 473916370. Wallet before 963.09, after 1,019.79: net **+6.70** through a death and a comeback,
+every leg an on-chain transfer or a ledger row the doctor script re-audits.
 
 ### Settlement lands on-chain, in the settlement block
 
@@ -158,12 +168,14 @@ SQLite had happily stored, exposing an order-sizing overspend.
 - **Solo by design, today.** Tables, pots and the last-one-standing champion are built, tested
   (17 Foundry tests) and parked behind the multiplayer flag — one climber's minute had to be
   great first.
-- **Connect a wallet, or don't.** A connected wallet buys the seat with a real 10 tUSDC
-  transfer (verified by receipt; the payout address is *derived from the deposit's sender*, so
-  claiming someone else's tx just pays them) and the executor sends proceeds back on-chain when
-  the run ends — the feed links the payout tx. No wallet still works: free play on the house
-  bankroll, every trade still real. In-round trading is custodial either way — one sequential
-  writer is what makes a 1-minute cadence possible.
+- **Fund a bankroll, or don't.** Deposit tUSDC once on the wallet page (verified by receipt,
+  replay-proof — each tx credits exactly once). Seats debit the bankroll with no popup, a run's
+  proceeds credit it back the moment the run ends, and **WITHDRAW ALL** sends the whole balance
+  on-chain on the executor's next tick. The withdrawal address is *derived from the first
+  deposit's sender*, never taken from the browser — claiming someone else's tx just pays them.
+  No wallet still works: free play on the house bankroll, every trade still real, and free-play
+  proceeds never credit a balance (no faucet leak). In-round trading is custodial either way —
+  one sequential writer is what makes a 1-minute cadence possible.
 
 ## Provably fair
 
@@ -207,7 +219,7 @@ src/executor/     the tick loop, game rules, tables (multiplayer, parked)
 src/lib/          chain, market, orders (buy/sell/redeem), registry, state
 contracts/        ArenaRegistry.sol + 17 tests
 scripts/          doctor, sprites pipeline, day-0 proofs kept as evidence
-public/climbers/  8 characters × 5 poses, generated and auto-cut
+public/climbers/  8 characters × 5 poses + 6-frame climb cycles, generated and auto-cut
 ```
 
 ## Three traps, if you're building on this
@@ -228,7 +240,8 @@ is the entire reason this game works.
 
 ## AI tools
 
-The eight climbers (five poses each) and both logos were generated with Higgsfield
+The eight climbers (five poses and a six-frame rope-climb cycle each) and both logos were
+generated with Higgsfield
 (`nano_banana_pro`), then auto-cut into sprites by a pipeline that splits pose sheets on
 column-density valleys and keeps the largest connected blob per frame. The height curve was not
 designed — it was **measured**, by sampling live rounds every second and sweeping the gain until

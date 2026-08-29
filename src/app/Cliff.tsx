@@ -99,6 +99,7 @@ export function Cliff({
   price: TableState["price"];
   secondsLeft: number;
   myRunId: string | null;
+  /** Run ids mid-death-fall / mid-bail-leap. Ids, not names — names collide. */
   falling: string[];
   leaping: string[];
   btc: TableState["btc"];
@@ -186,8 +187,8 @@ export function Cliff({
     }
   }, [multiple, seat?.inRound, onMilestone]);
 
-  const dead = seat ? falling.includes(seat.name) : false;
-  const bailed = seat ? leaping.includes(seat.name) : false;
+  const dead = seat ? falling.includes(seat.runId) : false;
+  const bailed = seat ? leaping.includes(seat.runId) : false;
   const hanging = multiple < HANGING && (seat?.inRound ?? false);
 
   const pose: Pose = bailed
@@ -530,7 +531,7 @@ export function Cliff({
       {seat && (
         <div className="pointer-events-none absolute bottom-5 left-4 z-10">
           <p className="text-[9px] font-black tracking-[0.35em] text-[var(--dim)]">{cast.code}</p>
-          <p className="display text-3xl leading-none tracking-[0.06em] sm:text-5xl" style={{ color: "#eeecf5", textShadow: "0 0 34px #00000088" }}>
+          <p className="plate-name display text-3xl leading-none tracking-[0.06em] sm:text-5xl" style={{ color: "#eeecf5", textShadow: "0 0 34px #00000088" }}>
             {cast.label}
           </p>
           <div className="mt-1 flex items-center gap-2">

@@ -173,42 +173,37 @@ export default function Game() {
   const bankOut = async () => {
     if (bailing || !runId || !me) return;
     setBailing(true);
-    setLeaping((n) => [...n, me.name]);
+    setLeaping((n) => [...n, runId]);
     sound.play("win");
     const r = await post("/api/bank", { runId });
     if (r?.ok) localStorage.removeItem("lc.runId");
     else setBailing(false);
-    setTimeout(() => setLeaping((n) => n.filter((x) => x !== me.name)), 1400);
+    setTimeout(() => setLeaping((n) => n.filter((x) => x !== runId)), 1400);
   };
   useEffect(() => {
     if (!me && bailing) setBailing(false);
   }, [me, bailing]);
 
-  // Sticky: the poll that delivers the bell also removes a dead seat, so the
-  // name must survive past the seat or the verdict can't find its owner.
-  const nameRef = useRef<string | null>(null);
-  if (me?.name) nameRef.current = me.name;
-
-  // The bell, made personal: did YOUR money win, lose, or carry?
-  const myName = nameRef.current;
-  const mine: BellVerdict = !bell || !myName
+  // The bell, made personal: did YOUR money win, lose, or carry? Matched by
+  // runId, never display name — names are free text and can collide, and the
+  // runId state outlives the seat the settling poll removes.
+  const mine: BellVerdict = !bell || !runId
     ? null
     : bell.voided
       ? { kind: "push" }
-      : bell.killed.includes(myName)
+      : bell.killed.some((k) => k.runId === runId)
         ? { kind: "lost" }
         : (() => {
-            const s = bell.survived.find((x) => x.name === myName);
+            const s = bell.survived.find((x) => x.runId === runId);
             return s ? { kind: "won" as const, from: s.from, to: s.to } : null;
           })();
   useEffect(() => {
     if (!bell) return;
-    const mine = nameRef.current;
     if (bell.voided) sound.play("push");
-    else if (mine && bell.killed.includes(mine)) sound.play("death");
-    else if (mine && bell.survived.some((s) => s.name === mine)) sound.play("win");
+    else if (runId && bell.killed.some((k) => k.runId === runId)) sound.play("death");
+    else if (runId && bell.survived.some((s) => s.runId === runId)) sound.play("win");
     else sound.play("toll");
-  }, [bell, sound]);
+  }, [bell, sound, runId]);
 
   const pickClimber = (id: ClimberId) => {
     sound.arm();
@@ -258,7 +253,7 @@ export default function Game() {
             price={state?.price ?? { up: null, down: null }}
             secondsLeft={secs}
             myRunId={runId}
-            falling={bell?.killed ?? []}
+            falling={(bell?.killed ?? []).map((k) => k.runId)}
             leaping={leaping}
             btc={state?.btc ?? { price: null, strike: null, oracleQuestionId: null }}
             record={state?.wallRecord ?? null}
@@ -937,7 +932,7 @@ function Bell({
         </p>
         {result.killed.length > 0 && (
           <p className="display mt-6 text-xl glow-down sm:text-3xl">
-            {result.killed.map((n) => `☠ ${n}`).join("   ")}
+            {result.killed.map((k) => `☠ ${k.name}`).join("   ")}
           </p>
         )}
         {result.survived.length > 0 && (

@@ -370,9 +370,12 @@ scripts/spike/       day-0 throwaway. keep it, it is proof
 
 - [x] **phase 0 — spike (26 aug)** buy → settle → redeem, 3 tx hashes in one transcript
 - [x] **phase 1 — the loop (27–29 aug)** executor rolls stacks unattended at 1m cadence
-- [~] **phase 2 — the table (30 aug–2 sep)** seats, pick, bank, countdown, the bell, chart, sound, live/next pools, autoplay — WORKING
+- [x] **phase 2 — the table (30 aug–2 sep)** seats, pick, bank, countdown, the bell, chart, sound, live/next pools, autoplay — DONE (solo climb is the shipped product; tables parked behind the multiplayer flag, 17 forge tests green)
 - [x] **phase 3 — reactive registry (3–4 sep)** eliminations land on-chain in the same block — DONE 26 aug, proven live
-- [ ] **phase 4 — real run (5 sep)** 8 humans, one full run, recorded
+- [x] **phase 4 — real run** DONE 29 aug, solo with the owner's real wallet: 50 tUSDC deposited
+  (5 verified txs), a death, a 2.67× two-bell comeback banked from the bankroll, WITHDRAW ALL paid
+  on-chain (tx 0x30252564…f203d, block 473916370), wallet net +6.70. GIF captured; re-record at
+  full framerate for the video. the 8-human table run is parked with multiplayer.
 - [ ] **phase 5 — submission (6–7 sep)** README, 4 slides, <3min video
 
 ## commands

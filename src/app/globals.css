@@ -291,6 +291,13 @@ body::after {
   .outline-num { -webkit-text-stroke-width: 3px; }
 }
 
+/* On short windows the wall loses height first (its wrapper's flex slot
+   shrinks), so its chrome slims with it — the nameplate at full HUD scale
+   would swallow a 250px wall. !important outranks the Tailwind size utils. */
+@media (max-height: 820px) {
+  .plate-name { font-size: 1.5rem !important; }
+}
+
 /* ── side buttons ──────────────────────────────────────────────────────── */
 
 .side {

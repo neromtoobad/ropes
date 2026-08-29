@@ -92,8 +92,11 @@ export interface TableState {
     winner: "UP" | "DOWN" | null;
     voided: boolean;
     redeemTx: string | null;
-    killed: string[];
-    survived: { name: string; from: number; to: number }[];
+    /** Names are for display only — identity is the runId. Display names are
+     *  free text and can collide; a verdict matched on one would hand a player
+     *  someone else's death. */
+    killed: { runId: string; name: string }[];
+    survived: { runId: string; name: string; from: number; to: number }[];
     /** How far past the line BTC closed, in dollars. The verdict's margin. */
     closedBy: number | null;
   } | null;
@@ -210,10 +213,13 @@ export async function getTableState(): Promise<TableState> {
         winner: settled.winningOutcome === null ? null : settled.winningOutcome === 0 ? ("UP" as const) : ("DOWN" as const),
         voided: settled.status === "voided",
         redeemTx: settled.redeemTx,
-        killed: settled.positions.filter((p) => p.outcome === "lost").map((p) => p.run.player.displayName),
+        killed: settled.positions
+          .filter((p) => p.outcome === "lost")
+          .map((p) => ({ runId: p.run.id, name: p.run.player.displayName })),
         survived: settled.positions
           .filter((p) => p.outcome === "won" || p.outcome === "push")
           .map((p) => ({
+            runId: p.run.id,
             name: p.run.player.displayName,
             from: toUsd(p.stackBefore),
             to: toUsd(p.stackAfter ?? p.stackBefore),
