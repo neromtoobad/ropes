@@ -97,7 +97,7 @@ export default function Landing() {
               </div>
               <div className="space-y-1">
                 {top.map((r, i) => (
-                  <div key={r.name} className="chamfer-sm flex items-center justify-between border border-[var(--edge)] px-4 py-2" style={{ background: "var(--panel)" }}>
+                  <div key={r.id} className="chamfer-sm flex items-center justify-between border border-[var(--edge)] px-4 py-2" style={{ background: "var(--panel)" }}>
                     <span className="flex items-center gap-3">
                       <span className={`display tabular w-6 text-base ${i === 0 ? "glow-gold" : "text-[var(--dim)]"}`}>{i + 1}</span>
                       <span className="text-sm font-bold">{r.name}</span>

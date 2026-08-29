@@ -168,6 +168,22 @@ export default function Game() {
   // The chosen climber's colours paint the whole site.
   useClimberTheme(climber);
 
+  // One exit for the money, wherever it's asked from: mid-ride (BAIL sells at
+  // live value) or between rounds (the stack banks as it stands).
+  const bankOut = async () => {
+    if (bailing || !runId || !me) return;
+    setBailing(true);
+    setLeaping((n) => [...n, me.name]);
+    sound.play("win");
+    const r = await post("/api/bank", { runId });
+    if (r?.ok) localStorage.removeItem("lc.runId");
+    else setBailing(false);
+    setTimeout(() => setLeaping((n) => n.filter((x) => x !== me.name)), 1400);
+  };
+  useEffect(() => {
+    if (!me && bailing) setBailing(false);
+  }, [me, bailing]);
+
   // Sticky: the poll that delivers the bell also removes a dead seat, so the
   // name must survive past the seat or the verdict can't find its owner.
   const nameRef = useRef<string | null>(null);
@@ -234,7 +250,9 @@ export default function Game() {
         </div>
 
         <div className="flex min-w-0 flex-col lg:min-h-0">
-          <div className="lg:min-h-0 lg:flex-1">
+          {/* The wall's height floor belongs HERE, not on the wall itself —
+              the wall is lg:h-full and must never outgrow this slot. */}
+          <div className="lg:min-h-[240px] lg:flex-1">
           <Cliff
             seats={state?.seats ?? []}
             price={state?.price ?? { up: null, down: null }}
@@ -276,22 +294,15 @@ export default function Game() {
                 me={me}
                 price={state?.price ?? { up: null, down: null }}
                 pending={bailing}
-                onBank={async () => {
-                  if (bailing) return;
-                  setBailing(true);
-                  if (me) setLeaping((n) => [...n, me.name]);
-                  sound.play("win");
-                  const r = await post("/api/bank", { runId });
-                  if (r?.ok) localStorage.removeItem("lc.runId");
-                  else setBailing(false);
-                  setTimeout(() => setLeaping((n) => n.filter((x) => x !== me?.name)), 1400);
-                }}
+                onBank={bankOut}
               />
             ) : state?.round ? (
               <Sides
                 state={state}
                 me={me}
                 optimistic={optimisticPick}
+                onWalk={bankOut}
+                walking={bailing}
                 onPick={async (side) => {
                   if (busy) return;
                   sound.arm();
@@ -685,11 +696,15 @@ function Sides({
   me,
   onPick,
   optimistic,
+  onWalk,
+  walking,
 }: {
   state: TableState;
   me: TableState["seats"][number] | null;
   onPick: (side: "UP" | "DOWN") => void;
   optimistic: "UP" | "DOWN" | null;
+  onWalk?: () => void;
+  walking?: boolean;
 }) {
   const canPick = me && !me.inRound;
   const shownPick = optimistic ?? me?.pick ?? null;
@@ -711,10 +726,22 @@ function Sides({
                     : `BETS CLOSED — NEXT WINDOW IN 0:${pad(state.round?.secondsLeft ?? 0)}`
                   : "NEXT ROUND"}
         </span>
-        <span className="tabular">
-          {state.round ? `ROUND ${state.round.index} · ` : ""}BELL 0:
-          {pad(state.round?.secondsLeft ?? 0)}
-        </span>
+        {/* The exit door: between rounds the stack banks as it stands. Lives
+            in this header row so the one-viewport layout pays no height. */}
+        {onWalk && me && me.stack > 0 ? (
+          <button
+            onClick={onWalk}
+            disabled={walking}
+            className="tabular font-black tracking-[0.2em] underline decoration-dotted underline-offset-2 transition hover:text-[var(--gold)] disabled:opacity-60"
+          >
+            {walking ? "CASHING OUT…" : `TAKE ${me.stack.toFixed(2)} & WALK →`}
+          </button>
+        ) : (
+          <span className="tabular">
+            {state.round ? `ROUND ${state.round.index} · ` : ""}BELL 0:
+            {pad(state.round?.secondsLeft ?? 0)}
+          </span>
+        )}
       </div>
 
       <div className="grid grid-cols-2 gap-3">
@@ -1028,7 +1055,9 @@ function MoneyBar({
   const delta = me && onWall !== null ? onWall - me.buyIn : null;
   const upC = delta === null || delta >= 0 ? "var(--up)" : "var(--down)";
   const net = ledger?.totals?.net ?? null;
-  const netC = net !== null && net < 0 ? "var(--down)" : "var(--up)";
+  // The headline is what the wins added up to — never a red minus under a
+  // label that says WON. Signed net lives in the corner, honest but small.
+  const won = ledger?.totals?.won ?? null;
   const bankBalance = ledger?.bank && ledger.bank.address ? ledger.bank.balance : null;
   return (
     <div className="mt-3 grid grid-cols-2 gap-3">
@@ -1056,12 +1085,13 @@ function MoneyBar({
           <p className="display tabular text-3xl leading-none sm:text-4xl"
             style={bankBalance !== null
               ? { color: "var(--gold)", textShadow: "0 0 34px var(--gold-glow)" }
-              : net !== null ? { color: netC, textShadow: `0 0 34px ${netC}55` } : { color: "var(--dim)" }}>
-            {bankBalance !== null ? bankBalance.toFixed(2) : net !== null ? usd(net) : "—"}
+              : won !== null ? { color: "var(--up)", textShadow: "0 0 34px var(--up-glow)" } : { color: "var(--dim)" }}>
+            {bankBalance !== null ? bankBalance.toFixed(2) : won !== null ? `+${won.toFixed(2)}` : "—"}
           </p>
         </div>
-        <a href="/wallet" className="hidden text-[9px] font-bold tracking-[0.2em] text-[var(--dim)] underline decoration-dotted sm:inline">
-          {bankBalance !== null && net !== null ? `ALL TIME ${usd(net)}` : "tUSDC"}
+        <a href="/wallet" className="tabular hidden text-[9px] font-bold tracking-[0.2em] underline decoration-dotted sm:inline"
+          style={{ color: net !== null && net < 0 ? "var(--down)" : "var(--dim)" }}>
+          {net !== null ? `NET ${usd(net)}` : "tUSDC"}
         </a>
       </div>
     </div>

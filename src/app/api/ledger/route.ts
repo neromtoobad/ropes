@@ -15,7 +15,7 @@ export async function GET(req: Request) {
   const player = await db.player.findUnique({ where: { wallet: playerKey } });
   if (!player) {
     return NextResponse.json({
-      name: null, totals: null, badges: [], runs: [], series: null,
+      id: null, name: null, totals: null, badges: [], runs: [], series: null,
       bank: null, flows: [],
     });
   }
@@ -34,6 +34,11 @@ export async function GET(req: Request) {
   const aliveStack = runs
     .filter((r) => r.status === "alive")
     .reduce((n, r) => n + toUsd(r.stack), 0);
+  // What the wins added up to, ignoring the losses — always ≥ 0. The money
+  // bar leads with this and carries signed net as the small print.
+  const won = runs
+    .filter((r) => r.status !== "alive")
+    .reduce((n, r) => n + Math.max(0, toUsd(r.stack) - toUsd(r.buyIn)), 0);
 
   const history = runs.map((r) => ({
     id: r.id,
@@ -70,6 +75,7 @@ export async function GET(req: Request) {
     flows.filter((f) => f.kind === kind).reduce((n, f) => n + toUsd(f.amount), 0);
 
   return NextResponse.json({
+    id: player.id,
     name: player.displayName,
     // The bankroll: what the wallet page renders.
     bank: {
@@ -91,6 +97,7 @@ export async function GET(req: Request) {
       staked,
       returned,
       aliveStack,
+      won,
       net: returned + aliveStack - staked,
       games: runs.length,
     },

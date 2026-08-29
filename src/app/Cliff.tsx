@@ -249,9 +249,13 @@ export function Cliff({
   // How deep into space the run has climbed: 0 at break-even, 1 at 12×.
   const spaceT = Math.max(0, Math.min(1, Math.log(Math.max(multiple, 1)) / Math.log(12)));
 
+  // On lg the wall fills its wrapper EXACTLY — the height floor lives on the
+  // wrapper in play/page.tsx. A min-height here made the wall taller than its
+  // flex slot on short viewports, sliding it under the phase strip with the
+  // nameplate floating on top.
   return (
     <div
-      className="ticks relative h-[520px] overflow-hidden rounded-2xl border lg:h-full lg:min-h-[360px]"
+      className="ticks relative h-[520px] overflow-hidden rounded-2xl border lg:h-full"
       style={{
         borderColor: urgent ? "#3d1220" : "var(--edge)",
         background:

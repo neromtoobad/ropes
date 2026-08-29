@@ -40,6 +40,7 @@ export function usePlayerKey() {
 }
 
 export type LedgerData = {
+  id: string | null;
   name: string | null;
   /** The bankroll — null until the player exists. */
   bank: {
@@ -52,7 +53,7 @@ export type LedgerData = {
     winnings: number;
   } | null;
   flows: { kind: string; amount: number; tx: string | null; at: string }[];
-  totals: { staked: number; returned: number; aliveStack: number; net: number; games: number } | null;
+  totals: { staked: number; returned: number; aliveStack: number; won: number; net: number; games: number } | null;
   badges: { id: string; icon: string; label: string; hint: string }[];
   runs: {
     id: string;
@@ -70,6 +71,7 @@ export type LedgerData = {
 };
 
 export type LeaderRow = {
+  id: string;
   name: string;
   games: number;
   net: number;
@@ -282,7 +284,7 @@ export function LedgerPanel({ ledger, climber }: { ledger: LedgerData | null; cl
   );
 }
 
-export function LeadersPanel({ rows, myName }: { rows: LeaderRow[] | null; myName: string | null }) {
+export function LeadersPanel({ rows, myId }: { rows: LeaderRow[] | null; myId: string | null }) {
   if (!rows) {
     return <p className="mt-8 text-center text-[11px] font-bold tracking-[0.3em] text-[var(--dim)]">FETCHING THE BOARD…</p>;
   }
@@ -294,10 +296,10 @@ export function LeadersPanel({ rows, myName }: { rows: LeaderRow[] | null; myNam
       </div>
       <div className="space-y-1">
         {rows.map((r, i) => {
-          const isMe = myName !== null && r.name === myName;
+          const isMe = myId !== null && r.id === myId;
           return (
             <div
-              key={r.name}
+              key={r.id}
               className="chamfer-sm flex items-center justify-between border px-4 py-2.5"
               style={{
                 background: "var(--panel)",

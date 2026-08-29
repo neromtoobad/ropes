@@ -24,7 +24,7 @@ export default function Leaders() {
   return (
     <main className="relative z-10 mx-auto min-h-screen max-w-4xl px-4 py-4">
       <PageHeader title="THE BOARD" />
-      <LeadersPanel rows={rows} myName={ledger?.name ?? null} />
+      <LeadersPanel rows={rows} myId={ledger?.id ?? null} />
     </main>
   );
 }
