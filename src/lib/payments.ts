@@ -15,13 +15,20 @@
  *   and their proceeds never credit anyone.
  * - all sends happen inside the executor tick (the one-nonce rule).
  */
-import { createWalletClient, http, erc20Abi, parseEventLogs } from "viem";
+import { createPublicClient, createWalletClient, http, erc20Abi, parseEventLogs } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { somniaShannon } from "@somnia-chain/markets-sdk/chains";
 import { db } from "./db";
-import { exchange, COLLATERAL, HOUSE, fmtUsd } from "./chain";
+import { COLLATERAL, HOUSE, fmtUsd } from "./chain";
 
 const pk = process.env.PRIVATE_KEY as `0x${string}`;
+/** Receipt reads get their OWN plain HTTP client. The SDK's client rides a
+ *  WebSocket that dies silently and never reconnects (see AGENTS.md) — fine
+ *  for the supervised executor, fatal inside a long-lived web server. */
+const pub = createPublicClient({
+  chain: somniaShannon,
+  transport: http("https://api.infra.testnet.somnia.network"),
+});
 const wallet = createWalletClient({
   account: privateKeyToAccount(pk),
   chain: somniaShannon,
@@ -42,10 +49,13 @@ export async function creditDeposit(playerKey: string, txHash: `0x${string}`) {
   const used = await db.cashFlow.findFirst({ where: { kind: "deposit", tx: txHash } });
   if (used) throw new Error("that deposit was already credited");
 
-  const receipt = await exchange.client
-    .getViemClient()
-    .getTransactionReceipt({ hash: txHash })
-    .catch(() => null);
+  // The chain may index a hair behind the sender's own node — retry briefly
+  // before telling anyone to try again.
+  let receipt = null;
+  for (let attempt = 0; attempt < 4 && !receipt; attempt++) {
+    receipt = await pub.getTransactionReceipt({ hash: txHash }).catch(() => null);
+    if (!receipt) await new Promise((r) => setTimeout(r, 1500));
+  }
   if (!receipt) throw new Error("deposit tx not found — wait a moment and retry");
   if (receipt.status !== "success") throw new Error("deposit tx reverted");
 
@@ -154,7 +164,7 @@ export async function processWithdrawals() {
         args: [p.address as `0x${string}`, amount],
         gas: GAS,
       });
-      const receipt = await exchange.client.getViemClient().waitForTransactionReceipt({ hash });
+      const receipt = await pub.waitForTransactionReceipt({ hash });
       if (receipt.status !== "success") throw new Error(`withdrawal reverted: ${hash}`);
       await db.cashFlow.update({ where: { id: flow.id }, data: { tx: hash } });
       log(`  💸 WITHDREW ${fmtUsd(amount)} → ${p.address!.slice(0, 8)}… (${p.displayName})  ${hash}`);
