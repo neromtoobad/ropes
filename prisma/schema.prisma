@@ -11,8 +11,14 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
+  // Hosted Postgres (Supabase free tier) so the web app can live on Vercel
+  // while the executor runs wherever it runs — they share this one ledger.
+  // DATABASE_URL: session pooler (long-lived: executor, local dev). On
+  // serverless, point it at the transaction pooler with ?pgbouncer=true.
+  // DIRECT_URL is for migrations/db push.
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 /// A cohort. This is what makes the game finite: a table fills, SEALS, and then
