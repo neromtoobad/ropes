@@ -1,0 +1,10 @@
+.env
+.env.*
+node_modules
+.next
+prisma/*.db
+prisma/*.db-journal
+prisma/*.db-shm
+prisma/*.db-wal
+scripts/spike
+*.log

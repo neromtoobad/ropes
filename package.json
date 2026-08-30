@@ -13,7 +13,8 @@
     "start": "next start",
     "executor:once": "tsx src/executor/index.ts",
     "sprites": "tsx scripts/sprites.ts",
-    "doctor": "tsx scripts/doctor.ts"
+    "doctor": "tsx scripts/doctor.ts",
+    "postinstall": "prisma generate"
   },
   "dependencies": {
     "@prisma/client": "6.19.3",
