@@ -42,10 +42,14 @@ let consecutiveFailures = 0;
  *
  * So every tick is capped. A stall is fatal on the FIRST occurrence — unlike a
  * transient error it will not heal itself, and the supervisor restarting us
- * with a fresh client is the only cure. Rounds are 60s; a tick over this has
- * already cost one.
+ * with a fresh client is the only cure.
+ *
+ * The cap is deliberately far above a slow tick, not just above a healthy one.
+ * At 40s it fired on a bad network where a single market read took 18s, and
+ * the restarts then made things worse by forcing fresh pooler connections on
+ * every cycle. Only a loop that will never finish should trip this.
  */
-const TICK_TIMEOUT_MS = 40_000;
+const TICK_TIMEOUT_MS = 120_000;
 const STALLED = "tick stalled";
 
 function withTimeout<T>(work: Promise<T>, ms: number): Promise<T> {

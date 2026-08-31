@@ -66,8 +66,9 @@ export async function fillingTable() {
  * enough players. A short table just keeps waiting — starting a "battle royale"
  * with one person in it is worse than making them wait for a second.
  */
-export async function sealIfReady() {
-  const table = await db.table.findFirst({ where: { status: "filling" } });
+export async function sealIfReady(known?: { id: string; sealsAt: Date }) {
+  // The caller has usually just fetched this — do not pay for it twice.
+  const table = known ?? (await db.table.findFirst({ where: { status: "filling" } }));
   if (!table) return null;
 
   const seated = await db.run.count({ where: { tableId: table.id } });
@@ -102,14 +103,21 @@ export async function sealIfReady() {
  */
 export async function crownChampions() {
   const sealed = await db.table.findMany({ where: { status: "sealed" } });
+  if (!sealed.length) return;
+
+  /* ONE read for every sealed table's roster, grouped in memory. The pair of
+   * per-table queries this replaces each cost a full network round trip, and
+   * the executor runs on whatever link the operator has — at 500ms latency
+   * that was seconds of every tick spent asking the same question twice. */
+  const roster = await db.run.findMany({
+    where: { tableId: { in: sealed.map((t) => t.id) } },
+    include: { player: true },
+  });
 
   for (const table of sealed) {
-    const alive = await db.run.findMany({
-      where: { tableId: table.id, status: "alive" },
-      include: { player: true },
-    });
-
-    const seated = await db.run.count({ where: { tableId: table.id } });
+    const mine = roster.filter((r) => r.tableId === table.id);
+    const alive = mine.filter((r) => r.status === "alive");
+    const seated = mine.length;
 
     if (alive.length > 1) continue;
 
@@ -162,6 +170,5 @@ export async function crownChampions() {
 /** Everything the tick loop needs, in the order it needs it. */
 export async function manageTables() {
   await crownChampions();
-  await fillingTable();
-  await sealIfReady();
+  await sealIfReady(await fillingTable());
 }

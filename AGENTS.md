@@ -552,6 +552,26 @@ lonely side pays a lot. show the crowd's split on screen — that is the strateg
   best-bid × size; a thin book showed a touch ≥ target, fired, and the IOC sale walked the book —
   a 10.00 stake realized 1.70. `realizableProceeds` walks the resting levels for the WHOLE size
   and refuses to fire when the book can't absorb it.
+➠ **the executor must use the SESSION pooler (5432), never the transaction one.** Through 6543
+  with `?pgbouncer=true`, Prisma cannot keep prepared statements and issues a `DEALLOCATE ALL`
+  around every statement — FOUR protocol round trips per query instead of one. Profiled live: a
+  single tick made **52 round trips and took 54 seconds**, so rounds settled two to three minutes
+  late and the game looked frozen. 10 reads: 30.4s via 6543 vs 6.7s via 5432. Session mode is for
+  one long-lived process (the executor); transaction mode is for serverless (Vercel), which needs
+  it. Getting these backwards is invisible in code review and fatal in play.
+➠ **a tick that HANGS never trips a failure counter.** The supervisor's exit-after-10-failures only
+  catches a loop that throws. Observed: the executor went silent mid-round and sat there twenty
+  minutes with the round unsettled, the process looking perfectly healthy. Every tick is now capped
+  (`TICK_TIMEOUT_MS`) and a stall is fatal on the first occurrence — a hang does not heal. Size the
+  cap far above a SLOW tick: at 40s it fired on a bad network where one market read took 18s, and
+  the restarts then made things worse by forcing fresh pooler connections every cycle.
+➠ **latency multiplies by round trips, so count them.** At ~500ms RTT every sequential query is a
+  visible second. `crownChampions` asked two questions per sealed table, and `enterRound`,
+  `armAutoBails` and `processBails` each did one position lookup PER RUN. Batched into single
+  `findMany`s the same tick settles rounds 8-19s after expiry instead of 2-3 minutes.
+➠ **the machine sleeping stops the game.** `run-executor.sh` wraps the loop in `caffeinate -ims`
+  and backs off to 30s between restarts — restarting instantly during an outage just opens fresh
+  connections until the pooler refuses them.
 
 ## things NOT to do
 

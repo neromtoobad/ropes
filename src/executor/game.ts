@@ -115,12 +115,20 @@ export async function enterRound(roundId: string, market: LiveMarket) {
     include: { player: true },
   });
 
-  // Who still needs a position this round, and on which side.
+  // Who still needs a position this round, and on which side. The whole
+  // field's positions come back in ONE read — a lookup per run cost a network
+  // round trip each, which is the difference between a tick and a stall.
+  const held = new Set(
+    (
+      await db.position.findMany({
+        where: { roundId, runId: { in: alive.map((r) => r.id) } },
+        select: { runId: true },
+      })
+    ).map((p) => p.runId),
+  );
   const pending: { run: (typeof alive)[number]; side: Side }[] = [];
   for (const run of alive) {
-    const already = await db.position.findUnique({
-      where: { runId_roundId: { runId: run.id, roundId } },
-    });
+    const already = held.has(run.id);
     if (already || run.stack <= 0n) continue;
     const side = sideFor(run);
     if (!side) {
@@ -321,10 +329,11 @@ export async function processBails(roundId: string, market: LiveMarket, roundInd
     include: { player: true },
   });
 
+  const bailPositions = await db.position.findMany({
+    where: { roundId, runId: { in: requests.map((r) => r.id) } },
+  });
   for (const run of requests) {
-    const pos = await db.position.findUnique({
-      where: { runId_roundId: { runId: run.id, roundId } },
-    });
+    const pos = bailPositions.find((p) => p.runId === run.id) ?? null;
 
     if (pos && !pos.outcome) {
       const side = pos.side as Side;
@@ -395,10 +404,11 @@ export async function armAutoBails(roundId: string, market: LiveMarket) {
     include: { player: true },
   });
 
+  const armedPositions = await db.position.findMany({
+    where: { roundId, runId: { in: armed.map((r) => r.id) } },
+  });
   for (const run of armed) {
-    const pos = await db.position.findUnique({
-      where: { runId_roundId: { runId: run.id, roundId } },
-    });
+    const pos = armedPositions.find((p) => p.runId === run.id) ?? null;
 
     let mult: number;
     if (pos && !pos.outcome) {
