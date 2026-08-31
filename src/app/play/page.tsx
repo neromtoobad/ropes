@@ -126,10 +126,11 @@ export default function Game() {
 
   const [seatFlash, setSeatFlash] = useState<null | "paid" | "free">(null);
 
-  const join = async (depositTx?: string) => {
-    if (!playerKey || !name.trim() || busy) return;
+  const join = async (depositTx?: string, who?: string) => {
+    const called = (who ?? name).trim();
+    if (!playerKey || !called || busy) return;
     setBusy(true);
-    const r = await post("/api/join", { playerKey, name: name.trim(), depositTx });
+    const r = await post("/api/join", { playerKey, name: called, depositTx });
     setBusy(false);
     if (r?.runId) {
       localStorage.setItem("lc.runId", r.runId);
@@ -198,6 +199,30 @@ export default function Game() {
     setPaying(false);
   };
 
+  /**
+   * One click from the landing page to a live round.
+   *
+   * Someone evaluating a dozen projects in an afternoon should not have to
+   * invent a name to see the thing move. `?seat=1` takes the free house seat
+   * for them; picking a side is still theirs.
+   */
+  const autoSeated = useRef(false);
+  const [coach, setCoach] = useState(false);
+  useEffect(() => {
+    if (!playerKey || runId || autoSeated.current) return;
+    if (typeof window === "undefined") return;
+    if (!new URLSearchParams(window.location.search).has("seat")) return;
+    autoSeated.current = true;
+    const who = `climber${Math.floor(100 + Math.random() * 900)}`;
+    setName(who);
+    void join(undefined, who).then(() => {
+      setCoach(true);
+      setTimeout(() => setCoach(false), 9000);
+    });
+    // join is stable enough for this one-shot; re-running would re-seat.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playerKey, runId]);
+
   const sound = useSound();
   const me = state?.seats?.find((s) => s.runId === runId) ?? null;
   /**
@@ -213,6 +238,19 @@ export default function Game() {
   const secs = Math.max(0, (state?.round?.secondsLeft ?? 0) - drift);
   const betsCloseIn = Math.max(0, (state?.round?.betsCloseIn ?? 0) - drift);
   const urgent = secs > 0 && secs < 15;
+
+  /**
+   * Is the game actually running?
+   *
+   * It can stop in two ways the page would otherwise not notice: the executor
+   * stalls, so the newest window expired long ago and no successor opened; or
+   * our own polling stops being answered. Either way the countdown drains to
+   * zero and sits there, which reads as "this app is broken" rather than "the
+   * clock is paused" — the worst possible thing for someone evaluating it.
+   */
+  const roundAge = state?.round ? (nowMs - Date.parse(state.round.expiresAt)) / 1000 : 0;
+  const pollAge = (nowMs - stateAt.current) / 1000;
+  const stalled = Boolean(state) && (roundAge > 90 || pollAge > 25);
 
   /** What the children render: the newest state, with the clock replaced by
    *  the locally-run one so nothing on screen disagrees about the time. */
@@ -325,7 +363,7 @@ export default function Game() {
     <main className={`relative z-10 mx-auto flex min-h-screen max-w-6xl flex-col px-4 py-3 lg:h-screen lg:max-h-screen lg:overflow-hidden ${myBell ? "shake" : ""}`}>
       {secs > 0 && secs < 10 && <div className="danger" />}
 
-      <TopBar state={view} urgent={urgent} sound={sound} me={me} />
+      <TopBar state={view} urgent={urgent} sound={sound} me={me} stalled={stalled} />
 
       <div className="shrink-0"><MoneyBar
           me={me}
@@ -337,6 +375,26 @@ export default function Game() {
           onConnect={connectWallet}
           onFund={() => fundBankroll(10n)}
         /></div>
+
+      {coach && me && (
+        <div
+          role="status"
+          className="chamfer-sm mt-2 shrink-0 border px-4 py-2 text-center text-[10px] font-black tracking-[0.25em]"
+          style={{ borderColor: "var(--up)", background: "#06170f", color: "var(--up)" }}
+        >
+          YOU&apos;RE IN, ON THE HOUSE — PICK A SIDE AND YOUR WHOLE STACK RIDES ONE MINUTE OF BITCOIN
+        </div>
+      )}
+
+      {stalled && (
+        <div
+          role="status"
+          className="chamfer-sm mt-2 shrink-0 border px-4 py-2 text-center text-[10px] font-black tracking-[0.25em]"
+          style={{ borderColor: "var(--gold)", background: "#241c07", color: "var(--gold)" }}
+        >
+          RECONNECTING — THE MARKET CLOCK IS AHEAD OF US. NOTHING IS LOST; PICKS AND STACKS ARE SAFE.
+        </div>
+      )}
 
       {seatFlash && (
         <div className="pointer-events-none fixed inset-x-0 top-[20%] z-40 text-center">
@@ -459,11 +517,13 @@ function TopBar({
   urgent,
   sound,
   me,
+  stalled,
 }: {
   state: TableState | null;
   urgent: boolean;
   sound: ReturnType<typeof useSound>;
   me: TableState["seats"][number] | null;
+  stalled: boolean;
 }) {
   const secs = Math.floor(state?.round?.secondsLeft ?? 0);
   const t = state?.table;
@@ -497,10 +557,13 @@ function TopBar({
       </div>
 
       <div className="text-right">
-        <div className={`display tabular outline-num text-5xl leading-[0.85] sm:text-7xl ${urgent ? "clock-urgent" : ""}`}>
-          {String(secs).padStart(2, "0")}
+        <div className={`display tabular outline-num text-5xl leading-[0.85] sm:text-7xl ${urgent && !stalled ? "clock-urgent" : ""}`}
+          style={stalled ? { color: "var(--dim)" } : undefined}>
+          {stalled ? "··" : String(secs).padStart(2, "0")}
         </div>
-        <p className="mt-0.5 text-[9px] font-bold tracking-[0.3em] text-[var(--dim)]">TO THE BELL</p>
+        <p className="mt-0.5 text-[9px] font-bold tracking-[0.3em] text-[var(--dim)]">
+          {stalled ? "CLOCK PAUSED" : "TO THE BELL"}
+        </p>
       </div>
     </header>
   );

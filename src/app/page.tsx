@@ -62,8 +62,14 @@ export default function Landing() {
           >
             ENTER THE WALL →
           </Link>
+          <Link
+            href="/play?seat=1"
+            className="chamfer-sm mt-3 border border-[var(--up)] px-6 py-2.5 text-xs font-black tracking-[0.15em] text-[var(--up)] transition hover:bg-[var(--up)] hover:text-black"
+          >
+            OR TAKE A FREE SEAT NOW — NO WALLET
+          </Link>
           <p className="mt-2 text-[10px] font-bold tracking-[0.2em] text-[var(--dim)]">
-            FREE SEAT ON THE HOUSE — OR FUND A BANKROLL AND PLAY FOR REAL
+            ONE CLICK PUTS YOU IN THE NEXT LIVE ROUND · FUND A BANKROLL ONLY IF YOU WANT REAL STAKES
           </p>
         </section>
 
