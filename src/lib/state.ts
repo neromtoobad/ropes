@@ -34,6 +34,13 @@ export interface SeatView {
   buyIn: number;
   /** The multiple at which this run sells itself, or null when unarmed. */
   autoBailAt: number | null;
+  /**
+   * True once this run's table has sealed — the executor will enter it in the
+   * live window. A run still on a filling table is seated and watching, so the
+   * UI must say ROPING UP for THAT run rather than for whichever table happens
+   * to be filling globally.
+   */
+  playing: boolean;
 }
 
 export interface TableState {
@@ -153,6 +160,7 @@ export async function getTableState(): Promise<TableState> {
   const runs = await db.run.findMany({
     include: {
       player: true,
+      table: true,
       positions: round ? { where: { roundId: round.id } } : false,
     },
     orderBy: [{ status: "asc" }, { stack: "desc" }],
@@ -167,8 +175,13 @@ export async function getTableState(): Promise<TableState> {
   });
   const bestByPlayer = new Map(bests.map((b) => [b.playerId, b._max.finalMultiple ?? null]));
 
+  // EVERY alive run is a seat. Scoping this to one "active" table stranded
+  // players: the executor enters any run on any sealed table, but a run whose
+  // table was not the newest sealed one vanished from the UI — so its owner saw
+  // the join box, could never pick, and sat out every round forever (443 of
+  // them, once). Display must never be narrower than what the executor plays.
   const seats: SeatView[] = runs
-    .filter((r) => r.status === "alive" && (!activeTable || r.tableId === activeTable.id))
+    .filter((r) => r.status === "alive")
     .map((r) => {
       const pos = (r.positions ?? [])[0];
       return {
@@ -185,6 +198,7 @@ export async function getTableState(): Promise<TableState> {
         costInRound: toUsd(pos?.cost ?? 0n),
         buyIn: toUsd(r.buyIn),
         autoBailAt: r.autoBailAt,
+        playing: r.table?.status === "sealed",
       };
     });
 

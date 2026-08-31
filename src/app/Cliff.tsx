@@ -112,8 +112,10 @@ export function Cliff({
   /** Fired when the climber crosses a milestone ledge going UP. */
   onMilestone?: (multiple: number) => void;
 }) {
-  // The climber: the viewer's run, or whoever is on the wall when spectating.
-  const seat = seats.find((s) => s.runId === myRunId) ?? seats[0] ?? null;
+  // YOUR run or nobody. The old `?? seats[0]` fallback put a stranger's climber
+  // — their name, their altitude, their money — on the wall of anyone who had
+  // not joined yet, which reads as your own session and is not.
+  const seat = seats.find((s) => s.runId === myRunId) ?? null;
 
   const target = liveMultipleOf(seat, price);
   // ONE smoothed number drives everything — the wall, the tag, the poses —

@@ -184,6 +184,7 @@ export default function Game() {
     if (!me && bailing) setBailing(false);
   }, [me, bailing]);
 
+
   // Auto-bail: the server owns the value; a click paints instantly and the
   // optimistic overlay retires the moment the poll agrees (or the seat ends).
   const [abOptimistic, setAbOptimistic] = useState<number | null | undefined>(undefined);
@@ -214,11 +215,30 @@ export default function Game() {
             const s = bell.survived.find((x) => x.runId === runId);
             return s ? { kind: "won" as const, from: s.from, to: s.to } : null;
           })();
+  /**
+   * The bell belongs to whoever had a stake in it. A visitor who has not
+   * joined should not have the screen shaken, a verdict flashed over the wall
+   * and the bell tolled at them once a minute for somebody else's round.
+   *
+   * Two ways it is yours: the round resolved YOUR run (mine — which still
+   * fires on the bell that kills you, after the seat is gone), or you are on
+   * the wall right now and simply sat this window out.
+   */
+  const myBell = bell && (mine || me) ? bell : null;
+
+  // A ref, not a dep: `me` changes on every poll, and a dep that churns would
+  // replay the bell sound for the whole 3.4s the verdict is up.
+  const onTheWall = useRef(false);
+  onTheWall.current = Boolean(me);
+
   useEffect(() => {
     if (!bell) return;
+    const killed = runId ? bell.killed.some((k) => k.runId === runId) : false;
+    const survived = runId ? bell.survived.some((s) => s.runId === runId) : false;
+    if (!killed && !survived && !onTheWall.current) return; // not your round
     if (bell.voided) sound.play("push");
-    else if (runId && bell.killed.some((k) => k.runId === runId)) sound.play("death");
-    else if (runId && bell.survived.some((s) => s.runId === runId)) sound.play("win");
+    else if (killed) sound.play("death");
+    else if (survived) sound.play("win");
     else sound.play("toll");
   }, [bell, sound, runId]);
 
@@ -233,8 +253,21 @@ export default function Game() {
   // It refreshes on every bell (each bell can change it).
   const ledger = useLedger(playerKey, `${bell?.index ?? 0}-${runId}`);
 
+  // A finished run must not linger in storage. The wall, the bail bar and the
+  // auto-bail control all key off runId; a dead one keeps a previous session
+  // half-attached to this screen. The ledger is authoritative and carries ended
+  // runs, so a fresh join (not in it yet) is never cleared by mistake.
+  useEffect(() => {
+    if (!runId || !ledger) return;
+    const known = ledger.runs.find((r) => r.id === runId);
+    if (known && known.status !== "alive") {
+      localStorage.removeItem("lc.runId");
+      setRunId(null);
+    }
+  }, [runId, ledger]);
+
   return (
-    <main className={`relative z-10 mx-auto flex min-h-screen max-w-6xl flex-col px-4 py-3 lg:h-screen lg:max-h-screen lg:overflow-hidden ${bell ? "shake" : ""}`}>
+    <main className={`relative z-10 mx-auto flex min-h-screen max-w-6xl flex-col px-4 py-3 lg:h-screen lg:max-h-screen lg:overflow-hidden ${myBell ? "shake" : ""}`}>
       {secs > 0 && secs < 10 && <div className="danger" />}
 
       <TopBar state={state} urgent={urgent} sound={sound} me={me} />
@@ -349,7 +382,7 @@ export default function Game() {
         <Feed state={state} />
         {!me && <LastRun ledger={ledger} climber={climber} />}
       </div>
-      {bell && <Bell result={bell} mine={mine} />}
+      {myBell && <Bell result={myBell} mine={mine} />}
       <div className="lg:hidden"><Footnote state={state} /></div>
     </main>
   );
@@ -762,7 +795,7 @@ function Sides({
     <>
       <div className="mb-2 flex items-baseline justify-between text-[10px] font-bold tracking-[0.25em] text-[var(--dim)]">
         <span className={state.locked || shownPick ? "glow-gold" : ""}>
-          {state.table?.status === "filling"
+          {me && !me.playing
             ? "ROPING UP"
             : state.locked
               ? "LOCKED — WATCH IT PLAY OUT"

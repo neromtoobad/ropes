@@ -463,10 +463,18 @@ export async function bank(runId: string, currentRoundIndex: number, auto = fals
     where: { id: runId },
     data: { status: "banked", endedRoundIndex: currentRoundIndex, finalMultiple: mult, bankedAuto: auto },
   });
+  // The sit-out is a MULTIPLAYER rule: it stops someone banking and instantly
+  // re-seating to dodge a table they were losing. Solo there is nobody to
+  // dodge, so it was only ever a two-minute lockout between climbs — applied
+  // even to a player the sweep cashed out, who never chose to leave. Dying
+  // already carries no cooldown at all, which is the tell that this is
+  // vestigial: bail and wait two minutes, or bust and climb again at once.
+  const seated = run.tableId
+    ? await db.run.count({ where: { tableId: run.tableId } })
+    : 0;
   await db.player.update({
     where: { id: run.playerId },
-    // Sits out this round and the next one; eligible the round after.
-    data: { eligibleFromRoundIndex: currentRoundIndex + 2 },
+    data: { eligibleFromRoundIndex: seated >= 2 ? currentRoundIndex + 2 : 0 },
   });
   if (registry.enabled) await registry.bankRun(runId, run.stack);
   log(`  ${auto ? "🧹" : "💰"} ${run.player.displayName} ${auto ? "swept" : "banked"} at ${mult.toFixed(2)}x (${fmtUsd(run.stack)})`);

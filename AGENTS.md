@@ -511,6 +511,24 @@ lonely side pays a lot. show the crowd's split on screen — that is the strateg
   the siblings' concurrent orders (a "20-budget" entry recorded 38.86 spent; a 28-contract sale
   recorded 43.43 proceeds). match `[e]xecutor/index` (the child's cmdline) and kill the supervisor
   bash FIRST, then verify the count is zero before restarting.
+➠ **the UI's view of who is playing must never be narrower than the executor's.** `enterRound`
+  plays every alive run on ANY sealed table, but `state.ts` scoped seats to ONE "active" table
+  (newest sealed, else filling). The moment a second solo table sealed, the first table's player
+  vanished from their own screen: join box shown, no pick controls, `sits out (no pick)` every
+  round — 443 of them — and re-joining just handed back the same invisible run. Seats are now
+  every alive run. A run's own table status rides on the seat (`playing`) for the ROPING UP label.
+➠ **the bell is not a broadcast.** the verdict overlay, the screen shake and the toll fired on
+  every settled round for EVERY viewer, so someone who had never joined got their screen shaken
+  and a verdict flashed at them once a minute for a stranger's round. gate on "did this bell
+  concern me" (my runId in killed/survived, or I hold a live seat) — and gate on a REF, not a
+  dep, or `me` churning each poll replays the sound for the overlay's whole 3.4s.
+➠ **`?? seats[0]` put a stranger's climber on your wall.** a viewer with no run saw the first
+  seated player's character, name and altitude as if it were their own session. your run or
+  nobody.
+➠ **the post-bank sit-out was vestigial multiplayer.** banking locked a player out for 2 rounds
+  while dying locked them out for none — and the sweep, which the player never chose, locked them
+  out too. it only ever meant "cannot re-seat to dodge a table you were losing", which needs 2+
+  players. now applied only when the table actually had a field.
 ➠ **auto-bail must mark off DEPTH, not the touch.** the first version compared the target against
   best-bid × size; a thin book showed a touch ≥ target, fired, and the IOC sale walked the book —
   a 10.00 stake realized 1.70. `realizableProceeds` walks the resting levels for the WHOLE size
