@@ -435,7 +435,24 @@ export const MIN_STACK = ONE; // 1.00 tUSDC
 
 export async function sweepZombies(currentRoundIndex: number) {
   const zombies = await db.run.findMany({
-    where: { status: "alive", stack: { lt: MIN_STACK } },
+    where: {
+      status: "alive",
+      stack: { lt: MIN_STACK },
+      /**
+       * A bet in flight is NOT a small stack.
+       *
+       * `stack` is idle cash only — entering a round moves nearly all of it
+       * into contracts. And rounds OVERLAP: the next window opens and takes
+       * entries while the previous one is still waiting to settle, so the
+       * sweep that runs after round N routinely sees a player who has just
+       * deployed into round N+1 holding ~0.03 in cash.
+       *
+       * Without this, that player was swept at 0.00x with their contracts
+       * still riding — a real bet, placed and paid for, deleted by the
+       * janitor a few seconds later.
+       */
+      positions: { none: { outcome: null } },
+    },
     include: { player: true },
   });
   for (const z of zombies) {

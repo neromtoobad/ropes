@@ -259,7 +259,7 @@ export default function Game() {
   // runs, so a fresh join (not in it yet) is never cleared by mistake.
   useEffect(() => {
     if (!runId || !ledger) return;
-    const known = ledger.runs.find((r) => r.id === runId);
+    const known = ledger.runs?.find((r) => r.id === runId);
     if (known && known.status !== "alive") {
       localStorage.removeItem("lc.runId");
       setRunId(null);
@@ -1188,7 +1188,7 @@ function MoneyBar({
 
 /** After a run ends, its card waits under the join box — the trophy moment. */
 function LastRun({ ledger, climber }: { ledger: LedgerData | null; climber: ClimberId }) {
-  const last = ledger?.runs.find((r) => r.status !== "alive");
+  const last = ledger?.runs?.find((r) => r.status !== "alive");
   if (!last) return null;
   const won = last.net >= 0;
   return (

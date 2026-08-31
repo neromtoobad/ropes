@@ -81,14 +81,28 @@ export type LeaderRow = {
   alive: boolean;
 };
 
+/** Does this look like a ledger, or like an error wearing one's clothes? */
+function isLedger(j: unknown): j is LedgerData {
+  if (!j || typeof j !== "object") return false;
+  const l = j as Partial<LedgerData>;
+  return Array.isArray(l.runs) && Array.isArray(l.flows) && Array.isArray(l.badges);
+}
+
 export function useLedger(playerKey: string | null, refreshKey?: unknown) {
   const [ledger, setLedger] = useState<LedgerData | null>(null);
   useEffect(() => {
     if (!playerKey) return;
     let dead = false;
     fetch(`/api/ledger?playerKey=${encodeURIComponent(playerKey)}`)
-      .then((r) => r.json())
-      .then((j) => !dead && setLedger(j))
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        // A failed request must NEVER become the ledger. Consumers index into
+        // runs/flows/badges, so one 500 storing `{error: "..."}` here took the
+        // whole page down with "cannot read properties of undefined". Keep the
+        // last good ledger instead — a blip should be invisible to the player.
+        if (dead || !isLedger(j)) return;
+        setLedger(j);
+      })
       .catch(() => {});
     return () => {
       dead = true;
