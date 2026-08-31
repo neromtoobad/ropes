@@ -8,7 +8,7 @@
 import { useEffect, useState } from "react";
 import type { Address } from "viem";
 import type { TableState } from "@/lib/state";
-import { useWallets, chooseWallet, connect, paySeat, collateralBalance } from "../wallet";
+import { useWallets, chooseWallet, walletRank, connect, paySeat, collateralBalance } from "../wallet";
 import {
   PageHeader, LedgerPanel, usePlayerKey, useLedger, useClimberTheme, usd, short,
 } from "../shared";
@@ -30,6 +30,9 @@ export default function Wallet() {
   // A request the wallet never surfaced looks identical to a dead button —
   // say so rather than spinning forever.
   const [hint, setHint] = useState<string | null>(null);
+  const active =
+    found.find((w) => w.id === picked) ??
+    [...found].sort((a, b) => walletRank(a.name) - walletRank(b.name))[0];
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
@@ -136,9 +139,7 @@ export default function Wallet() {
                 disabled={busy !== null}
                 className="chamfer-sm border border-[var(--gold)] px-4 py-2.5 text-xs font-black tracking-[0.12em] text-[var(--gold)] transition hover:bg-[var(--gold)] hover:text-black disabled:opacity-40"
               >
-                {busy === "connect"
-                  ? "CONNECTING…"
-                  : `CONNECT ${(found.find((w) => w.id === picked) ?? found.find((w) => /metamask/i.test(w.name)) ?? found[0])?.name.toUpperCase() ?? "WALLET"}`}
+                {busy === "connect" ? "CONNECTING…" : `CONNECT ${active?.name.toUpperCase() ?? "WALLET"}`}
               </button>
             )}
             {addr && (
@@ -187,8 +188,7 @@ export default function Wallet() {
           <div className="mt-3 flex flex-wrap items-center gap-1.5">
             <span className="text-[9px] font-black tracking-[0.25em] text-[var(--dim)]">USE</span>
             {found.map((w) => {
-              const active =
-                (picked ?? found.find((x) => /metamask/i.test(x.name))?.id ?? found[0].id) === w.id;
+              const isActive = active?.id === w.id;
               return (
                 <button
                   key={w.id}
@@ -198,9 +198,9 @@ export default function Wallet() {
                   }}
                   className="chamfer-sm border px-2.5 py-1 text-[10px] font-black tracking-[0.12em] transition"
                   style={{
-                    borderColor: active ? "var(--gold)" : "var(--edge)",
-                    color: active ? "var(--gold)" : "var(--dim)",
-                    background: active ? "#241c07" : "transparent",
+                    borderColor: isActive ? "var(--gold)" : "var(--edge)",
+                    color: isActive ? "var(--gold)" : "var(--dim)",
+                    background: isActive ? "#241c07" : "transparent",
                   }}
                 >
                   {w.name.toUpperCase()}
@@ -210,8 +210,22 @@ export default function Wallet() {
           </div>
         )}
         {walletReady && (
-          <p className="mt-2 text-[9px] font-bold tracking-[0.2em] text-[var(--dim)]">
+          <p className="mt-2 text-[9px] font-bold leading-relaxed tracking-[0.2em] text-[var(--dim)]">
             DETECTED: {found.map((w) => w.name).join(" · ")}
+            <br />
+            ANY EVM WALLET WORKS ON SOMNIA SHANNON —{" "}
+            {[
+              ["METAMASK", "https://metamask.io/download/"],
+              ["RABBY", "https://rabby.io/"],
+              ["OKX", "https://web3.okx.com/download"],
+            ].map(([label, href], i) => (
+              <span key={label}>
+                {i > 0 ? " · " : ""}
+                <a href={href} target="_blank" rel="noreferrer" className="underline decoration-dotted hover:text-[var(--gold)]">
+                  {label}
+                </a>
+              </span>
+            ))}
           </p>
         )}
         {hint && <p className="mt-2 text-[10px] font-bold tracking-[0.15em] text-[var(--gold)]">{hint}</p>}

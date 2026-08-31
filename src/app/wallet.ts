@@ -79,8 +79,25 @@ export function wallets(): WalletChoice[] {
 
 export const hasWallet = () => wallets().length > 0;
 
-/** The provider a connect/pay should use. Explicit pick wins; otherwise
- *  MetaMask if present, else whatever announced first. */
+/**
+ * Which wallet to reach for when the player has not said.
+ *
+ * Every EIP-1193 wallet works here — this only decides the DEFAULT guess.
+ * Somnia Shannon is a custom EVM testnet the wallet has to add on the fly,
+ * which the EVM-native wallets handle cleanly. Keplr and Phantom announce
+ * themselves too but are Cosmos- and Solana-first, so they sort last rather
+ * than being silently picked for an EVM chain they may refuse to add.
+ */
+const PREFERRED = [/metamask/i, /rabby/i, /okx/i, /coinbase/i, /brave/i, /trust/i, /zerion/i, /rainbow/i, /frame/i, /enkrypt/i, /taho/i];
+const LAST_RESORT = [/keplr/i, /phantom/i, /leap/i, /xverse/i];
+
+export function walletRank(name: string): number {
+  const preferred = PREFERRED.findIndex((r) => r.test(name));
+  if (preferred >= 0) return preferred;
+  if (LAST_RESORT.some((r) => r.test(name))) return 100;
+  return 50; // an EVM wallet we simply have not heard of — still fine
+}
+
 let chosen: string | null = null;
 export function chooseWallet(id: string) {
   chosen = id;
@@ -88,11 +105,9 @@ export function chooseWallet(id: string) {
 export function activeWallet(): WalletChoice | null {
   const all = wallets();
   if (!all.length) return null;
-  return (
-    all.find((w) => w.id === chosen) ??
-    all.find((w) => /metamask/i.test(w.name)) ??
-    all[0]
-  );
+  const picked = all.find((w) => w.id === chosen);
+  if (picked) return picked;
+  return [...all].sort((a, b) => walletRank(a.name) - walletRank(b.name))[0];
 }
 
 /**

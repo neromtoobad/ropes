@@ -148,6 +148,32 @@ export default function Game() {
     }
   };
 
+  /** Fund the bankroll from the game screen. Same verified path as the wallet
+   *  page — pay on-chain, then the server credits the receipt. */
+  const [funding, setFunding] = useState(false);
+  const [funded, setFunded] = useState(0);
+  const fundBankroll = async (amount: bigint) => {
+    if (!state?.pay || !playerKey || funding) return;
+    sound.arm();
+    setFunding(true);
+    setErr(null);
+    try {
+      const a = addr ?? (await connect());
+      setAddr(a);
+      const units = amount * 1_000_000n;
+      const held = await collateralBalance(a, state.pay.collateral as Address);
+      if (held < units) {
+        throw new Error(`not enough tUSDC — you hold ${(Number(held) / 1e6).toFixed(2)}`);
+      }
+      const tx = await paySeat(a, state.pay.collateral as Address, state.pay.house as Address, units);
+      const r = await post("/api/deposit", { playerKey, txHash: tx });
+      if (r) setFunded((n) => n + 1);
+    } catch (e) {
+      setErr(String(e).replace("Error: ", "").slice(0, 160));
+    }
+    setFunding(false);
+  };
+
   const buySeat = async () => {
     if (!state?.pay || !addr || !name.trim() || paying || busy) return;
     sound.arm();
@@ -256,7 +282,7 @@ export default function Game() {
 
   // The ledger backs the money bar, the sparkline and YOUR LAST RUN.
   // It refreshes on every bell (each bell can change it).
-  const ledger = useLedger(playerKey, `${bell?.index ?? 0}-${runId}`);
+  const ledger = useLedger(playerKey, `${bell?.index ?? 0}-${runId}-${funded}`);
 
   // A finished run must not linger in storage. The wall, the bail bar and the
   // auto-bail control all key off runId; a dead one keeps a previous session
@@ -277,7 +303,16 @@ export default function Game() {
 
       <TopBar state={state} urgent={urgent} sound={sound} me={me} />
 
-      <div className="shrink-0"><MoneyBar me={me} price={state?.price ?? { up: null, down: null }} ledger={ledger} /></div>
+      <div className="shrink-0"><MoneyBar
+          me={me}
+          price={state?.price ?? { up: null, down: null }}
+          ledger={ledger}
+          walletReady={walletReady}
+          addr={addr}
+          funding={funding}
+          onConnect={connectWallet}
+          onFund={() => fundBankroll(10n)}
+        /></div>
 
       {seatFlash && (
         <div className="pointer-events-none fixed inset-x-0 top-[20%] z-40 text-center">
@@ -1136,10 +1171,20 @@ function MoneyBar({
   me,
   price,
   ledger,
+  walletReady,
+  addr,
+  funding,
+  onConnect,
+  onFund,
 }: {
   me: TableState["seats"][number] | null;
   price: TableState["price"];
   ledger: LedgerData | null;
+  walletReady: boolean;
+  addr: Address | null;
+  funding: boolean;
+  onConnect: () => void;
+  onFund: () => void;
 }) {
   const mult = useSmoothed(liveMultipleOf(me, price), 340, 3);
   const onWall = me ? mult * me.buyIn : null;
@@ -1181,16 +1226,35 @@ function MoneyBar({
           </p>
         </div>
         {bankBalance === null ? (
-          /* The ONLY always-visible route to real money. CONNECT WALLET lives
-             in the join box, which is hidden the moment you hold a seat — so a
-             seated free player had no way to reach the wallet at all. */
-          <a
-            href="/wallet"
-            className="chamfer-sm shrink-0 whitespace-nowrap border border-[var(--gold)] px-2 py-1.5 text-[9px] font-black tracking-[0.15em] text-[var(--gold)] transition hover:bg-[var(--gold)] hover:text-black sm:px-2.5"
-          >
-            <span className="sm:hidden">FUND →</span>
-            <span className="hidden sm:inline">CONNECT WALLET →</span>
-          </a>
+          /* Real money, reachable from the wall itself. CONNECT WALLET used to
+             live only in the join box — which is hidden the moment you hold a
+             seat, so a seated player could not get to it at all. Connect here,
+             then fund here; the wallet page is for anything bigger. */
+          walletReady && !addr ? (
+            <button
+              onClick={onConnect}
+              className="chamfer-sm shrink-0 whitespace-nowrap border border-[var(--gold)] px-2 py-1.5 text-[9px] font-black tracking-[0.15em] text-[var(--gold)] transition hover:bg-[var(--gold)] hover:text-black sm:px-2.5"
+            >
+              <span className="sm:hidden">CONNECT</span>
+              <span className="hidden sm:inline">CONNECT WALLET</span>
+            </button>
+          ) : addr ? (
+            <button
+              onClick={onFund}
+              disabled={funding}
+              className="chamfer-sm shrink-0 whitespace-nowrap border border-[var(--gold)] px-2 py-1.5 text-[9px] font-black tracking-[0.15em] text-[var(--gold)] transition hover:bg-[var(--gold)] hover:text-black disabled:opacity-50 sm:px-2.5"
+            >
+              {funding ? "FUNDING…" : "DEPOSIT 10"}
+            </button>
+          ) : (
+            <a
+              href="/wallet"
+              className="chamfer-sm shrink-0 whitespace-nowrap border border-[var(--gold)] px-2 py-1.5 text-[9px] font-black tracking-[0.15em] text-[var(--gold)] transition hover:bg-[var(--gold)] hover:text-black sm:px-2.5"
+            >
+              <span className="sm:hidden">FUND →</span>
+              <span className="hidden sm:inline">GET A WALLET →</span>
+            </a>
+          )
         ) : (
           <a href="/wallet" className="tabular hidden text-[9px] font-bold tracking-[0.2em] underline decoration-dotted sm:inline"
             style={{ color: net !== null && net < 0 ? "var(--down)" : "var(--dim)" }}>
