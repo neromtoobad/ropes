@@ -529,6 +529,25 @@ lonely side pays a lot. show the crowd's split on screen — that is the strateg
   while dying locked them out for none — and the sweep, which the player never chose, locked them
   out too. it only ever meant "cannot re-seat to dodge a table you were losing", which needs 2+
   players. now applied only when the table actually had a field.
+➠ **`stack` is idle cash, not the player's money.** entering a round moves nearly all of it into
+  contracts, and rounds OVERLAP — the next window opens and takes entries while the previous is
+  still settling — so the sweep that runs after round N routinely saw a player deployed in N+1
+  holding ~0.03 and cashed them out at 0.00x with their contracts still riding. a real bet,
+  placed and paid for, deleted by the janitor. anything judging a run by `stack` must exclude
+  runs holding an unsettled position (`positions: { none: { outcome: null } }`).
+➠ **a fetch that can fail must be validated before it becomes state.** `useLedger` and the
+  /api/state poll stored whatever came back, so ONE 500 with a JSON body became the ledger/state
+  and the next render did `.runs.find` / `.seats.find` on undefined — the whole page died with
+  "Application error: a client-side exception has occurred". check `res.ok` AND the shape, and
+  keep the last good frame. on a poll running twice a second, a blip is a certainty, not an edge
+  case.
+➠ **/api/state was 6.6 SECONDS in production.** thirteen sequential DB round trips plus a live
+  oracle call, on an endpoint every tab polls twice a second: responses piled up, the wall looked
+  frozen (a placed bet just sitting there) and slow requests tipped into function timeouts — the
+  500s above. the fixes, in order of payoff: batch independent reads into `Promise.all` (13 hops
+  → 2), cache the oracle price for ~1s, stop fetching EVERY run ever played with joins on every
+  poll (ask for the live ones; the board takes a capped top-10), and put the functions in the
+  database's region (`"regions": ["lhr1"]` in vercel.json). 6.6s → 0.6s.
 ➠ **auto-bail must mark off DEPTH, not the touch.** the first version compared the target against
   best-bid × size; a thin book showed a touch ≥ target, fired, and the IOC sale walked the book —
   a 10.00 stake realized 1.70. `realizableProceeds` walks the resting levels for the WHOLE size
