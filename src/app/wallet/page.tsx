@@ -40,6 +40,21 @@ export default function Wallet() {
 
   const bank = ledger?.bank ?? null;
 
+  /** Connect on its own, so "connect wallet" is a thing you can SEE and do —
+   *  the deposit buttons connect implicitly, which left players who just
+   *  wanted to link a wallet with nothing to click. */
+  const connectWallet = async () => {
+    if (busy) return;
+    setBusy("connect");
+    setErr(null);
+    try {
+      setAddr(await connect());
+    } catch (e) {
+      setErr(String(e).replace("Error: ", "").slice(0, 160));
+    }
+    setBusy(null);
+  };
+
   const deposit = async (amount: bigint) => {
     if (!state?.pay || !playerKey || busy) return;
     setBusy(`deposit-${amount}`);
@@ -103,6 +118,20 @@ export default function Wallet() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            {walletReady && !addr && (
+              <button
+                onClick={connectWallet}
+                disabled={busy !== null}
+                className="chamfer-sm border border-[var(--gold)] px-4 py-2.5 text-xs font-black tracking-[0.12em] text-[var(--gold)] transition hover:bg-[var(--gold)] hover:text-black disabled:opacity-40"
+              >
+                {busy === "connect" ? "CONNECTING…" : "CONNECT WALLET"}
+              </button>
+            )}
+            {addr && (
+              <span className="tabular text-[10px] font-bold tracking-[0.2em] text-[var(--dim)]">
+                CONNECTED {short(addr)}
+              </span>
+            )}
             {walletReady &&
               DEPOSIT_CHOICES.map((n) => (
                 <button

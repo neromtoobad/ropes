@@ -1171,7 +1171,7 @@ function MoneyBar({
       <div className="chamfer-sm flex items-baseline justify-between border px-4 py-2.5"
         style={{ borderColor: "var(--edge)", background: "linear-gradient(180deg, var(--panel-2), var(--panel))" }}>
         <div>
-          <p className="text-[9px] font-black tracking-[0.3em] text-[var(--dim)]">
+          <p className="whitespace-nowrap text-[9px] font-black tracking-[0.3em] text-[var(--dim)]">
             {bankBalance !== null ? "BANKROLL" : "WON ALL TIME"}
           </p>
           <p className="display tabular text-3xl leading-none sm:text-4xl"
@@ -1181,10 +1181,23 @@ function MoneyBar({
             {bankBalance !== null ? bankBalance.toFixed(2) : won !== null ? `+${won.toFixed(2)}` : "—"}
           </p>
         </div>
-        <a href="/wallet" className="tabular hidden text-[9px] font-bold tracking-[0.2em] underline decoration-dotted sm:inline"
-          style={{ color: net !== null && net < 0 ? "var(--down)" : "var(--dim)" }}>
-          {net !== null ? `NET ${usd(net)}` : "tUSDC"}
-        </a>
+        {bankBalance === null ? (
+          /* The ONLY always-visible route to real money. CONNECT WALLET lives
+             in the join box, which is hidden the moment you hold a seat — so a
+             seated free player had no way to reach the wallet at all. */
+          <a
+            href="/wallet"
+            className="chamfer-sm shrink-0 whitespace-nowrap border border-[var(--gold)] px-2 py-1.5 text-[9px] font-black tracking-[0.15em] text-[var(--gold)] transition hover:bg-[var(--gold)] hover:text-black sm:px-2.5"
+          >
+            <span className="sm:hidden">FUND →</span>
+            <span className="hidden sm:inline">CONNECT WALLET →</span>
+          </a>
+        ) : (
+          <a href="/wallet" className="tabular hidden text-[9px] font-bold tracking-[0.2em] underline decoration-dotted sm:inline"
+            style={{ color: net !== null && net < 0 ? "var(--down)" : "var(--dim)" }}>
+            {net !== null ? `NET ${usd(net)}` : "tUSDC"}
+          </a>
+        )}
       </div>
     </div>
   );
