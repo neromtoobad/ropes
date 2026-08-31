@@ -91,10 +91,17 @@ function sideFor(run: { pendingSide: string | null; autoPick: string | null }): 
  * Entries only land in the first ENTRY_WINDOW_S seconds of a window. It makes
  * the round a discrete thing: everyone in it entered at (nearly) the same
  * price picture, and a bet placed mid-ride queues for the next window instead
- * of buying a 20-second sprint at whatever the book has become. The retry
- * loop for the empty-at-open book lives entirely inside this grace period.
+ * of buying a short sprint at whatever the book has become. The retry loop for
+ * the empty-at-open book lives entirely inside this grace period.
+ *
+ * It was 20s, and that was too tight to be playable. These 1m books are empty
+ * at the open and the resting MM often has not quoted 20 seconds in, so a bet
+ * would miss its window, roll to the next one, and miss again — observed live
+ * taking three rounds to fill, which reads as a broken game rather than a thin
+ * market. 35s still leaves a real ride (25s minimum) and roughly doubles the
+ * number of retries a pick gets inside the window it was placed for.
  */
-export const ENTRY_WINDOW_S = 20;
+export const ENTRY_WINDOW_S = 35;
 let lockedLogFor = -1;
 
 export async function enterRound(roundId: string, market: LiveMarket) {

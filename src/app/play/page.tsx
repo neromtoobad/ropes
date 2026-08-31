@@ -831,6 +831,29 @@ function Sides({
 }) {
   const canPick = me && !me.inRound;
   const shownPick = optimistic ?? me?.pick ?? null;
+
+  /**
+   * Why a placed bet is not on the book yet.
+   *
+   * These 1m books are routinely EMPTY at the open, and the executor declines
+   * a quote above the entry cap rather than risking a whole stack for a few
+   * percent. Both are honest, both leave the player staring at a bet that
+   * hasn't happened — so say which one it is instead of claiming "entering
+   * now" while nothing enters.
+   */
+  const pickPrice = shownPick === "UP" ? state.price.up : shownPick === "DOWN" ? state.price.down : null;
+  const pickCapped = shownPick === "UP" ? state.capped.up : shownPick === "DOWN" ? state.capped.down : false;
+  const windowOpen = (state.round?.betsCloseIn ?? 0) > 0;
+  const pickStatus = pickCapped
+    ? "TOO PRICEY — HOLDING FOR A BETTER QUOTE"
+    : pickPrice === null
+      ? windowOpen
+        ? `WAITING FOR THE BOOK · 0:${pad(state.round?.betsCloseIn ?? 0)}`
+        : "NO BOOK THIS WINDOW — RIDES THE NEXT"
+      : windowOpen
+        ? "ENTERING NOW"
+        : "RIDES THE NEXT WINDOW";
+
   return (
     <>
       <div className="mb-2 flex items-baseline justify-between text-[10px] font-bold tracking-[0.25em] text-[var(--dim)]">
@@ -840,9 +863,7 @@ function Sides({
             : state.locked
               ? "LOCKED — WATCH IT PLAY OUT"
               : shownPick
-                ? `YOUR BET: ${shownPick === "UP" ? "▲ UP" : "▼ DOWN"} — WHOLE STACK, ${
-                    (state.round?.betsCloseIn ?? 0) > 0 ? "ENTERING NOW" : "NEXT WINDOW"
-                  }`
+                ? `YOUR BET: ${shownPick === "UP" ? "▲ UP" : "▼ DOWN"} — ${pickStatus}`
                 : canPick
                   ? (state.round?.betsCloseIn ?? 0) > 0
                     ? `BETS OPEN — CLOSE IN 0:${pad(state.round!.betsCloseIn)}`
