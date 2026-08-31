@@ -58,6 +58,13 @@ export default function Game() {
   // Which of the eight climbers you are. Cosmetic, local, and yours.
   const [climber, setClimber] = useState<ClimberId>("green");
   const lastBellIndex = useRef<number | null>(null);
+  /** When the newest state frame arrived, so the clock can run on from it. */
+  const stateAt = useRef(Date.now());
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNowMs(Date.now()), 200);
+    return () => clearInterval(id);
+  }, []);
 
   useEffect(() => {
     setRunId(localStorage.getItem("lc.runId"));
@@ -78,6 +85,7 @@ export default function Game() {
         if (!res.ok) return;
         const next: TableState = await res.json();
         if (!alive || !Array.isArray(next?.seats)) return;
+        stateAt.current = Date.now();
         setState(next);
 
         const idx = next.lastResult?.index ?? null;
@@ -192,8 +200,24 @@ export default function Game() {
 
   const sound = useSound();
   const me = state?.seats?.find((s) => s.runId === runId) ?? null;
-  const secs = state?.round?.secondsLeft ?? 0;
+  /**
+   * The clock, run locally between polls.
+   *
+   * secondsLeft is a server number and the responses carrying it land
+   * irregularly — the database sits behind a pooler and a response can take
+   * seconds. Rendering it raw made the countdown stutter and sit still. Anchor
+   * on each fresh frame and count down from it here, so the clock stays smooth
+   * however the network behaves.
+   */
+  const drift = state?.round ? (nowMs - stateAt.current) / 1000 : 0;
+  const secs = Math.max(0, (state?.round?.secondsLeft ?? 0) - drift);
+  const betsCloseIn = Math.max(0, (state?.round?.betsCloseIn ?? 0) - drift);
   const urgent = secs > 0 && secs < 15;
+
+  /** What the children render: the newest state, with the clock replaced by
+   *  the locally-run one so nothing on screen disagrees about the time. */
+  const view: TableState | null =
+    state?.round ? { ...state, round: { ...state.round, secondsLeft: secs, betsCloseIn } } : state;
 
   useHeartbeat(secs, Boolean(me?.inRound));
   // The chosen climber's colours paint the whole site.
@@ -301,7 +325,7 @@ export default function Game() {
     <main className={`relative z-10 mx-auto flex min-h-screen max-w-6xl flex-col px-4 py-3 lg:h-screen lg:max-h-screen lg:overflow-hidden ${myBell ? "shake" : ""}`}>
       {secs > 0 && secs < 10 && <div className="danger" />}
 
-      <TopBar state={state} urgent={urgent} sound={sound} me={me} />
+      <TopBar state={view} urgent={urgent} sound={sound} me={me} />
 
       <div className="shrink-0"><MoneyBar
           me={me}
@@ -357,7 +381,7 @@ export default function Game() {
           />
           </div>
 
-          {me && state?.round && <PhaseStrip state={state} me={me} />}
+          {me && view?.round && <PhaseStrip state={view} me={me} />}
 
           {/* One control, matched to the moment. Never several at once. */}
           <div className="mt-2 shrink-0">
@@ -384,9 +408,9 @@ export default function Game() {
                 autoBail={autoBail}
                 onAutoBail={setAutoBail}
               />
-            ) : state?.round ? (
+            ) : view?.round ? (
               <Sides
-                state={state}
+                state={view}
                 me={me}
                 optimistic={optimisticPick}
                 onWalk={bankOut}
@@ -409,7 +433,7 @@ export default function Game() {
           </div>
         </div>
 
-        <StatPanel state={state} me={me} climber={climber} series={ledger?.series ?? null} />
+        <StatPanel state={view} me={me} climber={climber} series={ledger?.series ?? null} />
       </div>
 
       {passed && (
