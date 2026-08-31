@@ -8,7 +8,7 @@
 import { useEffect, useState } from "react";
 import type { Address } from "viem";
 import type { TableState } from "@/lib/state";
-import { hasWallet, connect, paySeat, collateralBalance } from "../wallet";
+import { useHasWallet, connect, paySeat, collateralBalance } from "../wallet";
 import {
   PageHeader, LedgerPanel, usePlayerKey, useLedger, useClimberTheme, usd, short,
 } from "../shared";
@@ -24,12 +24,11 @@ export default function Wallet() {
   const [climber, setClimber] = useState<ClimberId>("green");
   const [state, setState] = useState<TableState | null>(null);
   const [addr, setAddr] = useState<Address | null>(null);
-  const [walletReady, setWalletReady] = useState(false);
+  const walletReady = useHasWallet();
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
-    setWalletReady(hasWallet());
     const saved = localStorage.getItem("lc.climber");
     if (saved && CAST.some((c) => c.id === saved)) setClimber(saved as ClimberId);
     fetch("/api/state").then((r) => r.json()).then(setState).catch(() => {});
@@ -144,8 +143,18 @@ export default function Wallet() {
                 </button>
               ))}
             {!walletReady && (
-              <span className="text-[10px] font-bold tracking-[0.2em] text-[var(--dim)]">
-                NO WALLET EXTENSION DETECTED — FREE PLAY STILL WORKS ON /PLAY
+              <span className="max-w-sm text-[10px] font-bold leading-relaxed tracking-[0.15em] text-[var(--dim)]">
+                NO WALLET IN THIS BROWSER. OPEN THIS PAGE IN THE BROWSER — OR CHROME PROFILE —
+                WHERE YOURS LIVES, OR{" "}
+                <a
+                  href="https://metamask.io/download/"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="underline decoration-dotted hover:text-[var(--gold)]"
+                >
+                  INSTALL METAMASK
+                </a>
+                . ON A PHONE, OPEN IT INSIDE YOUR WALLET&apos;S OWN BROWSER. FREE PLAY WORKS EITHER WAY.
               </span>
             )}
             {bank && bank.balance > 0 && bank.address && (

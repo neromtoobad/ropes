@@ -6,7 +6,7 @@ import type { TableState } from "@/lib/state";
 import type { Address } from "viem";
 import { Cliff, liveMultipleOf, CAST, type ClimberId } from "../Cliff";
 import { useSound, useHeartbeat } from "../sound";
-import { hasWallet, connect, paySeat, collateralBalance } from "../wallet";
+import { useHasWallet, connect, paySeat, collateralBalance } from "../wallet";
 import { useSmoothed } from "../useSmoothed";
 import {
   usd, short, pad, usePlayerKey, useLedger, useClimberTheme, SiteNav, HowItWorks, ShareButton,
@@ -134,10 +134,9 @@ export default function Game() {
 
   // The player's own wallet — used to pay for the seat and receive payouts.
   // Play stays custodial either way; a missing wallet just means free play.
-  const [walletReady, setWalletReady] = useState(false);
+  const walletReady = useHasWallet();
   const [addr, setAddr] = useState<Address | null>(null);
   const [paying, setPaying] = useState(false);
-  useEffect(() => setWalletReady(hasWallet()), []);
 
   const connectWallet = async () => {
     sound.arm();

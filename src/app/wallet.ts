@@ -8,6 +8,7 @@
  * Plain viem over window.ethereum. No connector library: one chain, one
  * token, two calls.
  */
+import { useEffect, useState } from "react";
 import {
   createWalletClient,
   createPublicClient,
@@ -31,6 +32,48 @@ type Eip1193 = { request: (args: { method: string; params?: unknown[] }) => Prom
 
 export const hasWallet = () =>
   typeof window !== "undefined" && Boolean((window as { ethereum?: Eip1193 }).ethereum);
+
+/**
+ * Is there a wallet in this browser? Asked continuously, not once.
+ *
+ * Extensions inject `window.ethereum` at unpredictable times — MetaMask
+ * frequently lands AFTER first paint, and more so when several wallets race
+ * to inject. A one-shot check on mount therefore reports "no wallet
+ * detected" forever to someone who is staring at their MetaMask fox, and the
+ * connect button never appears.
+ *
+ * So: re-check on both events wallets actually fire (the legacy
+ * `ethereum#initialized` and the EIP-6963 announcement, which we also
+ * request), and poll briefly as a backstop for wallets that fire neither.
+ */
+export function useHasWallet() {
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    if (hasWallet()) {
+      setReady(true);
+      return;
+    }
+    let done = false;
+    const check = () => {
+      if (done || !hasWallet()) return;
+      done = true;
+      setReady(true);
+    };
+    window.addEventListener("ethereum#initialized", check);
+    window.addEventListener("eip6963:announceProvider", check);
+    window.dispatchEvent(new Event("eip6963:requestProvider"));
+    const poll = setInterval(check, 250);
+    const giveUp = setTimeout(() => clearInterval(poll), 8000);
+    return () => {
+      done = true;
+      clearInterval(poll);
+      clearTimeout(giveUp);
+      window.removeEventListener("ethereum#initialized", check);
+      window.removeEventListener("eip6963:announceProvider", check);
+    };
+  }, []);
+  return ready;
+}
 
 const eth = () => (window as unknown as { ethereum: Eip1193 }).ethereum;
 
