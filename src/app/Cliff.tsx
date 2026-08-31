@@ -517,17 +517,17 @@ export function Cliff({
               textShadow: `0 0 36px ${btc.price >= btc.strike ? "var(--up-glow)" : "var(--down-glow)"}`,
             }}
           >
-            {btc.price.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+            ${btc.price.toLocaleString(undefined, { maximumFractionDigits: 2 })}
           </p>
           <p
             className="tabular text-[10px] font-black tracking-widest"
             style={{ color: btc.price >= btc.strike ? "var(--up)" : "var(--down)" }}
           >
-            {btc.price >= btc.strike ? "▲ +" : "▼ "}
-            {(btc.price - btc.strike).toFixed(2)}
+            {btc.price >= btc.strike ? "▲ +$" : "▼ −$"}
+            {Math.abs(btc.price - btc.strike).toFixed(2)}
           </p>
           <p className="tabular mt-0.5 text-[9px] font-bold tracking-widest text-[var(--dim)]">
-            TO BEAT {btc.strike.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+            TO BEAT ${btc.strike.toLocaleString(undefined, { maximumFractionDigits: 2 })}
           </p>
         </div>
       )}

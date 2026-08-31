@@ -624,11 +624,11 @@ function StatPanel({
           <p className="text-[9px] font-black tracking-[0.3em] text-[var(--dim)]">BTC vs THE LINE</p>
           <p className="tabular mt-1 text-lg font-bold"
             style={{ color: btc.price >= btc.strike ? "var(--up)" : "var(--down)" }}>
-            {btc.price >= btc.strike ? "▲ +" : "▼ "}
-            {(btc.price - btc.strike).toFixed(2)}
+            {btc.price >= btc.strike ? "▲ +$" : "▼ −$"}
+            {Math.abs(btc.price - btc.strike).toFixed(2)}
           </p>
           <p className="tabular text-[10px] text-[var(--dim)]">
-            TO BEAT {btc.strike.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+            TO BEAT ${btc.strike.toLocaleString(undefined, { maximumFractionDigits: 2 })}
           </p>
         </div>
       )}

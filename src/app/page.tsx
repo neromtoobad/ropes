@@ -74,7 +74,7 @@ export default function Landing() {
               {
                 label: "BTC RIGHT NOW",
                 value: state?.btc.price
-                  ? state.btc.price.toLocaleString(undefined, { maximumFractionDigits: 0 })
+                  ? `$${state.btc.price.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
                   : "—",
                 c: state?.btc.price && state?.btc.strike && state.btc.price >= state.btc.strike ? "var(--up)" : "var(--down)",
               },

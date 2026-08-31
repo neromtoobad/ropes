@@ -31,6 +31,33 @@ process.on("SIGINT", () => { log("shutting down…"); stopping = true; });
 const MAX_CONSECUTIVE_FAILURES = 10;
 let consecutiveFailures = 0;
 
+/**
+ * A tick that HANGS is worse than one that throws.
+ *
+ * The failure counter above only advances when a tick REJECTS. Observed live:
+ * the loop went silent mid-round — no error, no failed tick, nothing — and sat
+ * there for twenty minutes while the process looked perfectly healthy and the
+ * game was frozen at a round that never settled. An await that never settles
+ * (a dead WebSocket read, a wedged pool checkout) produces exactly that.
+ *
+ * So every tick is capped. A stall is fatal on the FIRST occurrence — unlike a
+ * transient error it will not heal itself, and the supervisor restarting us
+ * with a fresh client is the only cure. Rounds are 60s; a tick over this has
+ * already cost one.
+ */
+const TICK_TIMEOUT_MS = 40_000;
+const STALLED = "tick stalled";
+
+function withTimeout<T>(work: Promise<T>, ms: number): Promise<T> {
+  let timer: NodeJS.Timeout;
+  return Promise.race([
+    work.finally(() => clearTimeout(timer)),
+    new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error(`${STALLED}: no progress in ${ms}ms`)), ms);
+    }),
+  ]);
+}
+
 async function preflight() {
   const gas = await houseGas();
   const collateral = await houseCollateral();
@@ -81,11 +108,17 @@ async function main() {
   log("executor running. ctrl-c to stop.\n");
   while (!stopping) {
     try {
-      await tick();
+      await withTimeout(tick(), TICK_TIMEOUT_MS);
       consecutiveFailures = 0;
     } catch (err) {
+      const stalled = String(err).includes(STALLED);
       consecutiveFailures++;
       log(`tick failed (${consecutiveFailures}/${MAX_CONSECUTIVE_FAILURES}): ${String(err).slice(0, 160)}`);
+      if (stalled) {
+        log("the loop is wedged, not erroring — exiting so the supervisor restarts us");
+        await db.$disconnect().catch(() => {});
+        process.exit(1);
+      }
       if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
         log("connection is not recovering — exiting so the supervisor restarts us");
         await db.$disconnect();
