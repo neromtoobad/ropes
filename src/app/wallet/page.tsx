@@ -8,7 +8,7 @@
 import { useEffect, useState } from "react";
 import type { Address } from "viem";
 import type { TableState } from "@/lib/state";
-import { useHasWallet, connect, paySeat, collateralBalance } from "../wallet";
+import { useWallets, chooseWallet, connect, paySeat, collateralBalance } from "../wallet";
 import {
   PageHeader, LedgerPanel, usePlayerKey, useLedger, useClimberTheme, usd, short,
 } from "../shared";
@@ -24,7 +24,12 @@ export default function Wallet() {
   const [climber, setClimber] = useState<ClimberId>("green");
   const [state, setState] = useState<TableState | null>(null);
   const [addr, setAddr] = useState<Address | null>(null);
-  const walletReady = useHasWallet();
+  const found = useWallets();
+  const walletReady = found.length > 0;
+  const [picked, setPicked] = useState<string | null>(null);
+  // A request the wallet never surfaced looks identical to a dead button —
+  // say so rather than spinning forever.
+  const [hint, setHint] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
@@ -46,11 +51,19 @@ export default function Wallet() {
     if (busy) return;
     setBusy("connect");
     setErr(null);
+    setHint(null);
+    const slow = setTimeout(
+      () => setHint("STILL WAITING — OPEN YOUR WALLET EXTENSION, THE REQUEST MAY BE QUEUED THERE"),
+      6000,
+    );
     try {
       setAddr(await connect());
+      setHint(null);
     } catch (e) {
       setErr(String(e).replace("Error: ", "").slice(0, 160));
+      setHint(null);
     }
+    clearTimeout(slow);
     setBusy(null);
   };
 
@@ -123,7 +136,9 @@ export default function Wallet() {
                 disabled={busy !== null}
                 className="chamfer-sm border border-[var(--gold)] px-4 py-2.5 text-xs font-black tracking-[0.12em] text-[var(--gold)] transition hover:bg-[var(--gold)] hover:text-black disabled:opacity-40"
               >
-                {busy === "connect" ? "CONNECTING…" : "CONNECT WALLET"}
+                {busy === "connect"
+                  ? "CONNECTING…"
+                  : `CONNECT ${(found.find((w) => w.id === picked) ?? found.find((w) => /metamask/i.test(w.name)) ?? found[0])?.name.toUpperCase() ?? "WALLET"}`}
               </button>
             )}
             {addr && (
@@ -168,6 +183,38 @@ export default function Wallet() {
             )}
           </div>
         </div>
+        {found.length > 1 && (
+          <div className="mt-3 flex flex-wrap items-center gap-1.5">
+            <span className="text-[9px] font-black tracking-[0.25em] text-[var(--dim)]">USE</span>
+            {found.map((w) => {
+              const active =
+                (picked ?? found.find((x) => /metamask/i.test(x.name))?.id ?? found[0].id) === w.id;
+              return (
+                <button
+                  key={w.id}
+                  onClick={() => {
+                    setPicked(w.id);
+                    chooseWallet(w.id);
+                  }}
+                  className="chamfer-sm border px-2.5 py-1 text-[10px] font-black tracking-[0.12em] transition"
+                  style={{
+                    borderColor: active ? "var(--gold)" : "var(--edge)",
+                    color: active ? "var(--gold)" : "var(--dim)",
+                    background: active ? "#241c07" : "transparent",
+                  }}
+                >
+                  {w.name.toUpperCase()}
+                </button>
+              );
+            })}
+          </div>
+        )}
+        {walletReady && (
+          <p className="mt-2 text-[9px] font-bold tracking-[0.2em] text-[var(--dim)]">
+            DETECTED: {found.map((w) => w.name).join(" · ")}
+          </p>
+        )}
+        {hint && <p className="mt-2 text-[10px] font-bold tracking-[0.15em] text-[var(--gold)]">{hint}</p>}
         {err && <p className="mt-3 text-sm text-[var(--down)]">{err}</p>}
       </section>
 
