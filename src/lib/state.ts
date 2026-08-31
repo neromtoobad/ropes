@@ -139,6 +139,30 @@ export interface TableState {
 
 const CAP = Number(MAX_ENTRY_PRICE_PCT) / 100;
 
+/**
+ * BTC, cached for a beat.
+ *
+ * This is an EXTERNAL call (the SDK's price feed), and /api/state is polled
+ * several times a second by every open tab — paying for a fresh oracle round
+ * trip on each one made the endpoint take seconds, which is what froze the
+ * wall and pushed slow requests into function timeouts. A price a second old
+ * is indistinguishable on screen; a page that cannot refresh is not.
+ */
+let priceCache: { at: number; price: number | null } = { at: 0, price: null };
+const PRICE_TTL_MS = 1000;
+
+async function btcPrice(): Promise<number | null> {
+  if (Date.now() - priceCache.at < PRICE_TTL_MS) return priceCache.price;
+  try {
+    const t = await exchange.fetchPrice(ASSET);
+    priceCache = { at: Date.now(), price: t?.price ?? null };
+  } catch {
+    // A feed hiccup must not blank the table — keep the last price we had.
+    priceCache = { at: Date.now(), price: priceCache.price };
+  }
+  return priceCache.price;
+}
+
 export async function getTableState(): Promise<TableState> {
   const round = await db.round.findFirst({ orderBy: { index: "desc" } });
 
@@ -151,28 +175,48 @@ export async function getTableState(): Promise<TableState> {
   const strike = round?.strike ?? null;
   const oracleQuestionId = round?.oracleQuestionId ?? null;
 
+  /**
+   * Everything below is independent of everything else below it, so it goes in
+   * ONE round trip's worth of wall time instead of thirteen. This endpoint is
+   * polled several times a second per tab and the database is remote: serial
+   * awaits turned ~13 network hops into multi-second responses, which froze
+   * the wall and tipped slow requests into 500s.
+   */
+  const [sealedTable, fillingTable, runs, boardRuns, bests, priceNow] = await Promise.all([
+    db.table.findFirst({ where: { status: "sealed" }, orderBy: { index: "desc" } }),
+    db.table.findFirst({ where: { status: "filling" }, orderBy: { index: "desc" } }),
+    // ONLY the live runs, with their joins. This used to fetch every run ever
+    // played (with player and table joined) on a poll several times a second —
+    // it was the single most expensive query on the endpoint and it grew with
+    // the game's history. The finished ones the board needs come next, capped.
+    db.run.findMany({
+      where: { status: "alive" },
+      include: {
+        player: true,
+        table: true,
+        positions: round ? { where: { roundId: round.id } } : false,
+      },
+      orderBy: { stack: "desc" },
+    }),
+    db.run.findMany({
+      where: { status: { not: "alive" }, finalMultiple: { not: null } },
+      orderBy: { finalMultiple: "desc" },
+      take: 10,
+      include: { player: true },
+    }),
+    // Best finished multiple per player, for the personal ghost line. One
+    // query, grouped, rather than a lookup per seat.
+    db.run.groupBy({
+      by: ["playerId"],
+      where: { status: { in: ["banked", "eliminated"] }, finalMultiple: { not: null } },
+      _max: { finalMultiple: true },
+    }),
+    btcPrice(),
+  ]);
+
   // The table the game is currently being played on: the sealed one if there is
   // a live match, otherwise the one taking arrivals.
-  const activeTable =
-    (await db.table.findFirst({ where: { status: "sealed" }, orderBy: { index: "desc" } })) ??
-    (await db.table.findFirst({ where: { status: "filling" }, orderBy: { index: "desc" } }));
-
-  const runs = await db.run.findMany({
-    include: {
-      player: true,
-      table: true,
-      positions: round ? { where: { roundId: round.id } } : false,
-    },
-    orderBy: [{ status: "asc" }, { stack: "desc" }],
-  });
-
-  // Best finished multiple per player, for the personal ghost line. One query,
-  // grouped, rather than a lookup per seat.
-  const bests = await db.run.groupBy({
-    by: ["playerId"],
-    where: { status: { in: ["banked", "eliminated"] }, finalMultiple: { not: null } },
-    _max: { finalMultiple: true },
-  });
+  const activeTable = sealedTable ?? fillingTable;
   const bestByPlayer = new Map(bests.map((b) => [b.playerId, b._max.finalMultiple ?? null]));
 
   // EVERY alive run is a seat. Scoping this to one "active" table stranded
@@ -220,12 +264,52 @@ export async function getTableState(): Promise<TableState> {
   // Once anyone is filled, the live round is committed and on rails.
   const locked = inRound.length > 0;
 
-  // The bell: the most recent settled round and what it did to the table.
-  const settled = await db.round.findFirst({
-    where: { status: { in: ["settled", "voided"] } },
-    orderBy: { index: "desc" },
-    include: { positions: { include: { run: { include: { player: true } } } } },
-  });
+  // Second and last parallel phase: the bell, the ribbon, the feed, the
+  // records, the champion and the table counts are all independent of each
+  // other. One round trip's wall time, not seven.
+  const [settled, bellRows, recent, best, bestRun, champRun, seatedCount, aliveCount] =
+    await Promise.all([
+      db.round.findFirst({
+        where: { status: { in: ["settled", "voided"] } },
+        orderBy: { index: "desc" },
+        include: { positions: { include: { run: { include: { player: true } } } } },
+      }),
+      // The ribbon: how the last windows actually closed, newest first here;
+      // reversed to oldest -> newest below.
+      db.round.findMany({
+        where: { status: { in: ["settled", "voided"] } },
+        orderBy: { index: "desc" },
+        take: 16,
+        select: { index: true, winningOutcome: true, status: true, strike: true, close: true },
+      }),
+      // The kill feed. Deaths first - that is the drama - with banks woven in.
+      db.run.findMany({
+        where: { status: { in: ["eliminated", "banked"] } },
+        include: { player: true, positions: { include: { round: true } } },
+        orderBy: { endedRoundIndex: "desc" },
+        take: 12,
+      }),
+      // Longest run ever seen at this table, alive or dead.
+      db.run.findFirst({
+        include: { player: true },
+        orderBy: [{ roundsSurvived: "desc" }, { finalMultiple: "desc" }],
+      }),
+      db.run.findFirst({
+        where: { status: { in: ["banked", "eliminated"] }, finalMultiple: { gt: 1 } },
+        orderBy: { finalMultiple: "desc" },
+        include: { player: true },
+      }),
+      // The last champion - a table that actually resolved to one player.
+      db.run.findFirst({
+        where: { isChampion: true },
+        include: { player: true, table: true },
+        orderBy: { endedRoundIndex: "desc" },
+      }),
+      activeTable ? db.run.count({ where: { tableId: activeTable.id } }) : Promise.resolve(0),
+      activeTable
+        ? db.run.count({ where: { tableId: activeTable.id, status: "alive" } })
+        : Promise.resolve(0),
+    ]);
 
   const lastResult = settled
     ? {
@@ -251,13 +335,6 @@ export async function getTableState(): Promise<TableState> {
       }
     : null;
 
-  // The ribbon: how the last windows actually closed, oldest → newest.
-  const bellRows = await db.round.findMany({
-    where: { status: { in: ["settled", "voided"] } },
-    orderBy: { index: "desc" },
-    take: 16,
-    select: { index: true, winningOutcome: true, status: true, strike: true, close: true },
-  });
   const bells = bellRows.reverse().map((r) => ({
     index: r.index,
     winner:
@@ -266,22 +343,8 @@ export async function getTableState(): Promise<TableState> {
     closedBy: r.strike != null && r.close != null ? r.close - r.strike : null,
   }));
 
-  // The external feed the market settles against.
-  let price: number | null = null;
-  try {
-    const t = await exchange.fetchPrice(ASSET);
-    price = t?.price ?? null;
-  } catch {
-    // A feed hiccup must not blank the table.
-  }
-
-  // The kill feed. Deaths first — that is the drama — with banks woven in.
-  const recent = await db.run.findMany({
-    where: { status: { in: ["eliminated", "banked"] } },
-    include: { player: true, positions: { include: { round: true } } },
-    orderBy: { endedRoundIndex: "desc" },
-    take: 12,
-  });
+  // The external feed the market settles against (fetched above, cached).
+  const price: number | null = priceNow;
 
   const feed = recent.map((r) => {
     const last = r.positions.sort((a, b) => b.round.index - a.round.index)[0];
@@ -307,16 +370,6 @@ export async function getTableState(): Promise<TableState> {
     };
   });
 
-  // Longest run ever seen at this table, alive or dead.
-  const best = await db.run.findFirst({
-    include: { player: true },
-    orderBy: [{ roundsSurvived: "desc" }, { finalMultiple: "desc" }],
-  });
-  const bestRun = await db.run.findFirst({
-    where: { status: { in: ["banked", "eliminated"] }, finalMultiple: { gt: 1 } },
-    orderBy: { finalMultiple: "desc" },
-    include: { player: true },
-  });
   const wallRecord = bestRun
     ? { name: bestRun.player.displayName, multiple: bestRun.finalMultiple! }
     : null;
@@ -330,12 +383,6 @@ export async function getTableState(): Promise<TableState> {
         }
       : null;
 
-  // The last champion — a table that actually resolved to one player.
-  const champRun = await db.run.findFirst({
-    where: { isChampion: true },
-    include: { player: true, table: true },
-    orderBy: { endedRoundIndex: "desc" },
-  });
   const champion = champRun
     ? {
         name: champRun.player.displayName,
@@ -346,10 +393,7 @@ export async function getTableState(): Promise<TableState> {
       }
     : null;
 
-  const board = runs
-    .filter((r) => r.status !== "alive" && r.finalMultiple !== null)
-    .sort((a, b) => (b.finalMultiple ?? 0) - (a.finalMultiple ?? 0))
-    .slice(0, 10)
+  const board = boardRuns
     .map((r) => ({
       name: r.player.displayName,
       multiple: r.finalMultiple ?? 0,
@@ -380,8 +424,8 @@ export async function getTableState(): Promise<TableState> {
       ? {
           index: activeTable.index,
           status: activeTable.status as "filling" | "sealed" | "finished",
-          seated: await db.run.count({ where: { tableId: activeTable.id } }),
-          alive: await db.run.count({ where: { tableId: activeTable.id, status: "alive" } }),
+          seated: seatedCount,
+          alive: aliveCount,
           maxSeats: MAX_SEATS,
           pot: toUsd(activeTable.pot),
           sealsIn: Math.max(0, (activeTable.sealsAt.getTime() - Date.now()) / 1000),

@@ -18,8 +18,16 @@ export default function Landing() {
 
   useEffect(() => {
     const load = () => {
-      fetch("/api/state").then((r) => r.json()).then(setState).catch(() => {});
-      fetch("/api/leaderboard").then((r) => r.json()).then((j) => setTop(j.rows?.slice(0, 3) ?? [])).catch(() => {});
+      // Only a well-formed payload becomes state: a 500 body stored here would
+      // make `state.btc.price` throw and take the page down with it.
+      fetch("/api/state")
+        .then((r) => (r.ok ? r.json() : null))
+        .then((j) => j?.btc && setState(j))
+        .catch(() => {});
+      fetch("/api/leaderboard")
+        .then((r) => (r.ok ? r.json() : null))
+        .then((j) => setTop(Array.isArray(j?.rows) ? j.rows.slice(0, 3) : []))
+        .catch(() => {});
     };
     load();
     const id = setInterval(load, 5000);

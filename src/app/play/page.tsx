@@ -70,8 +70,14 @@ export default function Game() {
     const tick = async () => {
       try {
         const res = await fetch("/api/state", { cache: "no-store" });
+        // A 500 can still carry a JSON body, and storing THAT as the game
+        // state was fatal: `state.seats.find(...)` on an undefined `seats`
+        // threw, and the whole page became "Application error: a client-side
+        // exception has occurred". This poll runs every second, so it will
+        // meet a blip eventually — keep the last good frame instead.
+        if (!res.ok) return;
         const next: TableState = await res.json();
-        if (!alive) return;
+        if (!alive || !Array.isArray(next?.seats)) return;
         setState(next);
 
         const idx = next.lastResult?.index ?? null;
@@ -160,7 +166,7 @@ export default function Game() {
   };
 
   const sound = useSound();
-  const me = state?.seats.find((s) => s.runId === runId) ?? null;
+  const me = state?.seats?.find((s) => s.runId === runId) ?? null;
   const secs = state?.round?.secondsLeft ?? 0;
   const urgent = secs > 0 && secs < 15;
 
@@ -598,7 +604,7 @@ function StatPanel({
         <div className="border-t border-[var(--edge)] pt-2">
           <p className="text-[8px] font-black tracking-[0.3em] text-[var(--dim)]">LATEST BELLS</p>
           <div className="mt-1.5 space-y-1">
-            {state.feed.slice(0, 3).map((f, i) => (
+            {(state.feed ?? []).slice(0, 3).map((f, i) => (
               <div key={`${f.name}-${f.round}-${i}`} className="flex items-center justify-between text-[10px] font-bold">
                 <span className="flex items-center gap-1.5 truncate">
                   <span style={{ color: f.kind === "died" ? "var(--down)" : f.kind === "swept" ? "var(--dim)" : "var(--gold)" }}>
