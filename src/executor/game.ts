@@ -15,11 +15,16 @@ import { exchange, ASSET } from "../lib/chain";
 import { buy, redeemAll, sellPosition, type Side } from "../lib/orders";
 import * as registry from "../lib/registry";
 import { fillingTable, STARTING_STACK, SEAT_PRICE, POT_CUT, MAX_SEATS } from "./tables";
-import { debitSeat } from "../lib/payments";
+import { debitSeat, houseCollateralHttp } from "../lib/payments";
 
 export { db };
 
 const log = (...a: unknown[]) => console.log(new Date().toISOString().slice(11, 19), ...a);
+
+/** Free-seat circuit breakers. See joinGame. */
+const FREE_ALIVE_MAX = 12;
+const FREE_PER_10_ROUNDS = 12;
+const HOUSE_FLOOR = 150n * ONE;
 
 /** Don't try to enter a window with less runway than this — it can lock mid-send. */
 const MIN_ENTRY_SECONDS = 12;
@@ -542,6 +547,27 @@ export async function joinGame(
   }
   const open = await db.run.findFirst({ where: { playerId: player.id, status: "alive" } });
   if (open) throw new Error(`${displayName} already has a live run`);
+
+  /**
+   * Free seats are the house's money on a real market, and the join route is
+   * public with no login. Left uncapped, a loop of fresh player keys could
+   * put the entire house collateral onto the book in minutes. Three limits,
+   * each cheap, together bounding the worst case to a slow trickle:
+   *  - how many free runs may be alive at once,
+   *  - how many free seats may open per ten windows,
+   *  - a collateral floor below which free play pauses entirely.
+   * Funded seats are the player's own money and are not limited here.
+   */
+  if (!funded) {
+    const [aliveFree, recentFree, collateral] = await Promise.all([
+      db.run.count({ where: { status: "alive", payoutAddress: null } }),
+      db.run.count({ where: { payoutAddress: null, startedRoundIndex: { gte: roundIndex - 10 } } }),
+      houseCollateralHttp().catch(() => null),
+    ]);
+    if (aliveFree >= FREE_ALIVE_MAX) throw new Error("the house is full right now — try again in a minute");
+    if (recentFree >= FREE_PER_10_ROUNDS) throw new Error("free seats are going fast — try again in a few minutes");
+    if (collateral !== null && collateral < HOUSE_FLOOR) throw new Error("free play is paused while the house tops up");
+  }
 
   const table = await fillingTable();
   const seated = await db.run.count({ where: { tableId: table.id } });

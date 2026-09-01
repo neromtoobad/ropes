@@ -18,14 +18,14 @@ import { SEAT_PRICE } from "@/executor/tables";
  * This route never sends a transaction (one-nonce rule).
  */
 export async function POST(req: Request) {
-  const { playerKey, name, depositTx } = await req.json();
+  const { playerKey, name, depositTx, signature } = await req.json();
   if (!playerKey || !name) {
     return NextResponse.json({ error: "playerKey and name required" }, { status: 400 });
   }
 
   if (depositTx) {
     try {
-      await creditDeposit(playerKey, depositTx as `0x${string}`);
+      await creditDeposit(playerKey, depositTx as `0x${string}`, signature);
     } catch (err) {
       return NextResponse.json({ error: String(err).replace("Error: ", "") }, { status: 402 });
     }

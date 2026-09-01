@@ -8,7 +8,7 @@
 import { useEffect, useState } from "react";
 import type { Address } from "viem";
 import type { TableState } from "@/lib/state";
-import { useWallets, chooseWallet, walletRank, connect, paySeat, collateralBalance } from "../wallet";
+import { useWallets, chooseWallet, walletRank, connect, paySeat, collateralBalance, signDeposit } from "../wallet";
 import {
   PageHeader, LedgerPanel, usePlayerKey, useLedger, useClimberTheme, usd, short,
 } from "../shared";
@@ -81,10 +81,11 @@ export default function Wallet() {
       const bal = await collateralBalance(a, state.pay.collateral as Address);
       if (bal < units) throw new Error(`not enough tUSDC — you hold ${(Number(bal) / 1e6).toFixed(2)}`);
       const tx = await paySeat(a, state.pay.collateral as Address, state.pay.house as Address, units);
+      const signature = await signDeposit(a, tx, playerKey);
       const r = await fetch("/api/deposit", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ playerKey, txHash: tx }),
+        body: JSON.stringify({ playerKey, txHash: tx, signature }),
       });
       const j = await r.json();
       if (!r.ok) throw new Error(j.error);

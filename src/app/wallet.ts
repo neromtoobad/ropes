@@ -9,6 +9,7 @@
  * token, two calls.
  */
 import { useEffect, useState } from "react";
+import { depositMessage } from "@/lib/depositMessage";
 import {
   createWalletClient,
   createPublicClient,
@@ -214,6 +215,18 @@ export async function paySeat(
   const receipt = await publicClient().waitForTransactionReceipt({ hash, timeout: 60_000 });
   if (receipt.status !== "success") throw new Error("seat payment reverted");
   return hash;
+}
+
+/**
+ * Prove the deposit is ours. The server only credits a transfer to a player
+ * key when the wallet that SENT it signs for that key — otherwise anyone who
+ * can read the explorer could claim any deposit. One popup, no gas.
+ */
+export async function signDeposit(account: Address, txHash: `0x${string}`, playerKey: string) {
+  const w = activeWallet();
+  if (!w) throw new Error("no wallet in this browser");
+  const wallet = createWalletClient({ account, chain: CHAIN, transport: custom(w.provider) });
+  return wallet.signMessage({ message: depositMessage(txHash, playerKey) });
 }
 
 /** The player's tUSDC balance, for the "can you even afford a seat" check. */

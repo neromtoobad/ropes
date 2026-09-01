@@ -8,8 +8,11 @@ import { computeBadges } from "@/lib/badges";
  * SQLite the executor writes. Totals, badges, run history, and the
  * round-by-round value series of the live run (the equity sparkline).
  */
-export async function GET(req: Request) {
-  const playerKey = new URL(req.url).searchParams.get("playerKey");
+/** POST, not GET: the player key is a bearer credential, and a query string
+ *  ends up in every proxy, CDN and browser-history log between here and the
+ *  browser. A body does not. */
+export async function POST(req: Request) {
+  const { playerKey } = await req.json().catch(() => ({ playerKey: null }));
   if (!playerKey) return NextResponse.json({ error: "playerKey required" }, { status: 400 });
 
   const player = await db.player.findUnique({ where: { wallet: playerKey } });

@@ -82,7 +82,11 @@ model CashFlow {
   /// deposit | seat | win | withdrawal
   kind     String
   amount   BigInt
-  tx       String?
+  /// A deposit's on-chain hash, a withdrawal's hash once sent. UNIQUE at the
+  /// database, not just checked in code: two simultaneous credits of the same
+  /// deposit tx both passed an application-level "already seen?" check before
+  /// either had written, and the second credit was free money.
+  tx       String?  @unique
   createdAt DateTime @default(now())
 
   @@index([playerId, createdAt])

@@ -6,7 +6,7 @@ import type { TableState } from "@/lib/state";
 import type { Address } from "viem";
 import { Cliff, liveMultipleOf, CAST, type ClimberId } from "../Cliff";
 import { useSound, useHeartbeat } from "../sound";
-import { useHasWallet, connect, paySeat, collateralBalance } from "../wallet";
+import { useHasWallet, connect, paySeat, collateralBalance, signDeposit } from "../wallet";
 import { useSmoothed } from "../useSmoothed";
 import {
   usd, short, pad, usePlayerKey, useLedger, useClimberTheme, SiteNav, HowItWorks, ShareButton,
@@ -126,11 +126,11 @@ export default function Game() {
 
   const [seatFlash, setSeatFlash] = useState<null | "paid" | "free">(null);
 
-  const join = async (depositTx?: string, who?: string) => {
+  const join = async (depositTx?: string, who?: string, signature?: string) => {
     const called = (who ?? name).trim();
     if (!playerKey || !called || busy) return;
     setBusy(true);
-    const r = await post("/api/join", { playerKey, name: called, depositTx });
+    const r = await post("/api/join", { playerKey, name: called, depositTx, signature });
     setBusy(false);
     if (r?.runId) {
       localStorage.setItem("lc.runId", r.runId);
@@ -175,7 +175,8 @@ export default function Game() {
         throw new Error(`not enough tUSDC — you hold ${(Number(held) / 1e6).toFixed(2)}`);
       }
       const tx = await paySeat(a, state.pay.collateral as Address, state.pay.house as Address, units);
-      const r = await post("/api/deposit", { playerKey, txHash: tx });
+      const signature = await signDeposit(a, tx, playerKey);
+      const r = await post("/api/deposit", { playerKey, txHash: tx, signature });
       if (r) setFunded((n) => n + 1);
     } catch (e) {
       setErr(String(e).replace("Error: ", "").slice(0, 160));
@@ -192,7 +193,7 @@ export default function Game() {
       const bal = await collateralBalance(addr, state.pay.collateral as Address);
       if (bal < SEAT) throw new Error("not enough tUSDC — a seat costs 10");
       const tx = await paySeat(addr, state.pay.collateral as Address, state.pay.house as Address, SEAT);
-      await join(tx);
+      await join(tx, undefined, await signDeposit(addr, tx, playerKey!));
     } catch (e) {
       setErr(String(e).replace("Error: ", "").slice(0, 160));
     }
@@ -268,7 +269,7 @@ export default function Game() {
     setBailing(true);
     setLeaping((n) => [...n, runId]);
     sound.play("win");
-    const r = await post("/api/bank", { runId });
+    const r = await post("/api/bank", { runId, playerKey });
     if (r?.ok) localStorage.removeItem("lc.runId");
     else setBailing(false);
     setTimeout(() => setLeaping((n) => n.filter((x) => x !== runId)), 1400);
@@ -291,7 +292,7 @@ export default function Game() {
     if (!runId) return;
     sound.play("click");
     setAbOptimistic(at);
-    const r = await post("/api/autobail", { runId, at });
+    const r = await post("/api/autobail", { runId, playerKey, at });
     if (!r) setAbOptimistic(undefined);
   };
 
@@ -480,7 +481,7 @@ export default function Game() {
                   setOptimisticPick(side);
                   if (runId) {
                     setBusy(true);
-                    const r = await post("/api/pick", { runId, side });
+                    const r = await post("/api/pick", { runId, playerKey, side });
                     setBusy(false);
                     if (!r) setOptimisticPick(null);
                   }

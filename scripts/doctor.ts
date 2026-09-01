@@ -77,7 +77,7 @@ for (const r of staleFlags) {
 // the balance is already zeroed and the money may or may not have left.
 // Check the explorer before doing anything by hand.
 const stuck = await db.cashFlow.findMany({
-  where: { kind: "withdrawal", tx: "sending" },
+  where: { kind: "withdrawal", tx: { startsWith: "sending" } },
   include: { player: true },
 });
 for (const f of stuck) {

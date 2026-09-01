@@ -93,7 +93,11 @@ export function useLedger(playerKey: string | null, refreshKey?: unknown) {
   useEffect(() => {
     if (!playerKey) return;
     let dead = false;
-    fetch(`/api/ledger?playerKey=${encodeURIComponent(playerKey)}`)
+    fetch("/api/ledger", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ playerKey }),
+    })
       .then((r) => (r.ok ? r.json() : null))
       .then((j) => {
         // A failed request must NEVER become the ledger. Consumers index into
