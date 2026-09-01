@@ -572,6 +572,20 @@ lonely side pays a lot. show the crowd's split on screen — that is the strateg
 ➠ **the machine sleeping stops the game.** `run-executor.sh` wraps the loop in `caffeinate -ims`
   and backs off to 30s between restarts — restarting instantly during an outage just opens fresh
   connections until the pooler refuses them.
+➠ **the reactivity subscription dies silently when the house wallet drops under 32 STT — and it
+  does not come back on its own.** The every-minute loop burned the gas down from ~22 STT to 0.03
+  over two days. The executor kept running (orders only fail once gas is truly gone) but every
+  round started printing `registry: not settled on-chain (callback missed?)` — the precompile had
+  REMOVED the subscription, and `getSubscriptionInfo` on its id now reverts. Topping back up does
+  not revive it; you must `npx tsx scripts/resubscribe.ts --send` (executor STOPPED — one nonce)
+  once the balance is over 32. Worse: the subscription id was never written down, so finding out
+  which subscription had died meant digging the `subscribe` tx out of the explorer and decoding
+  `SubscriptionCreated` from its receipt. The script now records the id in `.env` as
+  `REACTIVITY_SUBSCRIPTION_ID`, and `npm run doctor` flags the wallet under 2 STT — treat that
+  warning as "the pitch's centrepiece is about to stop working", not as a gas nuisance.
+➠ **the emitter that actually settles our markets is `0xbf4a…6ed23`, not the `0x3ecC…9388` module
+  address the phase-3 notes name.** Decoded from the proven subscription's own receipt. When in
+  doubt, read the receipt of the subscription that worked; never the docs.
 
 ## things NOT to do
 
