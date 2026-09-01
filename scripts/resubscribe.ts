@@ -17,9 +17,21 @@
  */
 import "dotenv/config";
 import { readFileSync, writeFileSync } from "node:fs";
-import { toFunctionSelector, parseEther } from "viem";
-import { exchange, HOUSE } from "../src/lib/chain";
+import { toFunctionSelector, parseEther, createWalletClient, createPublicClient, http } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
+import { somniaShannon } from "@somnia-chain/markets-sdk/chains";
 import { createReactivity, DEFAULT_SUBSCRIPTION_OPTIONS } from "@somnia-chain/markets-sdk/reactivity";
+
+/**
+ * Deliberately NOT importing ../src/lib/chain: constructing the markets client
+ * opens the SDK's WebSocket, and that socket hangs silently (see AGENTS.md) —
+ * the first version of this script sat forever at init. createReactivity only
+ * needs a getViemClient() and a wallet, and plain HTTP viem gives it both.
+ */
+const RPC = "https://api.infra.testnet.somnia.network";
+const account = privateKeyToAccount(process.env.PRIVATE_KEY as `0x${string}`);
+const HOUSE = account.address;
+const pub = createPublicClient({ chain: somniaShannon, transport: http(RPC) });
 
 const REGISTRY = process.env.REGISTRY as `0x${string}`;
 /** The settlement module that actually emitted MarketFinalized for our proven
@@ -34,7 +46,6 @@ const FUNDING_MIN = parseEther("32");
 async function main() {
   const send = process.argv.includes("--send");
   if (!REGISTRY) throw new Error("REGISTRY is not set in .env");
-  const pub = exchange.client.getViemClient();
   const bal = await pub.getBalance({ address: HOUSE });
   console.log(`house    ${HOUSE}`);
   console.log(`balance  ${(Number(bal) / 1e18).toFixed(4)} STT   (subscription owner must hold ≥ 32)`);
@@ -46,7 +57,12 @@ async function main() {
   }
   if (!send) { console.log("dry run only. Re-run with --send (with the executor STOPPED) to subscribe."); return; }
 
-  const reactivity = createReactivity(exchange.client);
+  // The subscription's OWNER is whichever account signs this write, and that
+  // owner funds every callback — so it must be the house wallet, the same one
+  // registry.ts already signs with. A read-only client here fails with
+  // "no wallet account available" and sends nothing.
+  const wallet = createWalletClient({ account, chain: somniaShannon, transport: http(RPC) });
+  const reactivity = createReactivity({ getViemClient: () => pub }, { wallet });
   const tx = await reactivity.subscribe({
     handlerContractAddress: REGISTRY,
     filter: { emitter: EMITTER, eventTopics: [MARKET_FINALIZED] },
