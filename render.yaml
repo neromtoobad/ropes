@@ -1,0 +1,37 @@
+# Render blueprint — the executor as a FREE web service.
+#
+# Why a web service and not a worker: Render's free plan has no free workers,
+# but it does have one free web service. It spins down after 15 minutes with
+# no inbound traffic, so point a free pinger (cron-job.org, UptimeRobot) at
+# /health every 5 minutes and it stays up. /health returns 503 when the loop
+# has stopped ticking, so the pinger doubles as a real monitor.
+#
+# ONE EXECUTOR AT A TIME. Stop the local one before this goes live: two
+# executors on one wallet race the nonce and poison every measured number.
+services:
+  - type: web
+    name: the-climb-executor
+    runtime: node
+    plan: free
+    region: oregon
+    buildCommand: npm ci && npx prisma generate
+    startCommand: ./run-executor.sh
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: PRIVATE_KEY
+        sync: false          # set in the dashboard — throwaway testnet key only
+      - key: DATABASE_URL
+        sync: false          # Supabase SESSION pooler (5432) + sslmode=require&connection_limit=4
+      - key: DIRECT_URL
+        sync: false
+      - key: INDEXER_URL
+        value: https://dev.smk.somnia.host/v1/graphql
+      - key: WS_RPC_URL
+        value: wss://api.infra.testnet.somnia.network/ws
+      - key: REGISTRY
+        value: "0xfb31455b05ea95b7B4cC4c1e98f03219b995456A"
+      - key: REACTIVITY_SUBSCRIPTION_ID
+        sync: false

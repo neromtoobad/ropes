@@ -11,6 +11,7 @@ import { houseCollateral, houseGas, fmtUsd, sleep, HOUSE } from "../lib/chain";
 import { openRound, enterRound, closeRound, processBails, armAutoBails, db } from "./game";
 import { manageTables } from "./tables";
 import { processPayouts, processWithdrawals } from "../lib/payments";
+import { startHealthServer } from "./health";
 
 const TICK_MS = 1000;
 const log = (...a: unknown[]) => console.log(new Date().toISOString().slice(11, 19), ...a);
@@ -107,12 +108,16 @@ async function tick() {
   await processBails(round.id, market, round.index);
 }
 
+let lastTickAt = Date.now();
+
 async function main() {
   await preflight();
+  startHealthServer(() => lastTickAt);
   log("executor running. ctrl-c to stop.\n");
   while (!stopping) {
     try {
       await withTimeout(tick(), TICK_TIMEOUT_MS);
+      lastTickAt = Date.now();
       consecutiveFailures = 0;
     } catch (err) {
       const stalled = String(err).includes(STALLED);

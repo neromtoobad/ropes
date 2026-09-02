@@ -586,6 +586,13 @@ lonely side pays a lot. show the crowd's split on screen — that is the strateg
 ➠ **the emitter that actually settles our markets is `0xbf4a…6ed23`, not the `0x3ecC…9388` module
   address the phase-3 notes name.** Decoded from the proven subscription's own receipt. When in
   doubt, read the receipt of the subscription that worked; never the docs.
+➠ **the executor can live on Render's FREE tier — as a web service, never a worker.** Free
+  workers do not exist there ($7/mo); one free web service does, but it spins down after 15 min
+  with no inbound traffic. So the loop serves `/health` (only when `PORT` is set) and a free
+  external pinger (cron-job.org / UptimeRobot, every 5 min) keeps it awake. `/health` answers 503
+  once the last tick is older than 2 min, so the same pinger is a real monitor of a wedged loop,
+  not a cheerful 200 from a process that stopped playing. `render.yaml` is the blueprint. Cutover
+  rule is absolute: ONE executor at a time — stop the laptop's before Render's goes live.
 
 ## things NOT to do
 
