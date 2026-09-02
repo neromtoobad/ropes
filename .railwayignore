@@ -2,9 +2,7 @@
 .env.*
 node_modules
 .next
-prisma/*.db
-prisma/*.db-journal
-prisma/*.db-shm
-prisma/*.db-wal
+prisma/*.db*
+public/climbers
 scripts/spike
 *.log

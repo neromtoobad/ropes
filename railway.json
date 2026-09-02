@@ -3,6 +3,8 @@
   "build": { "builder": "NIXPACKS" },
   "deploy": {
     "startCommand": "bash start-prod.sh",
+    "healthcheckPath": "/health",
+    "healthcheckTimeout": 120,
     "restartPolicyType": "ALWAYS"
   }
 }
