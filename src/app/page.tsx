@@ -35,7 +35,7 @@ export default function Landing() {
   }, []);
 
   return (
-    <main className="relative z-10 mx-auto flex min-h-screen max-w-6xl flex-col px-4 py-4 lg:h-screen lg:max-h-screen lg:overflow-hidden">
+    <main className="relative z-10 mx-auto flex min-h-dvh max-w-6xl flex-col px-4 py-4 lg:h-screen lg:max-h-screen lg:overflow-hidden">
       <header className="flex shrink-0 items-center justify-between">
         <span className="text-[9px] font-black tracking-[0.35em] text-[var(--dim)]">
           SOMNIA × DREAMDEX

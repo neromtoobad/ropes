@@ -361,7 +361,7 @@ export default function Game() {
   }, [runId, ledger]);
 
   return (
-    <main className={`relative z-10 mx-auto flex min-h-screen max-w-6xl flex-col px-4 py-3 lg:h-screen lg:max-h-screen lg:overflow-hidden ${myBell ? "shake" : ""}`}>
+    <main className={`relative z-10 mx-auto flex min-h-dvh max-w-6xl flex-col px-4 py-3 lg:h-screen lg:max-h-screen lg:overflow-hidden ${myBell ? "shake" : ""}`}>
       {secs > 0 && secs < 10 && <div className="danger" />}
 
       <TopBar state={view} urgent={urgent} sound={sound} me={me} stalled={stalled} />
@@ -412,8 +412,8 @@ export default function Game() {
 
       {/* The HUD: roster rail · the wall · the stat block. One viewport,
           no scroll — the wall flexes to fill whatever height is left. */}
-      <div className="mt-2 grid gap-3 lg:min-h-0 lg:flex-1 lg:grid-cols-[72px_minmax(0,1fr)_240px]">
-        <div className="lg:min-h-0 lg:overflow-y-auto">
+      <div className="mt-2 grid grid-cols-1 gap-3 lg:min-h-0 lg:flex-1 lg:grid-cols-[72px_minmax(0,1fr)_240px]">
+        <div className={`min-w-0 lg:min-h-0 lg:overflow-y-auto ${me ? "hidden lg:block" : ""}`}>
           <Rail climber={climber} onPick={pickClimber} lockedIn={Boolean(me)} />
         </div>
 
@@ -443,7 +443,13 @@ export default function Game() {
           {me && view?.round && <PhaseStrip state={view} me={me} />}
 
           {/* One control, matched to the moment. Never several at once. */}
-          <div className="mt-2 shrink-0">
+          <div
+            className={`mt-2 shrink-0 ${
+              me
+                ? "sticky bottom-0 z-30 -mx-4 bg-[linear-gradient(to_top,var(--bg)_calc(100%_-_14px),transparent)] px-4 pb-[max(10px,env(safe-area-inset-bottom))] pt-4 lg:static lg:mx-0 lg:bg-none lg:px-0 lg:pb-0 lg:pt-0"
+                : ""
+            }`}
+          >
             {!runId || !me ? (
               <Join
                 name={name}
@@ -587,7 +593,7 @@ function Rail({
   lockedIn: boolean;
 }) {
   return (
-    <div className="flex gap-2 overflow-x-auto lg:flex-col lg:overflow-visible">
+    <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 lg:mx-0 lg:flex-col lg:overflow-visible lg:px-0 lg:pb-0">
       <p className="hidden text-[8px] font-black tracking-[0.3em] text-[var(--dim)] lg:block">
         CLIMBER
       </p>
@@ -844,7 +850,7 @@ function BailBar({
   return (
     <>
       {/* the bet slip — what's riding, at what price */}
-      <div className="mb-2 flex items-baseline justify-between text-[10px] font-bold tracking-[0.25em]">
+      <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 text-[10px] font-bold tracking-[0.25em]">
         <span style={{ color: sideC }}>
           YOUR BET: {me.pick === "UP" ? "▲ UP" : "▼ DOWN"}
           {me.fillPrice ? ` · FILLED @ ${me.fillPrice.toFixed(3)}` : ""}
@@ -854,7 +860,7 @@ function BailBar({
     <button
       onClick={onBank}
       disabled={pending}
-      className="chamfer flex w-full items-center justify-between border px-5 py-4 text-left transition disabled:opacity-70"
+      className="chamfer flex w-full items-center justify-between gap-3 border px-4 py-3.5 text-left transition disabled:opacity-70 sm:px-5 sm:py-4"
       style={{
         borderColor: "var(--gold)",
         background: "linear-gradient(90deg, #241c07, var(--panel))",
@@ -872,7 +878,7 @@ function BailBar({
 
       {/* The discipline tool: pick a line once and the executor pulls the
           ripcord for you, at whatever the book pays when it crosses. */}
-      <div className="mt-1.5 flex items-center gap-1.5 text-[10px] font-black tracking-[0.2em]">
+      <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[10px] font-black tracking-[0.2em]">
         <span className="mr-1 text-[var(--dim)]">⚡ AUTO-BAIL</span>
         {AUTO_BAIL_PRESETS.map((at) => {
           const active = autoBail === at;
@@ -880,7 +886,7 @@ function BailBar({
             <button
               key={at}
               onClick={() => onAutoBail(active ? null : at)}
-              className="chamfer-sm border px-2.5 py-1 transition"
+              className="chamfer-sm min-h-[30px] border px-2.5 py-1 transition"
               style={{
                 borderColor: active ? "var(--gold)" : "var(--edge)",
                 color: active ? "var(--gold)" : "var(--dim)",
@@ -944,7 +950,7 @@ function Sides({
 
   return (
     <>
-      <div className="mb-2 flex items-baseline justify-between text-[10px] font-bold tracking-[0.25em] text-[var(--dim)]">
+      <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 text-[10px] font-bold tracking-[0.25em] text-[var(--dim)]">
         <span className={state.locked || shownPick ? "glow-gold" : ""}>
           {me && !me.playing
             ? "ROPING UP"
@@ -994,7 +1000,7 @@ function Sides({
               key={side}
               disabled={!canPick || capped}
               onClick={() => onPick(side)}
-              className={`side ${isUp ? "side-up" : "side-down"} ${picked ? "picked" : ""} ${unpicked ? "unpicked" : ""} chamfer border p-4 text-left disabled:cursor-not-allowed sm:p-5`}
+              className={`side ${isUp ? "side-up" : "side-down"} ${picked ? "picked" : ""} ${unpicked ? "unpicked" : ""} chamfer border p-3 text-left disabled:cursor-not-allowed min-[400px]:p-4 sm:p-5`}
               style={{
                 color: c,
                 borderColor: picked ? c : "var(--edge)",
@@ -1013,7 +1019,7 @@ function Sides({
 
               {pays ? (
                 <div
-                  className="display tabular mt-3 text-5xl leading-none sm:text-7xl"
+                  className="display tabular mt-3 text-4xl leading-none min-[400px]:text-5xl sm:text-7xl"
                   style={{ textShadow: `0 0 44px ${c}55` }}
                 >
                   {pays.toFixed(2)}
@@ -1152,7 +1158,7 @@ function Bell({
 }) {
   const c = result.voided ? "var(--gold)" : result.winner === "UP" ? "var(--up)" : "var(--down)";
   return (
-    <div className="bell pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-black/92">
+    <div className="bell pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-black/92 px-4">
       <div className="text-center">
         <p className="text-xs font-bold tracking-[0.5em] text-[var(--dim)]">THE BELL</p>
         <p
@@ -1232,10 +1238,10 @@ function Feed({ state }: { state: TableState | null }) {
         {feed.slice(0, 6).map((f, i) => (
           <div
             key={`${f.name}-${f.round}-${i}`}
-            className="feed-row chamfer-sm flex items-center justify-between border border-[var(--edge)] px-4 py-2.5 text-sm"
+            className="feed-row chamfer-sm flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border border-[var(--edge)] px-4 py-2.5 text-sm"
             style={{ background: "var(--panel)", animationDelay: `${i * 45}ms` }}
           >
-            <span className="flex items-center gap-2">
+            <span className="flex items-center gap-2 whitespace-nowrap">
               <span
                 className="text-lg"
                 style={{ color: f.kind === "died" ? "var(--down)" : f.kind === "swept" ? "var(--dim)" : "var(--gold)" }}
@@ -1247,7 +1253,7 @@ function Feed({ state }: { state: TableState | null }) {
                 {f.kind === "died" ? "FELL AT THE BELL" : f.kind === "swept" ? "SWEPT" : "BAILED"}
               </span>
             </span>
-            <span className="tabular text-[11px] font-bold text-[var(--dim)]">
+            <span className="tabular ml-auto whitespace-nowrap text-[11px] font-bold text-[var(--dim)]">
               {f.rounds}R · {f.multiple.toFixed(2)}×
               {f.missedBy !== null && (
                 <span className="ml-3 glow-down">MISSED BY ${f.missedBy.toFixed(2)}</span>
@@ -1306,28 +1312,28 @@ function MoneyBar({
   const bankBalance = ledger?.bank && ledger.bank.address ? ledger.bank.balance : null;
   return (
     <div className="mt-3 grid grid-cols-2 gap-3">
-      <div className="chamfer-sm flex items-baseline justify-between border px-4 py-2.5"
+      <div className="chamfer-sm flex flex-col gap-1.5 border px-3 py-2.5 sm:flex-row sm:items-baseline sm:justify-between sm:px-4"
         style={{ borderColor: "var(--edge)", background: "linear-gradient(180deg, var(--panel-2), var(--panel))" }}>
         <div>
           <p className="whitespace-nowrap text-[9px] font-black tracking-[0.3em] text-[var(--dim)]">ON THE WALL</p>
-          <p className="display tabular text-3xl leading-none sm:text-4xl"
+          <p className="display tabular text-2xl leading-none min-[400px]:text-3xl sm:text-4xl"
             style={onWall !== null ? { color: upC, textShadow: `0 0 34px ${upC}55` } : { color: "var(--dim)" }}>
             {onWall !== null ? onWall.toFixed(2) : "—"}
           </p>
         </div>
         {delta !== null && (
-          <span className="tabular hidden whitespace-nowrap text-sm font-black min-[480px]:inline" style={{ color: upC }}>
+          <span className="tabular whitespace-nowrap text-[11px] font-black sm:text-sm" style={{ color: upC }}>
             THIS RUN {usd(delta)}
           </span>
         )}
       </div>
-      <div className="chamfer-sm flex items-baseline justify-between border px-4 py-2.5"
+      <div className="chamfer-sm flex flex-col gap-1.5 border px-3 py-2.5 sm:flex-row sm:items-baseline sm:justify-between sm:px-4"
         style={{ borderColor: "var(--edge)", background: "linear-gradient(180deg, var(--panel-2), var(--panel))" }}>
         <div>
           <p className="whitespace-nowrap text-[9px] font-black tracking-[0.3em] text-[var(--dim)]">
             {bankBalance !== null ? "BANKROLL" : "WON ALL TIME"}
           </p>
-          <p className="display tabular text-3xl leading-none sm:text-4xl"
+          <p className="display tabular text-2xl leading-none min-[400px]:text-3xl sm:text-4xl"
             style={bankBalance !== null
               ? { color: "var(--gold)", textShadow: "0 0 34px var(--gold-glow)" }
               : won !== null ? { color: "var(--up)", textShadow: "0 0 34px var(--up-glow)" } : { color: "var(--dim)" }}>
@@ -1342,7 +1348,7 @@ function MoneyBar({
           walletReady && !addr ? (
             <button
               onClick={onConnect}
-              className="chamfer-sm shrink-0 whitespace-nowrap border border-[var(--gold)] px-2 py-1.5 text-[9px] font-black tracking-[0.15em] text-[var(--gold)] transition hover:bg-[var(--gold)] hover:text-black sm:px-2.5"
+              className="chamfer-sm shrink-0 self-start whitespace-nowrap border border-[var(--gold)] px-2 py-1.5 sm:self-auto text-[9px] font-black tracking-[0.15em] text-[var(--gold)] transition hover:bg-[var(--gold)] hover:text-black sm:px-2.5"
             >
               <span className="sm:hidden">CONNECT</span>
               <span className="hidden sm:inline">CONNECT WALLET</span>
@@ -1351,14 +1357,14 @@ function MoneyBar({
             <button
               onClick={onFund}
               disabled={funding}
-              className="chamfer-sm shrink-0 whitespace-nowrap border border-[var(--gold)] px-2 py-1.5 text-[9px] font-black tracking-[0.15em] text-[var(--gold)] transition hover:bg-[var(--gold)] hover:text-black disabled:opacity-50 sm:px-2.5"
+              className="chamfer-sm shrink-0 self-start whitespace-nowrap border border-[var(--gold)] px-2 py-1.5 sm:self-auto text-[9px] font-black tracking-[0.15em] text-[var(--gold)] transition hover:bg-[var(--gold)] hover:text-black disabled:opacity-50 sm:px-2.5"
             >
               {funding ? "FUNDING…" : "DEPOSIT 10"}
             </button>
           ) : (
             <a
               href="/wallet"
-              className="chamfer-sm shrink-0 whitespace-nowrap border border-[var(--gold)] px-2 py-1.5 text-[9px] font-black tracking-[0.15em] text-[var(--gold)] transition hover:bg-[var(--gold)] hover:text-black sm:px-2.5"
+              className="chamfer-sm shrink-0 self-start whitespace-nowrap border border-[var(--gold)] px-2 py-1.5 sm:self-auto text-[9px] font-black tracking-[0.15em] text-[var(--gold)] transition hover:bg-[var(--gold)] hover:text-black sm:px-2.5"
             >
               <span className="sm:hidden">FUND →</span>
               <span className="hidden sm:inline">GET A WALLET →</span>

@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Russo_One, Chakra_Petch } from "next/font/google";
 import "./globals.css";
 
@@ -33,6 +33,18 @@ export const metadata: Metadata = {
     description: "Climb the candle. A battle royale on Bitcoin — last one on the wall takes the pot.",
     images: ["/logo-full.png"],
   },
+};
+
+/**
+ * viewport-fit=cover lets the pinned controls pad for the home indicator
+ * (env(safe-area-inset-bottom)); without it the value is always 0. Zoom is
+ * deliberately NOT disabled — the game stays legible to anyone who needs it.
+ */
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#0d0a1c",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

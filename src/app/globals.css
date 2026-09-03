@@ -79,6 +79,12 @@ body {
   overscroll-behavior: none;
 }
 
+/* A phone page must never pan sideways. Layout bugs are fixed at the
+   source (grid columns are minmax(0,1fr)); this is the belt to that brace. */
+body {
+  overflow-x: clip;
+}
+
 /* Anything the player shouts about wears the display face. */
 .display {
   font-family: var(--font-display), var(--font-body), system-ui, sans-serif;
@@ -409,7 +415,7 @@ body::after {
 
 /* Game-tab nav. One active pill, everything else recedes. */
 .gametab {
-  padding: 4px 14px;
+  padding: 8px 12px;
   font-size: 10px;
   font-weight: 800;
   letter-spacing: 0.22em;

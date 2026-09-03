@@ -261,7 +261,7 @@ export function Cliff({
   // nameplate floating on top.
   return (
     <div
-      className="ticks relative h-[520px] overflow-hidden rounded-2xl border lg:h-full"
+      className="ticks relative h-[min(520px,52dvh)] min-h-[300px] overflow-hidden rounded-2xl border lg:h-full lg:min-h-0"
       style={{
         borderColor: urgent ? "#3d1220" : "var(--edge)",
         background:

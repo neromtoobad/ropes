@@ -594,6 +594,20 @@ lonely side pays a lot. show the crowd's split on screen — that is the strateg
   not a cheerful 200 from a process that stopped playing. `render.yaml` is the blueprint. Cutover
   rule is absolute: ONE executor at a time — stop the laptop's before Render's goes live.
 
+➠ **a grid column's `min-width: auto` let one row of fixed-width slots widen the whole phone page.**
+  the HUD grid had no explicit column on mobile, so the climber rail (8 × 56px, `shrink-0`) set the
+  column's min-content to 504px and the entire /play page panned sideways at 375px — every panel
+  under it was cut off, the money bar's FUND button printed over its label. `grid-cols-1` (which is
+  `minmax(0,1fr)`) plus `min-w-0` on the rail's cell fixes the source; `overflow-x: clip` on body is
+  the belt. Verify with `document.documentElement.scrollWidth === clientWidth` at 375, not by eye.
+➠ **a hidden tab starves `requestAnimationFrame`, and every smoothed readout freezes where it was.**
+  in an embedded/background browser pane the wall said 4.95×, BAIL said 1.84×, and the server said
+  2.71× — three `useSmoothed` instances stranded at different moments, since the glide only advances
+  on frames. Measured: 0 frames in 1.5s with `visibilityState = "hidden"`. It is NOT a ledger bug:
+  a visible phone renders frames, and the first frame after an app switch has a huge `dt` and snaps
+  to target. Trust `/api/state` and the walk button (raw `me.stack`), never a glided number, when
+  auditing from an automated browser.
+
 ## things NOT to do
 
 ➠ do not build a per-user escrow contract. house executor, disclosed in the video.

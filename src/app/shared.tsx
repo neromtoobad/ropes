@@ -310,7 +310,7 @@ export function LeadersPanel({ rows, myId }: { rows: LeaderRow[] | null; myId: s
     <section className="mt-6">
       <div className="mb-2 flex items-baseline justify-between">
         <h2 className="text-[10px] font-bold tracking-[0.3em] text-[var(--dim)]">ALL CLIMBERS · BY NET GAIN</h2>
-        <span className="text-[9px] font-bold tracking-[0.2em] text-[var(--dim)]">LIVE FROM THE LEDGER</span>
+        <span className="hidden text-[9px] font-bold tracking-[0.2em] text-[var(--dim)] sm:inline">LIVE FROM THE LEDGER</span>
       </div>
       <div className="space-y-1">
         {rows.map((r, i) => {
