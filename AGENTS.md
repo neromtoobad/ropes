@@ -608,6 +608,24 @@ lonely side pays a lot. show the crowd's split on screen — that is the strateg
   to target. Trust `/api/state` and the walk button (raw `me.stack`), never a glided number, when
   auditing from an automated browser.
 
+➠ **railway's Railpack builder IGNORES `railway.json`.** The first deploy auto-detected Next and ran
+  `next start` on the executor box — the domain served the app's 404 page and no loop ran. What
+  actually works: service variables `RAILPACK_BUILD_CMD=npx prisma generate` and
+  `RAILPACK_START_CMD=bash start-prod.sh`. The service-level start command and `/health` check are
+  NOT set (the CLI's token gets 403 from the GraphQL API) — set them in the dashboard if you ever
+  want Railway itself to restart a wedged loop; until then `run-executor.sh` is the supervisor. Do NOT run `railway config migrate --apply`
+  + `config apply`: the generated `.railway/railway.ts` declares no variables, so applying it plans
+  to DELETE every secret on the service. Deleted the file; `railway.json` stays as documentation.
+➠ **cutover happened 3 sep 08:04 UTC.** Railway project `the-climb`, service `the-climb`, domain
+  `the-climb-production.up.railway.app` (`/health` only). The Mac executor is RETIRED — never start
+  `./run-executor.sh` locally again while Railway is live. Two `railway up` in a row overlap: the
+  previous deployment keeps running until the new one is healthy, so a redeploy is itself a brief
+  two-executor window. Redeploy rarely, and never with the Mac loop running.
+➠ **`pkill -f run-executor.sh` can leave the supervisor alive.** After the cutover two supervisor
+  shells survived the first pkill (the node children died, the `until` loops did not) and would have
+  respawned an executor after their 30s backoff. Kill by PID from `ps auxww | grep "[r]un-executor.sh"`
+  and verify all three counts — supervisors, `[e]xecutor/index`, `caffeinate` — are ZERO.
+
 ## things NOT to do
 
 ➠ do not build a per-user escrow contract. house executor, disclosed in the video.
