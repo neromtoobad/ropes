@@ -20,6 +20,7 @@ minute at the height they earned. Every metre of that wall is real money on a re
 
 > **Play it: [playropes.vercel.app](https://playropes.vercel.app)** — free seat on the
 > house, every trade real, on Somnia Shannon testnet (chain 50312).
+> **Code: [github.com/neromtoobad/ropes](https://github.com/neromtoobad/ropes)**
 > Built for the Somnia × dreamDEX Event Contracts Hackathon.
 
 ---
