@@ -634,6 +634,16 @@ lonely side pays a lot. show the crowd's split on screen — that is the strateg
   used the other way round: a pick made WHILE RIDING queues for the next window (the bail bar's
   "⟳ NEXT MINUTE" buttons), so the bell rolls a survivor straight in with no dead time. a pick made
   while not riding enters the open window at once, exactly as before.
+➠ **one unexplained bail (3 sep, run climber245, round 5188).** a queued pick entered at the open,
+  and ten seconds later `processBails` sold it — `bailRequested` was true, `autoBailAt` was null,
+  no ⚡ auto-bail line, no BAIL click in the test harness. only `POST /api/bank` can set that flag.
+  it did NOT reproduce: an instrumented rerun (every POST recorded with its stack) survived a bell,
+  entered the next window on its queued pick, and made zero bank calls. `/api/bank` now logs
+  run + key + user-agent to the Vercel function log; if it happens again, that line names the
+  caller. until then treat it as unexplained, not as fixed.
+
+## things NOT to do
+
 ➠ do not build a per-user escrow contract. house executor, disclosed in the video.
 ➠ do not let the registry contract place orders. it advances game state only.
 ➠ do not queue registry writes in the background. the SDK owns the wallet's nonce for orders; a
