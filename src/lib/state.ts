@@ -18,8 +18,10 @@ export interface SeatView {
   name: string;
   stack: number;
   status: "alive" | "banked" | "eliminated";
-  /** The side they've chosen for the live round, once locked in. */
+  /** The side they've chosen, riding now or queued for the next window. */
   pick: "UP" | "DOWN" | null;
+  /** The round index the queued pick is FOR (null = eligible for the open one). */
+  ridesRound: number | null;
   /** Filled position for the live round, if the executor got them in. */
   inRound: boolean;
   fillPrice: number | null;
@@ -50,9 +52,11 @@ export interface TableState {
     expiresAt: string;
     secondsLeft: number;
     status: string;
-    /** Seconds until entries close for THIS window (0 = closed; bets now
-     *  queue for the next). The executor enforces the same cutoff. */
+    /** Seconds until picks for the NEXT window lock — the bell of this one. */
     betsCloseIn: number;
+    /** Seconds the executor will still try to fill picks that are due THIS
+     *  window (0 = entries locked; an unfilled pick rides the one after). */
+    entryCloseIn: number;
   } | null;
   /** Live probability of each side, 0-1. null when the book is empty. */
   price: { up: number | null; down: number | null };
@@ -234,6 +238,7 @@ export async function getTableState(): Promise<TableState> {
         stack: toUsd(r.stack + (pos?.cost ?? 0n)),
         status: r.status as SeatView["status"],
         pick: (pos?.side ?? r.pendingSide ?? r.autoPick) as "UP" | "DOWN" | null,
+        ridesRound: pos ? null : r.pickedForRound,
         inRound: Boolean(pos),
         fillPrice: pos ? Number(pos.priceRaw) / Number(ONE) : null,
         multiple: toUsd(r.stack + (pos?.cost ?? 0n)) / toUsd(r.buyIn),
@@ -411,7 +416,8 @@ export async function getTableState(): Promise<TableState> {
             expiresAt: round.expiresAt.toISOString(),
             secondsLeft,
             status: round.status,
-            betsCloseIn: Math.max(0, secondsLeft - (INTERVAL_SEC - ENTRY_WINDOW_S)),
+            betsCloseIn: secondsLeft,
+            entryCloseIn: Math.max(0, secondsLeft - (INTERVAL_SEC - ENTRY_WINDOW_S)),
           };
         })()
       : null,

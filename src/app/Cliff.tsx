@@ -117,11 +117,16 @@ export function Cliff({
   // not joined yet, which reads as your own session and is not.
   const seat = seats.find((s) => s.runId === myRunId) ?? null;
 
-  const target = liveMultipleOf(seat, price);
-  // ONE smoothed number drives everything — the wall, the tag, the poses —
-  // so nothing on screen can disagree about where the climber is.
-  const multiple = useSmoothed(target, 340, 3);
-  const meH = heightOfMultiple(multiple);
+  // The live mark: the tag, the altitude readout and BAIL all say this.
+  const multiple = useSmoothed(liveMultipleOf(seat, price), 340, 3);
+  // The camera anchors to the SETTLED stack, not the live mark. When it
+  // chased the live value, a DOWN bettor watching BTC fall saw the ledges
+  // slide down ("climbing") while the body dropped — two motions saying
+  // opposite things. During the ride the only thing that moves the climber
+  // is bitcoin itself; the bell glides the anchor to the new altitude.
+  const anchorTarget = seat && seat.buyIn > 0 ? seat.stack / seat.buyIn : 1;
+  const anchor = useSmoothed(anchorTarget, 340, 3);
+  const meH = heightOfMultiple(anchor);
 
   // BTC's last move, held for a beat so a tick reads as motion, not a blink.
   // The feed repeats the same number across polls (see the chart gotcha), so
@@ -174,23 +179,23 @@ export function Cliff({
 
   // Direction of travel, in screen truth: the BTC offset while it moves, the
   // anchor glide while it settles, the last tick when both are quiet.
-  const glideUp = heightOfMultiple(target) > meH + 0.0015;
-  const glideDown = heightOfMultiple(target) < meH - 0.0015;
+  const glideUp = heightOfMultiple(anchorTarget) > meH + 0.0015;
+  const glideDown = heightOfMultiple(anchorTarget) < meH - 0.0015;
   const offUp = rawOffset > offset + 0.4;
   const offDown = rawOffset < offset - 0.4;
   const rising = offUp || (!offDown && glideUp) || (!offDown && !glideDown && btcDir > 0);
   const sinking = offDown || (!offUp && glideDown) || (!offUp && !glideUp && btcDir < 0);
 
   // Milestone crossings, upward only. The chime belongs to gains.
-  const lastMult = useRef(multiple);
+  const lastMult = useRef(anchor);
   useEffect(() => {
     const was = lastMult.current;
-    lastMult.current = multiple;
-    if (!seat?.inRound) return;
+    lastMult.current = anchor;
+    if (!seat) return;
     for (const m of MILESTONES) {
-      if (m > 1 && was < m && multiple >= m) onMilestone?.(m);
+      if (m > 1 && was < m && anchor >= m) onMilestone?.(m);
     }
-  }, [multiple, seat?.inRound, onMilestone]);
+  }, [anchor, seat, onMilestone]);
 
   const dead = seat ? falling.includes(seat.runId) : false;
   const bailed = seat ? leaping.includes(seat.runId) : false;
@@ -253,7 +258,7 @@ export function Cliff({
   const bestBeaten = myBest !== null && multiple > myBest;
 
   // How deep into space the run has climbed: 0 at break-even, 1 at 12×.
-  const spaceT = Math.max(0, Math.min(1, Math.log(Math.max(multiple, 1)) / Math.log(12)));
+  const spaceT = Math.max(0, Math.min(1, Math.log(Math.max(anchor, 1)) / Math.log(12)));
 
   // On lg the wall fills its wrapper EXACTLY — the height floor lives on the
   // wrapper in play/page.tsx. A min-height here made the wall taller than its

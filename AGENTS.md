@@ -420,7 +420,7 @@ rolls into the next table — table 3 opened at 16.00. the stakes escalate on th
 |---|---|
 | round | one BTC **1m** dreamDEX market, real clock, every minute on the minute |
 | buy-in | 10 tUSDC, fixed, one seat |
-| pick | UP or DOWN before lock. whole stack goes in |
+| pick | UP or DOWN during the current window; it rides the NEXT one. one minute to choose, one minute to watch. whole stack goes in |
 | win | stack × 1/p, already staked next round |
 | lose | eliminated, stack gone, loss capped at buy-in |
 | bank | sell mid-round at live value, run ends, multiple recorded |
@@ -625,6 +625,14 @@ lonely side pays a lot. show the crowd's split on screen — that is the strateg
   shells survived the first pkill (the node children died, the `until` loops did not) and would have
   respawned an executor after their 30s backoff. Kill by PID from `ps auxww | grep "[r]un-executor.sh"`
   and verify all three counts — supervisors, `[e]xecutor/index`, `caffeinate` — are ZERO.
+
+➠ **one minute was chaotic: bet and ride in the same window.** a pick placed at 0:40 bought a
+  20-second sprint, and the wall's camera chased the LIVE mark so a DOWN bettor watching BTC fall
+  saw ledges slide down (climbing) while the body dropped — two motions saying opposite things.
+  now (3 sep): a pick is stamped `pickedForRound = current + 1` and the executor only enters it once
+  that window opens — the whole current minute is for choosing, the whole next minute for watching.
+  and the camera anchors to the SETTLED stack (`stack / buyIn`); during the ride the only thing that
+  moves the climber is bitcoin, and the bell glides the anchor to the new ledge.
 
 ## things NOT to do
 
