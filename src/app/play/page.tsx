@@ -238,7 +238,6 @@ export default function Game() {
   const drift = state?.round ? (nowMs - stateAt.current) / 1000 : 0;
   const secs = Math.max(0, (state?.round?.secondsLeft ?? 0) - drift);
   const betsCloseIn = Math.max(0, (state?.round?.betsCloseIn ?? 0) - drift);
-  const entryCloseIn = Math.max(0, (state?.round?.entryCloseIn ?? 0) - drift);
   const urgent = secs > 0 && secs < 15;
 
   /**
@@ -257,7 +256,7 @@ export default function Game() {
   /** What the children render: the newest state, with the clock replaced by
    *  the locally-run one so nothing on screen disagrees about the time. */
   const view: TableState | null =
-    state?.round ? { ...state, round: { ...state.round, secondsLeft: secs, betsCloseIn, entryCloseIn } } : state;
+    state?.round ? { ...state, round: { ...state.round, secondsLeft: secs, betsCloseIn } } : state;
 
   useHeartbeat(secs, Boolean(me?.inRound));
   // The chosen climber's colours paint the whole site.
@@ -482,6 +481,12 @@ export default function Game() {
                 onBank={bankOut}
                 autoBail={autoBail}
                 onAutoBail={setAutoBail}
+                onNext={async (side) => {
+                  if (!runId) return;
+                  sound.arm();
+                  sound.play("click");
+                  await post("/api/pick", { runId, playerKey, side });
+                }}
               />
             ) : view?.round ? (
               <Sides
@@ -781,32 +786,30 @@ function StatPanel({
 function PhaseStrip({ state, me }: { state: TableState; me: TableState["seats"][number] }) {
   const r = state.round!;
   const secs = Math.floor(r.secondsLeft);
-  const entryIn = Math.floor(r.entryCloseIn);
-  // Two minutes, two beats: this minute you choose, the next one you watch.
-  const queued = Boolean(me.pick) && !me.inRound && (me.ridesRound ?? 0) > r.index;
-  const due = Boolean(me.pick) && !me.inRound && !queued;
-  const phase = me.inRound ? 1 : 0;
+  const betsIn = Math.floor(r.betsCloseIn);
+  const phase = me.inRound ? 2 : me.pick ? 1 : 0;
 
   const steps = [
     {
-      label: "PICK",
-      detail: me.inRound
-        ? "DONE"
-        : queued
-          ? `LOCKED · OPENS 0:${pad(secs)}`
-          : due
-            ? entryIn > 0 ? "FILLING…" : "NEXT MINUTE"
-            : `THIS MINUTE · 0:${pad(secs)}`,
+      label: "BET",
+      detail:
+        phase === 0
+          ? betsIn > 0
+            ? `OPEN · 0:${pad(betsIn)}`
+            : `NEXT · 0:${pad(secs)}`
+          : "PLACED",
     },
     {
-      label: "RIDE",
-      detail: me.inRound ? `LIVE · 0:${pad(secs)}` : queued || due ? "NEXT MINUTE" : "·",
+      label: "ENTER",
+      detail:
+        phase === 1 ? (betsIn > 0 ? "FILLING…" : `OPENS 0:${pad(secs)}`) : phase > 1 ? "FILLED" : "·",
     },
+    { label: "RIDE", detail: phase === 2 ? `LIVE · 0:${pad(secs)}` : "·" },
     { label: "BELL", detail: `RND ${r.index}` },
   ];
 
   return (
-    <div className="mt-3 grid grid-cols-3 gap-1.5" aria-label="round phases">
+    <div className="mt-3 grid grid-cols-4 gap-1.5" aria-label="round phases">
       {steps.map((s, i) => {
         const active = i === phase;
         const done = i < phase;
@@ -849,6 +852,7 @@ function BailBar({
   onBank,
   autoBail,
   onAutoBail,
+  onNext,
 }: {
   me: TableState["seats"][number];
   price: TableState["price"];
@@ -856,8 +860,16 @@ function BailBar({
   onBank: () => void;
   autoBail: number | null;
   onAutoBail: (at: number | null) => void;
+  /** Queue a side for the NEXT window while this one is still riding. */
+  onNext: (side: "UP" | "DOWN") => void;
 }) {
   const liveMult = useSmoothed(liveMultipleOf(me, price), 340, 3);
+  // Paints instantly; retires the moment the poll agrees or the ride ends.
+  const [nextOptimistic, setNextOptimistic] = useState<"UP" | "DOWN" | null>(null);
+  useEffect(() => {
+    if (nextOptimistic && me.nextPick === nextOptimistic) setNextOptimistic(null);
+  }, [me.nextPick, nextOptimistic]);
+  const next = nextOptimistic ?? me.nextPick;
   const keep = liveMult * me.buyIn;
   const sideC = me.pick === "UP" ? "var(--up)" : "var(--down)";
   return (
@@ -917,6 +929,37 @@ function BailBar({
           <span className="ml-auto text-[var(--gold)]">SELLS AT {autoBail}× — TAP TO DISARM</span>
         )}
       </div>
+
+      {/* No dead time: queue the next side NOW and the bell rolls the stack
+          straight into the next window. Survive, and you are already in. */}
+      <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[10px] font-black tracking-[0.2em]">
+        <span className="mr-1 text-[var(--dim)]">⟳ NEXT MINUTE</span>
+        {(["UP", "DOWN"] as const).map((side) => {
+          const active = next === side;
+          const c = side === "UP" ? "var(--up)" : "var(--down)";
+          return (
+            <button
+              key={side}
+              onClick={() => {
+                setNextOptimistic(side);
+                onNext(side);
+              }}
+              className="chamfer-sm min-h-[30px] border px-2.5 py-1 transition"
+              style={{
+                borderColor: active ? c : "var(--edge)",
+                color: active ? c : "var(--dim)",
+                background: active ? (side === "UP" ? "#06170f" : "#1a0810") : "transparent",
+                boxShadow: active ? `0 0 18px -8px ${c}` : "none",
+              }}
+            >
+              {side === "UP" ? "▲ UP" : "▼ DOWN"}
+            </button>
+          );
+        })}
+        <span className="ml-auto text-[var(--dim)]">
+          {next ? `QUEUED — IF YOU SURVIVE THE BELL YOU'RE ALREADY IN` : "QUEUE A SIDE — SKIP THE WAIT AFTER THE BELL"}
+        </span>
+      </div>
     </>
   );
 }
@@ -950,22 +993,16 @@ function Sides({
    */
   const pickPrice = shownPick === "UP" ? state.price.up : shownPick === "DOWN" ? state.price.down : null;
   const pickCapped = shownPick === "UP" ? state.capped.up : shownPick === "DOWN" ? state.capped.down : false;
-  const secsLeft = state.round?.secondsLeft ?? 0;
-  const entryOpen = (state.round?.entryCloseIn ?? 0) > 0;
-  // A pick made this minute is queued for the next window; one whose window
-  // has opened is being filled (the book is empty for the first seconds).
-  const queued = optimistic !== null || (me?.ridesRound ?? 0) > (state.round?.index ?? 0);
-  const pickStatus = queued
-    ? `LOCKED IN — RIDES THE NEXT MINUTE · OPENS 0:${pad(secsLeft)}`
-    : pickCapped
-      ? "TOO PRICEY — HOLDING FOR A BETTER QUOTE"
-      : pickPrice === null
-        ? entryOpen
-          ? `WAITING FOR THE BOOK · 0:${pad(state.round?.entryCloseIn ?? 0)}`
-          : "NO BOOK THIS MINUTE — RIDES THE NEXT"
-        : entryOpen
-          ? "ENTERING NOW"
-          : "RIDES THE NEXT MINUTE";
+  const windowOpen = (state.round?.betsCloseIn ?? 0) > 0;
+  const pickStatus = pickCapped
+    ? "TOO PRICEY — HOLDING FOR A BETTER QUOTE"
+    : pickPrice === null
+      ? windowOpen
+        ? `WAITING FOR THE BOOK · 0:${pad(state.round?.betsCloseIn ?? 0)}`
+        : "NO BOOK THIS WINDOW — RIDES THE NEXT"
+      : windowOpen
+        ? "ENTERING NOW"
+        : "RIDES THE NEXT WINDOW";
 
   return (
     <>
@@ -978,7 +1015,9 @@ function Sides({
               : shownPick
                 ? `YOUR BET: ${shownPick === "UP" ? "▲ UP" : "▼ DOWN"} — ${pickStatus}`
                 : canPick
-                  ? `PICK A SIDE — RIDES THE NEXT MINUTE · LOCKS IN 0:${pad(state.round?.secondsLeft ?? 0)}`
+                  ? (state.round?.betsCloseIn ?? 0) > 0
+                    ? `BETS OPEN — CLOSE IN 0:${pad(state.round!.betsCloseIn)}`
+                    : `BETS CLOSED — NEXT WINDOW IN 0:${pad(state.round?.secondsLeft ?? 0)}`
                   : "NEXT ROUND"}
           {me?.autoBailAt != null && (
             <span className="ml-2 text-[var(--gold)]">⚡ AUTO-BAIL {me.autoBailAt}×</span>

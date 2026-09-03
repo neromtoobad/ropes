@@ -420,7 +420,7 @@ rolls into the next table — table 3 opened at 16.00. the stakes escalate on th
 |---|---|
 | round | one BTC **1m** dreamDEX market, real clock, every minute on the minute |
 | buy-in | 10 tUSDC, fixed, one seat |
-| pick | UP or DOWN during the current window; it rides the NEXT one. one minute to choose, one minute to watch. whole stack goes in |
+| pick | UP or DOWN before lock. whole stack goes in. while riding you can QUEUE the next side — the bell rolls you straight into the next window |
 | win | stack × 1/p, already staked next round |
 | lose | eliminated, stack gone, loss capped at buy-in |
 | bank | sell mid-round at live value, run ends, multiple recorded |
@@ -626,16 +626,14 @@ lonely side pays a lot. show the crowd's split on screen — that is the strateg
   respawned an executor after their 30s backoff. Kill by PID from `ps auxww | grep "[r]un-executor.sh"`
   and verify all three counts — supervisors, `[e]xecutor/index`, `caffeinate` — are ZERO.
 
-➠ **one minute was chaotic: bet and ride in the same window.** a pick placed at 0:40 bought a
-  20-second sprint, and the wall's camera chased the LIVE mark so a DOWN bettor watching BTC fall
-  saw ledges slide down (climbing) while the body dropped — two motions saying opposite things.
-  now (3 sep): a pick is stamped `pickedForRound = current + 1` and the executor only enters it once
-  that window opens — the whole current minute is for choosing, the whole next minute for watching.
-  and the camera anchors to the SETTLED stack (`stack / buyIn`); during the ride the only thing that
-  moves the climber is bitcoin, and the bell glides the anchor to the new ledge.
-
-## things NOT to do
-
+➠ **the two-minute cadence (pick this minute, ride the next) was tried on 3 sep and REVERTED the
+  same day — the owner called it weird.** a full minute of waiting with nothing happening is dead
+  air. what survived from it: the wall's camera anchors to the SETTLED stack (`stack / buyIn`), so
+  during the ride the only thing that moves the climber is bitcoin — bet DOWN, BTC falls, your
+  climber goes down — and the bell glides the anchor to the new ledge; and `pickedForRound`, now
+  used the other way round: a pick made WHILE RIDING queues for the next window (the bail bar's
+  "⟳ NEXT MINUTE" buttons), so the bell rolls a survivor straight in with no dead time. a pick made
+  while not riding enters the open window at once, exactly as before.
 ➠ do not build a per-user escrow contract. house executor, disclosed in the video.
 ➠ do not let the registry contract place orders. it advances game state only.
 ➠ do not queue registry writes in the background. the SDK owns the wallet's nonce for orders; a

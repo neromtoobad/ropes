@@ -177,9 +177,9 @@ model Run {
   // The side chosen for the CURRENT round, before the order is placed.
   // Cleared once the position exists. No pick by lock time = sit the round out.
   pendingSide String?
-  /// The round index this pick is FOR. A pick made during window N rides
-  /// window N+1: one full minute to choose, one full minute to watch. null =
-  /// eligible for whatever window is open (headless autoPick, legacy picks).
+  /// The round index a QUEUED pick is for. Set only when the player picks
+  /// while already riding: the bell rolls their stack straight into the next
+  /// window with no dead time. null = enter the open window now.
   pickedForRound Int?
 
   /// Paid seats. A run with a payoutAddress bought its seat with a real

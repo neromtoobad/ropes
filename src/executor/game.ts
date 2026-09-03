@@ -147,8 +147,7 @@ export async function enterRound(roundId: string, market: LiveMarket) {
       log(`  ${run.player.displayName} sits out (no pick)`);
       continue;
     }
-    // A pick made DURING this window is for the next one. One minute to
-    // choose, one minute to watch — never a sprint bought mid-window.
+    // A pick queued while riding is for the NEXT window, never this one.
     if (run.pickedForRound !== null && run.pickedForRound > round.index) continue;
     pending.push({ run, side });
   }

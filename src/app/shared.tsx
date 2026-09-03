@@ -160,7 +160,7 @@ export function PageHeader({ title }: { title: string }) {
 export function HowItWorks() {
   const steps = [
     { n: "1", t: "FUND YOUR BANKROLL", d: "deposit tUSDC once — or play free on the house" },
-    { n: "2", t: "PICK UP OR DOWN", d: "this minute you choose · next minute your whole stack rides and you watch" },
+    { n: "2", t: "BET UP OR DOWN", d: "whole stack rides each 1-min window · the countdown shows when bets close" },
     { n: "3", t: "THE BELL", d: "right side: stack multiplies, auto-rides on. wrong: you're out" },
     { n: "4", t: "BAIL & WITHDRAW", d: "bail anytime — winnings credit your bankroll, withdraw whenever" },
   ];

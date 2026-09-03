@@ -18,10 +18,10 @@ export interface SeatView {
   name: string;
   stack: number;
   status: "alive" | "banked" | "eliminated";
-  /** The side they've chosen, riding now or queued for the next window. */
+  /** The side they've chosen for the live round, once locked in. */
   pick: "UP" | "DOWN" | null;
-  /** The round index the queued pick is FOR (null = eligible for the open one). */
-  ridesRound: number | null;
+  /** While riding: the side already queued for the next window, if any. */
+  nextPick: "UP" | "DOWN" | null;
   /** Filled position for the live round, if the executor got them in. */
   inRound: boolean;
   fillPrice: number | null;
@@ -52,11 +52,9 @@ export interface TableState {
     expiresAt: string;
     secondsLeft: number;
     status: string;
-    /** Seconds until picks for the NEXT window lock — the bell of this one. */
+    /** Seconds until entries close for THIS window (0 = closed; bets now
+     *  queue for the next). The executor enforces the same cutoff. */
     betsCloseIn: number;
-    /** Seconds the executor will still try to fill picks that are due THIS
-     *  window (0 = entries locked; an unfilled pick rides the one after). */
-    entryCloseIn: number;
   } | null;
   /** Live probability of each side, 0-1. null when the book is empty. */
   price: { up: number | null; down: number | null };
@@ -238,7 +236,10 @@ export async function getTableState(): Promise<TableState> {
         stack: toUsd(r.stack + (pos?.cost ?? 0n)),
         status: r.status as SeatView["status"],
         pick: (pos?.side ?? r.pendingSide ?? r.autoPick) as "UP" | "DOWN" | null,
-        ridesRound: pos ? null : r.pickedForRound,
+        nextPick:
+          pos && round && r.pickedForRound !== null && r.pickedForRound > round.index
+            ? (r.pendingSide as "UP" | "DOWN" | null)
+            : null,
         inRound: Boolean(pos),
         fillPrice: pos ? Number(pos.priceRaw) / Number(ONE) : null,
         multiple: toUsd(r.stack + (pos?.cost ?? 0n)) / toUsd(r.buyIn),
@@ -416,8 +417,7 @@ export async function getTableState(): Promise<TableState> {
             expiresAt: round.expiresAt.toISOString(),
             secondsLeft,
             status: round.status,
-            betsCloseIn: secondsLeft,
-            entryCloseIn: Math.max(0, secondsLeft - (INTERVAL_SEC - ENTRY_WINDOW_S)),
+            betsCloseIn: Math.max(0, secondsLeft - (INTERVAL_SEC - ENTRY_WINDOW_S)),
           };
         })()
       : null,

@@ -3,9 +3,10 @@ import { db } from "@/lib/db";
 import { ownedRun } from "@/lib/owned";
 
 /**
- * Choose a side for the NEXT window. The whole current minute is for choosing;
- * the executor enters the pick when the next window opens and the whole of that
- * minute is for watching it play out. Batched with everyone on that side.
+ * Choose a side. Not riding yet: the executor enters it in the open window on
+ * its next tick. Already riding: the pick QUEUES for the next window, so the
+ * bell rolls the stack straight in with no gap. Batched with everyone on that
+ * side either way.
  *
  * A pick is only changeable until the executor fills it — after that the
  * position exists on-chain and the only way out is to bank.
@@ -23,12 +24,18 @@ export async function POST(req: Request) {
     const filled = await db.position.findUnique({
       where: { runId_roundId: { runId: owned.run.id, roundId: round.id } },
     });
-    if (filled) return NextResponse.json({ error: "already in this round" }, { status: 409 });
+    if (filled) {
+      await db.run.update({
+        where: { id: owned.run.id },
+        data: { pendingSide: side, pickedForRound: round.index + 1 },
+      });
+      return NextResponse.json({ ok: true, side, queuedFor: round.index + 1 });
+    }
   }
 
   await db.run.update({
     where: { id: owned.run.id },
-    data: { pendingSide: side, pickedForRound: round ? round.index + 1 : null },
+    data: { pendingSide: side, pickedForRound: null },
   });
   return NextResponse.json({ ok: true, side });
 }

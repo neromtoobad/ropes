@@ -51,8 +51,8 @@ export default function Landing() {
             CLIMB THE CANDLE
           </h1>
           <p className="mt-3 max-w-md text-sm leading-relaxed text-[var(--dim)]">
-            A prediction market you can feel. Pick UP or DOWN, then watch a full minute of a real
-            Bitcoin market decide — and watch your climber live it. Right side: your stack multiplies and rides on.
+            A prediction market you can feel. Bet UP or DOWN on a real Bitcoin 1-minute market —
+            and watch your climber live it. Right side: your stack multiplies and rides on.
             Wrong side: you fall. Bail any second and keep what the market pays.
           </p>
           <Link
