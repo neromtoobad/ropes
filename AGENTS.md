@@ -647,6 +647,12 @@ lonely side pays a lot. show the crowd's split on screen — that is the strateg
   still says `THE CLIMB · credit deposit …`. That exact string is signed by a depositor's wallet and
   re-derived by the server to verify the signature, so changing the text invalidates any signature
   made against the old wording. Leave it.
+➠ **the live URL is now `playropes.vercel.app`** (3 sep). `ropes.vercel.app` was already taken by
+  someone else, so the project keeps its Vercel name `the-climb` and the new address is attached as
+  a project domain — which means every future production deploy inherits it automatically, unlike a
+  bare `vercel alias set` pinned to one deployment. `climbthecandle.vercel.app` still resolves and
+  is left alive on purpose: links already shared with judges must not break. `NEXT_PUBLIC_BASE_URL`
+  drives `metadataBase`, so it has to move with the domain or every OG share image 404s.
 
 ## things NOT to do
 

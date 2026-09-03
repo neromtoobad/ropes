@@ -18,7 +18,7 @@ bell comes every sixty seconds, and if your side is wrong when it rings, you fal
 Survive, and your winnings are already staked in the next round — your climber starts the next
 minute at the height they earned. Every metre of that wall is real money on a real order book.
 
-> **Play it: [climbthecandle.vercel.app](https://climbthecandle.vercel.app)** — free seat on the
+> **Play it: [playropes.vercel.app](https://playropes.vercel.app)** — free seat on the
 > house, every trade real, on Somnia Shannon testnet (chain 50312).
 > Built for the Somnia × dreamDEX Event Contracts Hackathon.
 
