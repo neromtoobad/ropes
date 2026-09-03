@@ -46,7 +46,7 @@ export default function Landing() {
       <div className="grid items-center gap-8 lg:min-h-0 lg:flex-1 lg:grid-cols-2">
         {/* the pitch */}
         <section className="mt-8 flex flex-col items-center text-center lg:mt-0">
-          <Image src="/logo-full.png" alt="THE CLIMB" width={300} height={300} priority className="h-40 w-auto sm:h-48" />
+          <Image src="/logo-full.webp" alt="THE CLIMB" width={300} height={300} priority className="h-40 w-auto sm:h-48" />
           <h1 className="display mt-5 text-4xl leading-tight tracking-[0.06em] sm:text-5xl">
             CLIMB THE CANDLE
           </h1>

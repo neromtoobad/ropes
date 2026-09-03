@@ -413,7 +413,7 @@ export default function Game() {
       {/* The HUD: roster rail · the wall · the stat block. One viewport,
           no scroll — the wall flexes to fill whatever height is left. */}
       <div className="mt-2 grid grid-cols-1 gap-3 lg:min-h-0 lg:flex-1 lg:grid-cols-[72px_minmax(0,1fr)_240px]">
-        <div className={`min-w-0 lg:min-h-0 lg:overflow-y-auto ${me ? "hidden lg:block" : ""}`}>
+        <div className="min-w-0 lg:min-h-0 lg:overflow-y-auto">
           <Rail climber={climber} onPick={pickClimber} lockedIn={Boolean(me)} />
         </div>
 
@@ -440,7 +440,11 @@ export default function Game() {
           />
           </div>
 
-          {me && view?.round && <PhaseStrip state={view} me={me} />}
+          {me && view?.round && (
+            <div className="hidden lg:block">
+              <PhaseStrip state={view} me={me} />
+            </div>
+          )}
 
           {/* One control, matched to the moment. Never several at once. */}
           <div
@@ -450,6 +454,11 @@ export default function Game() {
                 : ""
             }`}
           >
+            {me && view?.round && (
+              <div className="mb-2 lg:hidden [&>div]:mt-0">
+                <PhaseStrip state={view} me={me} />
+              </div>
+            )}
             {!runId || !me ? (
               <Join
                 name={name}
@@ -538,7 +547,7 @@ function TopBar({
   return (
     <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
       <div className="flex items-center gap-3">
-        <Image src="/mark.png" alt="" width={26} height={40} priority className="h-9 w-auto" />
+        <Image src="/mark.webp" alt="" width={26} height={40} priority className="h-9 w-auto" />
         <div>
           <h1 className="display whitespace-nowrap text-base leading-none tracking-[0.2em] sm:text-lg">THE CLIMB</h1>
           <p className="mt-0.5 text-[9px] font-bold tracking-[0.3em] text-[var(--dim)]">
@@ -604,15 +613,16 @@ function Rail({
           disabled={lockedIn && climber !== c.id}
           title={`${c.code} ${c.label}`}
           aria-pressed={climber === c.id}
-          className={`slot chamfer-sm h-[56px] w-[56px] shrink-0 lg:h-[60px] lg:w-full ${climber === c.id ? "sel" : ""} disabled:cursor-not-allowed disabled:opacity-35`}
+          className={`slot chamfer-sm shrink-0 ${lockedIn ? "h-11 w-11" : "h-[56px] w-[56px]"} lg:h-[60px] lg:w-full ${climber === c.id ? "sel" : ""} disabled:cursor-not-allowed disabled:opacity-35`}
         >
           <Image
-            src={`/climbers/${c.id}/climb.png`}
+            src={`/climbers/${c.id}/climb.webp`}
             alt={c.label}
             width={40}
             height={56}
             unoptimized
-            className="h-[44px] w-auto"
+            loading="eager"
+            className={`w-auto ${lockedIn ? "h-[34px]" : "h-[44px]"} lg:h-[44px]`}
           />
         </button>
       ))}

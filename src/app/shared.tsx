@@ -141,7 +141,7 @@ export function PageHeader({ title }: { title: string }) {
   return (
     <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
       <Link href="/" className="flex items-center gap-3">
-        <Image src="/mark.png" alt="" width={26} height={40} priority className="h-9 w-auto" />
+        <Image src="/mark.webp" alt="" width={26} height={40} priority className="h-9 w-auto" />
         <div>
           <h1 className="display whitespace-nowrap text-base leading-none tracking-[0.2em] sm:text-lg">
             THE CLIMB

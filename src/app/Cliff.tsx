@@ -239,7 +239,7 @@ export function Cliff({
     if (!hasCycle) return;
     for (let i = 0; i < 6; i++) {
       const im = new window.Image();
-      im.src = `/climbers/${art}/cycle/${i}.png`;
+      im.src = `/climbers/${art}/cycle/${i}.webp`;
     }
   }, [hasCycle, art]);
   const finale = secondsLeft > 0 && secondsLeft <= 5 && (seat?.inRound ?? false);
@@ -419,7 +419,7 @@ export function Cliff({
             style={{
               top: "-5%",
               bottom: `calc(${50 + offset}% + 82px)`,
-              backgroundImage: `url(/climbers/${art}/rope.png)`,
+              backgroundImage: `url(/climbers/${art}/rope.webp)`,
               backgroundRepeat: "repeat-y",
               backgroundSize: "100% auto",
             }}
@@ -454,7 +454,7 @@ export function Cliff({
               {seat.name} {multiple.toFixed(2)}×
             </div>
             <Image
-              src={onRope ? `/climbers/${art}/cycle/${frame}.png` : `/climbers/${art}/${pose}.png`}
+              src={onRope ? `/climbers/${art}/cycle/${frame}.webp` : `/climbers/${art}/${pose}.webp`}
               alt=""
               width={96}
               height={onRope ? 300 : 140}
@@ -492,7 +492,7 @@ export function Cliff({
       {!seat && (
         <div className="pointer-events-none absolute inset-x-0 bottom-6 flex flex-col items-center">
           <Image
-            src={`/climbers/${art}/cheer.png`}
+            src={`/climbers/${art}/cheer.webp`}
             alt=""
             width={96}
             height={140}

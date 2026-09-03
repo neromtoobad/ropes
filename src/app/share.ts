@@ -58,7 +58,7 @@ export async function shareRunCard(opts: {
   ctx.setLineDash([]);
 
   const sprite = new Image();
-  sprite.src = `/climbers/${opts.climber}/${opts.status === "eliminated" ? "slip" : "cheer"}.png`;
+  sprite.src = `/climbers/${opts.climber}/${opts.status === "eliminated" ? "slip" : "cheer"}.webp`;
   await new Promise((res) => {
     sprite.onload = res;
     sprite.onerror = res;
