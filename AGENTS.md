@@ -1,4 +1,4 @@
-# CLAUDE.md — LAST CANDLE
+# AGENTS.md — ROPES
 
 > rename to `AGENTS.md` before submitting. never commit the filename `CLAUDE.md`.
 
@@ -641,6 +641,12 @@ lonely side pays a lot. show the crowd's split on screen — that is the strateg
   entered the next window on its queued pick, and made zero bank calls. `/api/bank` now logs
   run + key + user-agent to the Vercel function log; if it happens again, that line names the
   caller. until then treat it as unexplained, not as fixed.
+
+➠ **the game is called ROPES** (renamed 3 sep from THE CLIMB / LAST CANDLE — older names survive in
+  comments and in this file's history). ONE thing must never be renamed with it: `depositMessage`
+  still says `THE CLIMB · credit deposit …`. That exact string is signed by a depositor's wallet and
+  re-derived by the server to verify the signature, so changing the text invalidates any signature
+  made against the old wording. Leave it.
 
 ## things NOT to do
 

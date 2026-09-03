@@ -1,5 +1,5 @@
 /**
- * The rules of LAST CANDLE, as a state machine over one round.
+ * The rules of ROPES, as a state machine over one round.
  *
  *   openRound   a new window is live -> record it, take picks
  *   enterRound  place one order per alive run that picked

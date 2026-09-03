@@ -6,7 +6,7 @@ import type { TableState } from "@/lib/state";
 import { useSmoothed } from "./useSmoothed";
 
 /**
- * THE CLIMB — solo.
+ * ROPES — solo.
  *
  * One climber, and the camera follows THEM: the character holds the middle of
  * the screen and the wall scrolls past. Nothing sells climbing like the world

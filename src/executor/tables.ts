@@ -1,5 +1,5 @@
 /**
- * Tables — the thing that makes LAST CANDLE a game rather than a venue.
+ * Tables — the thing that makes ROPES a game rather than a venue.
  *
  * The market's clock is infinite: a new BTC window opens every minute forever.
  * Left alone that produces a place to trade, not a tournament — nobody ever

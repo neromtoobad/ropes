@@ -1,10 +1,10 @@
 <p align="center">
-  <img src="public/logo-full.png" alt="THE CLIMB" width="360" />
+  <img src="public/logo-full.png" alt="ROPES" width="220" />
 </p>
 
-# THE CLIMB
+# ROPES
 
-**Climb the candle. A prediction market you can feel.**
+**One rope, one minute of Bitcoin. A prediction market you can feel.**
 
 Buy a seat for 10 tUSDC. Pick UP or DOWN on a real Bitcoin 1-minute event contract — and instead of
 watching a chart, watch your climber on the wall. Their height **is** your position's live value,
@@ -30,7 +30,7 @@ dreamDEX ships a fine terminal — order book, position tabs, funding history. B
 a venue structurally can't be anything else: it must stay neutral, and it will never hold your
 position across windows.
 
-THE CLIMB does the things a venue can't:
+ROPES does the things a venue can't:
 
 | | |
 |---|---|

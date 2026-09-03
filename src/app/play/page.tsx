@@ -553,9 +553,9 @@ function TopBar({
   return (
     <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
       <div className="flex items-center gap-3">
-        <Image src="/mark.webp" alt="" width={26} height={40} priority className="h-9 w-auto" />
+        <Image src="/mark.webp" alt="" width={64} height={32} priority className="h-9 w-auto" />
         <div>
-          <h1 className="display whitespace-nowrap text-base leading-none tracking-[0.2em] sm:text-lg">THE CLIMB</h1>
+          <h1 className="display whitespace-nowrap text-base leading-none tracking-[0.2em] sm:text-lg">ROPES</h1>
           <p className="mt-0.5 text-[9px] font-bold tracking-[0.3em] text-[var(--dim)]">
             {roping
               ? `ROPING UP · 0:${String(Math.max(0, Math.round(t!.sealsIn))).padStart(2, "0")}`
