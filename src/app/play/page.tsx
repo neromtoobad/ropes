@@ -151,12 +151,19 @@ export default function Game() {
 
   const connectWallet = async () => {
     sound.arm();
+    // A wallet that is slow, backgrounded, or queueing the request behind its
+    // toolbar icon looks identical to a dead button. Say where to look.
+    const slow = setTimeout(
+      () => setErr("still waiting on your wallet — check the wallet icon in your browser toolbar, the approval may be waiting there"),
+      6000,
+    );
     try {
       setAddr(await connect());
       setErr(null);
     } catch (e) {
       setErr(String(e).replace("Error: ", "").slice(0, 160));
     }
+    clearTimeout(slow);
   };
 
   /** Fund the bankroll from the game screen. Same verified path as the wallet

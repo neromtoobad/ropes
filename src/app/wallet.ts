@@ -289,23 +289,34 @@ export async function connect(): Promise<Address> {
   if (!w) throw new Error("no wallet in this browser");
   const provider = w.provider;
 
-  /* Ask SILENTLY first. A site the wallet has already approved answers
-   * eth_accounts immediately and shows no popup at all — waiting on
-   * eth_requestAccounts there looks exactly like a dead button and a popup
-   * that never comes. */
-  const known = (await provider
-    .request({ method: "eth_accounts" })
-    .catch(() => [])) as Address[];
-  let accounts = known as Address[];
-  if (!accounts?.length) {
-    try {
-      accounts = (await provider.request({ method: "eth_requestAccounts" })) as Address[];
-    } catch (e) {
-      if (errCode(e) === 4001) throw new Error("you declined the connection request");
-      // -32002: a previous request is still sitting unanswered in the wallet.
-      if (errCode(e) === -32002) throw new Error("your wallet already has a connection request open — approve it there");
-      throw e;
+  /*
+   * `eth_requestAccounts` FIRST, with nothing awaited before it.
+   *
+   * This used to probe `eth_accounts` first to avoid a popup for sites the
+   * wallet had already approved — but awaiting that round trip to the
+   * extension SPENDS THE USER-GESTURE CONTEXT. MetaMask then cannot raise its
+   * notification window: it queues the request and shows only a badge on the
+   * toolbar icon, so a first-time player clicks CONNECT and no popup ever
+   * appears. That is the whole bug, and it only bites strangers — anyone the
+   * site is already approved for got their account from the silent path and
+   * never noticed.
+   *
+   * Calling request-accounts directly costs nothing: on an approved site it
+   * resolves immediately WITHOUT a popup, which is the same outcome the probe
+   * was chasing. The silent probe still exists for page load — see
+   * `restoreConnection`, which runs on mount where there is no gesture to
+   * protect.
+   */
+  let accounts: Address[];
+  try {
+    accounts = (await provider.request({ method: "eth_requestAccounts" })) as Address[];
+  } catch (e) {
+    if (errCode(e) === 4001) throw new Error("you declined the connection request");
+    // -32002: a request is already sitting unanswered inside the wallet.
+    if (errCode(e) === -32002) {
+      throw new Error("your wallet already has a request open — click the wallet icon in your toolbar and approve it");
     }
+    throw e;
   }
   if (!accounts?.length) throw new Error("no account authorized");
   await ensureChain(provider);

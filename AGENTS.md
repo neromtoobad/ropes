@@ -696,6 +696,16 @@ lonely side pays a lot. show the crowd's split on screen — that is the strateg
   `eth_requestAccounts` means declined and -32002 means a request is ALREADY open in the wallet
   (common when someone taps connect twice) — both need their own message, not a generic failure.
 
+➠ **awaiting ANYTHING before `eth_requestAccounts` kills the MetaMask popup.** connect() probed
+  `eth_accounts` first to stay silent for already-approved sites — but that awaited round trip to
+  the extension SPENDS THE USER-GESTURE CONTEXT, so MetaMask can no longer raise its window. It
+  queues the request behind a badge on the toolbar icon instead, and the visitor sees a dead button
+  and NO POPUP. Reported 4 sep by a first-time player on desktop Chrome. It only ever bites
+  strangers: anyone the site is already approved for is served by the silent path and never sees it.
+  `eth_requestAccounts` must be the FIRST awaited call in a click handler — it costs nothing,
+  because on an approved site it resolves instantly with no popup anyway. The silent probe belongs
+  on MOUNT (`restoreConnection`), where there is no gesture to protect.
+
 ## things NOT to do
 
 ➠ do not build a per-user escrow contract. house executor, disclosed in the video.
