@@ -8,9 +8,9 @@
 import { useEffect, useState } from "react";
 import type { Address } from "viem";
 import type { TableState } from "@/lib/state";
-import { useWallets, useAccount, chooseWallet, walletRank, connect, paySeat, collateralBalance, signDeposit, mintTestUsdc, gasBalance, FAUCET_TUSDC } from "../wallet";
+import { useWallets, useAccount, wallets, chooseWallet, walletRank, connect, paySeat, collateralBalance, signDeposit, mintTestUsdc, gasBalance, FAUCET_TUSDC } from "../wallet";
 import {
-  PageHeader, LedgerPanel, usePlayerKey, useLedger, useClimberTheme, usd, short, OpenInWallet } from "../shared";
+  PageHeader, LedgerPanel, usePlayerKey, useLedger, useClimberTheme, usd, short, OpenInWallet, safeLocal} from "../shared";
 import { CAST, type ClimberId } from "../Cliff";
 
 const DEPOSIT_CHOICES = [10n, 50n, 100n] as const;
@@ -37,7 +37,7 @@ export default function Wallet() {
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
-    const saved = localStorage.getItem("lc.climber");
+    const saved = safeLocal.get("lc.climber");
     if (saved && CAST.some((c) => c.id === saved)) setClimber(saved as ClimberId);
     fetch("/api/state").then((r) => r.json()).then(setState).catch(() => {});
     // A pending withdrawal resolves within a tick or two — keep the page live.
@@ -54,16 +54,18 @@ export default function Wallet() {
     if (busy) return;
     setBusy("connect");
     setErr(null);
-    setHint(null);
     const slow = setTimeout(
-      () => setHint("STILL WAITING — OPEN YOUR WALLET EXTENSION, THE REQUEST MAY BE QUEUED THERE"),
+      () => setHint("still waiting — check the wallet icon in your browser toolbar, the approval may be sitting there"),
       6000,
     );
     try {
       setAddr(await connect());
       setHint(null);
     } catch (e) {
-      setErr(String(e).replace("Error: ", "").slice(0, 160));
+      const detected = wallets().map((w) => w.name).join(", ") || "none";
+      const why = String((e as Error)?.message ?? e).replace("Error: ", "").slice(0, 120);
+      setErr(`${why} · wallets seen: ${detected} · storage: ${safeLocal.works() ? "ok" : "blocked"}`);
+      console.error("[ropes] connect failed", e);
       setHint(null);
     }
     clearTimeout(slow);

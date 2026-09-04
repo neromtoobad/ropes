@@ -13,6 +13,50 @@ import { shareRunCard } from "./share";
 import { isMobile, walletDeepLinks } from "./wallet";
 import type { ClimberId } from "./Cliff";
 
+/**
+ * localStorage that cannot take the page down.
+ *
+ * Chrome's "block all cookies", some privacy extensions, and a few embedded
+ * webviews make `localStorage` THROW on access rather than returning null. Every
+ * read here sat unguarded, so on those browsers the throw escaped whatever was
+ * calling it — including a click handler, where it kills the handler before any
+ * try/catch and the button silently does nothing.
+ */
+export const safeLocal = {
+  get(key: string): string | null {
+    try {
+      return window.localStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  },
+  set(key: string, value: string) {
+    try {
+      window.localStorage.setItem(key, value);
+    } catch {
+      /* a browser that refuses storage still plays; it just forgets. */
+    }
+  },
+  remove(key: string) {
+    try {
+      window.localStorage.removeItem(key);
+    } catch {
+      /* ignore */
+    }
+  },
+  /** Whether storage works at all — surfaced in the connect diagnostics. */
+  works(): boolean {
+    try {
+      const k = "lc.probe";
+      window.localStorage.setItem(k, "1");
+      window.localStorage.removeItem(k);
+      return true;
+    } catch {
+      return false;
+    }
+  },
+};
+
 export const usd = (n: number) => `${n >= 0 ? "+" : "−"}${Math.abs(n).toFixed(2)}`;
 export const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
 export const pad = (n: number) => String(Math.max(0, Math.floor(n))).padStart(2, "0");
@@ -21,7 +65,7 @@ export const pad = (n: number) => String(Math.max(0, Math.floor(n))).padStart(2,
  *  every page (landing, wallet, board) wears the theme, not just the game. */
 export function useClimberTheme(override?: string) {
   useEffect(() => {
-    const id = override ?? localStorage.getItem("lc.climber") ?? "green";
+    const id = override ?? safeLocal.get("lc.climber") ?? "green";
     document.documentElement.dataset.climber = id;
   }, [override]);
 }
@@ -30,10 +74,10 @@ export function useClimberTheme(override?: string) {
 export function usePlayerKey() {
   const [key, setKey] = useState<string | null>(null);
   useEffect(() => {
-    let k = localStorage.getItem("lc.playerKey");
+    let k = safeLocal.get("lc.playerKey");
     if (!k) {
       k = `0x${crypto.randomUUID().replace(/-/g, "")}`;
-      localStorage.setItem("lc.playerKey", k);
+      safeLocal.set("lc.playerKey", k);
     }
     setKey(k);
   }, []);

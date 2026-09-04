@@ -109,18 +109,32 @@ export function useSound() {
   const [on, setOn] = useState(false);
 
   useEffect(() => {
-    setOn(localStorage.getItem("lc.sound") === "on");
+    try {
+      setOn(localStorage.getItem("lc.sound") === "on");
+    } catch {
+      setOn(false);
+    }
   }, []);
 
   const arm = useCallback(() => {
-    if (localStorage.getItem("lc.sound") === "off") return;
+    // Guarded: a browser that blocks storage must not kill the click handler
+    // this is called from. See safeLocal in shared.tsx.
+    try {
+      if (localStorage.getItem("lc.sound") === "off") return;
+    } catch {
+      /* storage blocked — arm anyway, sound is not worth a dead button */
+    }
     engine.arm();
   }, []);
 
   const toggle = useCallback(() => {
     setOn((prev) => {
       const next = !prev;
-      localStorage.setItem("lc.sound", next ? "on" : "off");
+      try {
+        localStorage.setItem("lc.sound", next ? "on" : "off");
+      } catch {
+        /* ignore */
+      }
       if (next) engine.arm();
       else engine.close();
       return next;

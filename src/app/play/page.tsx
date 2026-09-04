@@ -6,12 +6,11 @@ import type { TableState } from "@/lib/state";
 import type { Address } from "viem";
 import { Cliff, liveMultipleOf, CAST, type ClimberId } from "../Cliff";
 import { useSound, useHeartbeat } from "../sound";
-import { useHasWallet, useAccount, connect, paySeat, collateralBalance, signDeposit } from "../wallet";
+import { useHasWallet, useAccount, wallets, connect, paySeat, collateralBalance, signDeposit } from "../wallet";
 import { useSmoothed } from "../useSmoothed";
 import {
   usd, short, pad, usePlayerKey, useLedger, useClimberTheme, SiteNav, HowItWorks, ShareButton,
-  type LedgerData, OpenInWallet,
-} from "../shared";
+  type LedgerData, OpenInWallet, safeLocal} from "../shared";
 
 const SEAT = 10_000_000n; // 10 tUSDC, 6 decimals
 
@@ -67,8 +66,8 @@ export default function Game() {
   }, []);
 
   useEffect(() => {
-    setRunId(localStorage.getItem("lc.runId"));
-    const saved = localStorage.getItem("lc.climber");
+    setRunId(safeLocal.get("lc.runId"));
+    const saved = safeLocal.get("lc.climber");
     if (saved && CAST.some((c) => c.id === saved)) setClimber(saved as ClimberId);
   }, []);
 
@@ -133,7 +132,7 @@ export default function Game() {
     const r = await post("/api/join", { playerKey, name: called, depositTx, signature });
     setBusy(false);
     if (r?.runId) {
-      localStorage.setItem("lc.runId", r.runId);
+      safeLocal.set("lc.runId", r.runId);
       setRunId(r.runId);
       // The moment the money moves, say so — and say whose money it was.
       setSeatFlash(r.paid ? "paid" : "free");
@@ -150,18 +149,25 @@ export default function Game() {
   const [paying, setPaying] = useState(false);
 
   const connectWallet = async () => {
-    sound.arm();
-    // A wallet that is slow, backgrounded, or queueing the request behind its
-    // toolbar icon looks identical to a dead button. Say where to look.
+    /*
+     * EVERYTHING lives inside the try. `sound.arm()` used to run before it and
+     * reads localStorage, which THROWS on browsers that block storage — the
+     * throw escaped the handler and the button did nothing at all, with no
+     * error on screen. A connect button must never be able to fail silently.
+     */
     const slow = setTimeout(
       () => setErr("still waiting on your wallet — check the wallet icon in your browser toolbar, the approval may be waiting there"),
       6000,
     );
     try {
+      sound.arm();
       setAddr(await connect());
       setErr(null);
     } catch (e) {
-      setErr(String(e).replace("Error: ", "").slice(0, 160));
+      const detected = wallets().map((w) => w.name).join(", ") || "none";
+      const why = String((e as Error)?.message ?? e).replace("Error: ", "").slice(0, 120);
+      setErr(`${why} · wallets seen: ${detected} · storage: ${safeLocal.works() ? "ok" : "blocked"}`);
+      console.error("[ropes] connect failed", e);
     }
     clearTimeout(slow);
   };
@@ -279,7 +285,7 @@ export default function Game() {
     setLeaping((n) => [...n, runId]);
     sound.play("win");
     const r = await post("/api/bank", { runId, playerKey });
-    if (r?.ok) localStorage.removeItem("lc.runId");
+    if (r?.ok) safeLocal.remove("lc.runId");
     else setBailing(false);
     setTimeout(() => setLeaping((n) => n.filter((x) => x !== runId)), 1400);
   };
@@ -349,7 +355,7 @@ export default function Game() {
     sound.arm();
     sound.play("click");
     setClimber(id);
-    localStorage.setItem("lc.climber", id);
+    safeLocal.set("lc.climber", id);
   };
 
   // The ledger backs the money bar, the sparkline and YOUR LAST RUN.
@@ -364,7 +370,7 @@ export default function Game() {
     if (!runId || !ledger) return;
     const known = ledger.runs?.find((r) => r.id === runId);
     if (known && known.status !== "alive") {
-      localStorage.removeItem("lc.runId");
+      safeLocal.remove("lc.runId");
       setRunId(null);
     }
   }, [runId, ledger]);

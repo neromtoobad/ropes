@@ -706,6 +706,21 @@ lonely side pays a lot. show the crowd's split on screen — that is the strateg
   because on an approved site it resolves instantly with no popup anyway. The silent probe belongs
   on MOUNT (`restoreConnection`), where there is no gesture to protect.
 
+➠ **a click handler must not touch localStorage outside its try.** `connectWallet` called
+  `sound.arm()` first, which reads `localStorage` — and Chrome's "block all cookies", some privacy
+  extensions and a few webviews make that access THROW rather than return null. The throw escaped
+  the handler before any catch, so the button did NOTHING: no popup, no error, no console line.
+  All storage now goes through `safeLocal` (shared.tsx) which never throws, and both connect
+  handlers run entirely inside try with a catch that ALWAYS renders something.
+➠ **when a connect fails, print what was detected, not just the error.** The failure message now
+  carries `wallets seen: …` and `storage: ok|blocked`, so a remote player's screenshot answers in
+  one line what three rounds of guessing could not. Silent buttons are unreportable; make the
+  failure self-describing.
+➠ **never regex `localStorage.` → `safeLocal.` across a file that DEFINES safeLocal.** Doing exactly
+  that rewrote the helper's own bodies into `safeLocal.get` calling itself — infinite recursion that
+  would have stack-overflowed on the first storage read and taken the whole site down. Caught before
+  shipping only because the helper was re-read afterwards. Always re-read a file a blind regex touched.
+
 ## things NOT to do
 
 ➠ do not build a per-user escrow contract. house executor, disclosed in the video.
