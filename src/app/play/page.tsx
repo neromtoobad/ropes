@@ -1407,7 +1407,10 @@ function MoneyBar({
    * so before the first run this collapses to one slim line and gives the
    * height back to the wall.
    */
-  const nothingYet = onWall === null && won === null && bankBalance === null;
+  // Zero counts as nothing. A player whose ledger row exists but is all zeros
+  // (no seat, nothing won, no bankroll) has exactly as little to report as one
+  // with no row at all — checking for null alone left them the big empty cards.
+  const nothingYet = onWall === null && !won && !bankBalance;
   if (nothingYet) {
     return (
       <div
