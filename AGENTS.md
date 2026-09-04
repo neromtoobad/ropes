@@ -672,6 +672,17 @@ lonely side pays a lot. show the crowd's split on screen — that is the strateg
   crash-and-restart loop is correct behaviour here: it costs no gas (it fails long before any order)
   and it recovers on its own the moment they come back. Do not "fix" it by widening timeouts.
 
+➠ **the connected wallet "disconnected itself" mid-session — it never did.** `addr` was plain
+  component state in BOTH /play and /wallet, initialised to null and restored by nothing, so every
+  reload and every client-side hop between those two pages dropped it and painted CONNECT again.
+  The wallet authorization was intact the whole time: an approved site gets its account straight
+  back from `eth_accounts` with NO popup. `useAccount()` now does that silently on mount (keyed on
+  `wallets().length`, because EIP-6963 providers announce asynchronously and a cold mount has
+  nothing to ask yet) and subscribes to `accountsChanged`, so switching or locking the wallet moves
+  the UI instead of leaving a stale address on screen. Money was never exposed: the payout address
+  is pinned SERVER-side from the deposit tx sender, so a browser forgetting the address cannot
+  misdirect a withdrawal.
+
 ## things NOT to do
 
 ➠ do not build a per-user escrow contract. house executor, disclosed in the video.

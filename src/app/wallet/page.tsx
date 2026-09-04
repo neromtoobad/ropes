@@ -8,7 +8,7 @@
 import { useEffect, useState } from "react";
 import type { Address } from "viem";
 import type { TableState } from "@/lib/state";
-import { useWallets, chooseWallet, walletRank, connect, paySeat, collateralBalance, signDeposit, mintTestUsdc, gasBalance, FAUCET_TUSDC } from "../wallet";
+import { useWallets, useAccount, chooseWallet, walletRank, connect, paySeat, collateralBalance, signDeposit, mintTestUsdc, gasBalance, FAUCET_TUSDC } from "../wallet";
 import {
   PageHeader, LedgerPanel, usePlayerKey, useLedger, useClimberTheme, usd, short,
 } from "../shared";
@@ -23,7 +23,7 @@ export default function Wallet() {
   const ledger = useLedger(playerKey, refresh);
   const [climber, setClimber] = useState<ClimberId>("green");
   const [state, setState] = useState<TableState | null>(null);
-  const [addr, setAddr] = useState<Address | null>(null);
+  const [addr, setAddr] = useAccount();
   const [minted, setMinted] = useState<number | null>(null);
   const found = useWallets();
   const walletReady = found.length > 0;

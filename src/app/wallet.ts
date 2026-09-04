@@ -154,6 +154,62 @@ export function useHasWallet() {
  *  on the wrong chain would otherwise answer balance reads from it. */
 const publicClient = () => createPublicClient({ chain: CHAIN, transport: http() });
 
+/**
+ * Re-attach to a wallet that has ALREADY authorized this site.
+ *
+ * `addr` is component state, so every reload — and every hop between /play and
+ * /wallet — used to forget the connection and show CONNECT again, which reads
+ * as "my wallet disconnected itself" mid-session. The authorization never went
+ * anywhere: an approved site gets its account back from `eth_accounts` with no
+ * popup at all. This asks silently and stays null when the answer is empty, so
+ * it can run on mount without ever prompting anyone.
+ */
+export async function restoreConnection(): Promise<Address | null> {
+  const w = activeWallet();
+  if (!w) return null;
+  const accounts = (await w.provider
+    .request({ method: "eth_accounts" })
+    .catch(() => [])) as Address[];
+  return accounts?.length ? accounts[0] : null;
+}
+
+/**
+ * The connected account, restored on mount and kept in step with the wallet.
+ *
+ * A wallet can switch accounts or lock itself while the page is open; without
+ * `accountsChanged` the UI would keep naming an address that is no longer the
+ * one that would sign. `wallets().length` is a dep because EIP-6963 providers
+ * announce asynchronously — on a cold load there is nothing to ask yet.
+ */
+export function useAccount(): [Address | null, (a: Address | null) => void] {
+  const [addr, setAddr] = useState<Address | null>(null);
+  const found = useWallets().length;
+
+  useEffect(() => {
+    let dead = false;
+    void restoreConnection().then((a) => {
+      if (!dead && a) setAddr(a);
+    });
+
+    const w = activeWallet();
+    const provider = w?.provider as (Eip1193 & {
+      on?: (e: string, cb: (v: unknown) => void) => void;
+      removeListener?: (e: string, cb: (v: unknown) => void) => void;
+    }) | undefined;
+    const onAccounts = (v: unknown) => {
+      const list = v as Address[];
+      setAddr(list?.length ? list[0] : null);
+    };
+    provider?.on?.("accountsChanged", onAccounts);
+    return () => {
+      dead = true;
+      provider?.removeListener?.("accountsChanged", onAccounts);
+    };
+  }, [found]);
+
+  return [addr, setAddr];
+}
+
 /** Connect and land on Somnia Shannon, adding the chain if the wallet lacks it. */
 export async function connect(): Promise<Address> {
   const w = activeWallet();

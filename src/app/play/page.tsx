@@ -6,7 +6,7 @@ import type { TableState } from "@/lib/state";
 import type { Address } from "viem";
 import { Cliff, liveMultipleOf, CAST, type ClimberId } from "../Cliff";
 import { useSound, useHeartbeat } from "../sound";
-import { useHasWallet, connect, paySeat, collateralBalance, signDeposit } from "../wallet";
+import { useHasWallet, useAccount, connect, paySeat, collateralBalance, signDeposit } from "../wallet";
 import { useSmoothed } from "../useSmoothed";
 import {
   usd, short, pad, usePlayerKey, useLedger, useClimberTheme, SiteNav, HowItWorks, ShareButton,
@@ -144,7 +144,9 @@ export default function Game() {
   // The player's own wallet — used to pay for the seat and receive payouts.
   // Play stays custodial either way; a missing wallet just means free play.
   const walletReady = useHasWallet();
-  const [addr, setAddr] = useState<Address | null>(null);
+  // Restored on mount, so a reload or a hop to /wallet no longer reads as a
+  // wallet that disconnected itself. See useAccount.
+  const [addr, setAddr] = useAccount();
   const [paying, setPaying] = useState(false);
 
   const connectWallet = async () => {
