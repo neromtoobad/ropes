@@ -440,6 +440,7 @@ export default function Game() {
             seats={state?.seats ?? []}
             price={state?.price ?? { up: null, down: null }}
             secondsLeft={secs}
+            intervalSec={state?.round?.intervalSec ?? 60}
             myRunId={runId}
             falling={(bell?.killed ?? []).map((k) => k.runId)}
             bells={state?.bells ?? []}
@@ -576,7 +577,7 @@ function TopBar({
               ? `ROPING UP · 0:${String(Math.max(0, Math.round(t!.sealsIn))).padStart(2, "0")}`
               : me
                 ? "ON THE WALL"
-                : "BTC · 1 MINUTE"}
+                : `BTC · ${Math.round((state?.round?.intervalSec ?? 60) / 60)} MINUTE`}
           </p>
         </div>
       </div>

@@ -55,6 +55,9 @@ export interface TableState {
     /** Seconds until entries close for THIS window (0 = closed; bets now
      *  queue for the next). The executor enforces the same cutoff. */
     betsCloseIn: number;
+    /** This round's cadence in seconds: 60 normally, 300 while the venue
+     *  publishes no 1m window. The clock and the drain bar scale to it. */
+    intervalSec: number;
   } | null;
   /** Live probability of each side, 0-1. null when the book is empty. */
   price: { up: number | null; down: number | null };
@@ -417,7 +420,12 @@ export async function getTableState(): Promise<TableState> {
             expiresAt: round.expiresAt.toISOString(),
             secondsLeft,
             status: round.status,
-            betsCloseIn: Math.max(0, secondsLeft - (INTERVAL_SEC - ENTRY_WINDOW_S)),
+            intervalSec: round.intervalSec,
+            betsCloseIn: Math.max(
+              0,
+              secondsLeft -
+                (round.intervalSec - Math.round((ENTRY_WINDOW_S / INTERVAL_SEC) * round.intervalSec)),
+            ),
           };
         })()
       : null,

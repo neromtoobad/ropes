@@ -16,6 +16,13 @@ export const COLLATERAL = SOMNIA_TESTNET_ADDRESSES.collateral! as `0x${string}`;
 /** The asset and cadence the game runs on. One market, one clock. */
 export const ASSET = "BTC";
 export const INTERVAL_SEC = 60;
+/**
+ * Round cadences in order of preference. The game is designed around the
+ * 1-minute window and always takes it when it exists; 300 is the safety net
+ * for the venue dropping short cadences, as it did on 4 Sep for ~90 minutes.
+ * Nothing longer — a 15-minute round is not this game.
+ */
+export const CADENCES = [60, 300] as const;
 
 const pk = process.env.PRIVATE_KEY as `0x${string}` | undefined;
 if (!pk || pk === "0x") throw new Error("PRIVATE_KEY missing from .env");

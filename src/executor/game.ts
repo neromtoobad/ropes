@@ -57,6 +57,7 @@ export async function openRound() {
       index: (last?.index ?? 0) + 1,
       opensAt: market.opensAt,
       expiresAt: market.expiresAt,
+      intervalSec: market.intervalSec,
       status: "open",
       strike: market.strike || null,
       oracleQuestionId: market.oracleQuestionId,
@@ -112,7 +113,11 @@ let lockedLogFor = -1;
 export async function enterRound(roundId: string, market: LiveMarket) {
   const round = await db.round.findUniqueOrThrow({ where: { id: roundId } });
   const remaining = (round.expiresAt.getTime() - Date.now()) / 1000;
-  if (remaining < INTERVAL_SEC - ENTRY_WINDOW_S) {
+  // Entries close after the same FRACTION of any window, so a 5m fallback
+  // round gives a proportionally longer grace period rather than locking
+  // players out for its first four minutes.
+  const entryWindow = Math.round((ENTRY_WINDOW_S / INTERVAL_SEC) * round.intervalSec);
+  if (remaining < round.intervalSec - entryWindow) {
     if (lockedLogFor !== round.index) {
       lockedLogFor = round.index;
       log(`  entries locked for round ${round.index} — late bets ride the next window`);

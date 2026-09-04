@@ -87,6 +87,7 @@ export function Cliff({
   seats,
   price,
   secondsLeft,
+  intervalSec,
   myRunId,
   falling,
   leaping,
@@ -99,6 +100,8 @@ export function Cliff({
   seats: TableState["seats"];
   price: TableState["price"];
   secondsLeft: number;
+  /** The window's full length, so the drain bar empties over the real round. */
+  intervalSec: number;
   myRunId: string | null;
   /** Run ids mid-death-fall / mid-bail-leap. Ids, not names — names collide. */
   falling: string[];
@@ -592,7 +595,7 @@ export function Cliff({
         <div
           className="h-full transition-[width] duration-1000 ease-linear"
           style={{
-            width: `${Math.max(0, Math.min(100, (secondsLeft / 60) * 100))}%`,
+            width: `${Math.max(0, Math.min(100, (secondsLeft / intervalSec) * 100))}%`,
             background: secondsLeft < 10 ? "var(--down)" : "var(--gold)",
             boxShadow: `0 0 16px ${secondsLeft < 10 ? "var(--down)" : "var(--gold)"}`,
           }}

@@ -103,6 +103,10 @@ model Round {
 
   opensAt   DateTime
   expiresAt DateTime
+  /// This round's cadence in seconds. 60 is the game; 300 is the fallback the
+  /// executor takes only while the venue publishes no 1m window. Stored per
+  /// round because the entry window and the countdown are derived from it.
+  intervalSec Int @default(60)
 
   // open -> locked -> settled | voided
   status         String    @default("open")

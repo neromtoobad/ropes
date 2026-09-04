@@ -421,7 +421,7 @@ rolls into the next table — table 3 opened at 16.00. the stakes escalate on th
 
 | | |
 |---|---|
-| round | one BTC **1m** dreamDEX market, real clock, every minute on the minute |
+| round | one BTC **1m** dreamDEX market, real clock, every minute on the minute. if the venue publishes no 1m window the executor falls back to **5m** and returns to 1m by itself — nothing longer |
 | buy-in | 10 tUSDC, fixed, one seat |
 | pick | UP or DOWN before lock. whole stack goes in. while riding you can QUEUE the next side — the bell rolls you straight into the next window |
 | win | stack × 1/p, already staked next round |
@@ -728,6 +728,17 @@ lonely side pays a lot. show the crowd's split on screen — that is the strateg
   a run, a bankroll or winnings to report. That alone gave the wall ~18% more height on desktop
   (493 -> 584px) and put it above the fold on a 812px phone. Rule of thumb for this screen: a
   placeholder must never occupy more space than the number it is standing in for.
+
+➠ **the venue can stop publishing 1m windows, and on 4 Sep it did for ~90 minutes** (13:29-14:57
+  UTC; every cadence under 4h vanished). The game froze completely — the clock sat still and the
+  page showed RECONNECTING, which is the worst thing a judge can open. `CADENCES = [60, 300]` in
+  chain.ts is the answer: `currentMarket` takes the FIRST cadence with a tradeable window, so 1m is
+  always preferred and 5m is only ever reached when 1m does not exist. It returns to 1m on its own
+  the moment 1m returns — there is no mode to switch back.
+  Anything timed off a round now reads `round.intervalSec` rather than assuming 60: the entry
+  window is a FRACTION (35/60) of the real window so a 5m round is not locked for its first four
+  minutes, and the drain bar spans the real length. Nothing longer than 300 is ever eligible —
+  a 15-minute round is not this game, and playing one would be worse than showing the banner.
 
 ## things NOT to do
 

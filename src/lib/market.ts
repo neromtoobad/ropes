@@ -6,7 +6,7 @@
  *   2. Key everything by marketId. Pools are recycled between windows, so state
  *      keyed by pool address silently attaches to a market we never traded.
  */
-import { exchange, ASSET, INTERVAL_SEC } from "./chain";
+import { exchange, ASSET, CADENCES } from "./chain";
 
 export type Onchain = Awaited<ReturnType<typeof exchange.client.getMarketOnchain>>;
 
@@ -17,6 +17,10 @@ export interface LiveMarket {
   expiresAt: Date;
   opensAt: Date;
   secondsLeft: number;
+  /** This market's cadence in seconds — 60 normally, 300 when the venue has
+   *  stopped publishing 1m windows. Everything timed off a round reads this
+   *  rather than assuming a minute. */
+  intervalSec: number;
   /** Best resting YES ask / bid, raw units. undefined when that side is empty. */
   yesAsk?: bigint;
   yesBid?: bigint;
@@ -43,12 +47,24 @@ const TRADING = 1;
  */
 export async function currentMarket(minSecondsLeft = 5): Promise<LiveMarket | null> {
   const rows = await exchange.client.listLiveBinaryMarkets({ limit: 100 });
-  const candidates = rows
-    .filter((m: any) => m.asset === ASSET && Number(m.intervalSec) === INTERVAL_SEC)
-    .sort((a: any, b: any) => Number(a.expiry) - Number(b.expiry));
+  /*
+   * Prefer the 1-minute window; fall back only when the venue is not
+   * publishing one. dreamDEX's testnet dropped every cadence under 4h for ~90
+   * minutes on 4 Sep, which froze the game completely — a five-minute round is
+   * a slower game than this is meant to be, but it is a game, and a frozen
+   * clock in front of a judge is not. The first cadence with a tradeable
+   * window wins, so the game returns to 1m by itself the moment 1m returns.
+   */
+  const byCadence = CADENCES.map((sec) =>
+    rows
+      .filter((m: any) => m.asset === ASSET && Number(m.intervalSec) === sec)
+      .sort((a: any, b: any) => Number(a.expiry) - Number(b.expiry)),
+  );
+  const candidates = byCadence.flat();
 
   for (const row of candidates) {
     const marketId = row.marketId as `0x${string}`;
+    const rowInterval = Number(row.intervalSec);
     const onchain = await exchange.client.getMarketOnchain(marketId);
     if (onchain.status !== TRADING) continue;
 
@@ -70,7 +86,8 @@ export async function currentMarket(minSecondsLeft = 5): Promise<LiveMarket | nu
       pool,
       onchain,
       expiresAt,
-      opensAt: new Date(Number(row.tradingStart ?? Number(row.expiry) - INTERVAL_SEC) * 1000),
+      intervalSec: rowInterval,
+      opensAt: new Date(Number(row.tradingStart ?? Number(row.expiry) - rowInterval) * 1000),
       secondsLeft,
       yesAsk: book.yesAsks[0]?.price,
       yesBid: book.yesBids[0]?.price,
