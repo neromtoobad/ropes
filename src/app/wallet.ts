@@ -82,6 +82,33 @@ export function wallets(): WalletChoice[] {
 export const hasWallet = () => wallets().length > 0;
 
 /**
+ * A phone with no injected wallet — the single biggest way "connect" fails.
+ *
+ * Mobile browsers have no extensions, so Safari/Chrome on a phone injects
+ * nothing and the site can only offer free play. Every major mobile wallet
+ * ships its own in-app browser and a universal link that reopens the current
+ * page inside it, where a provider IS injected and everything works. This is
+ * the difference between a dead end and one tap.
+ */
+export function isMobile(): boolean {
+  if (typeof navigator === "undefined") return false;
+  return /android|iphone|ipad|ipod/i.test(navigator.userAgent);
+}
+
+/** Universal links that reopen THIS page inside a wallet's own browser. */
+export function walletDeepLinks(): { name: string; href: string }[] {
+  if (typeof window === "undefined") return [];
+  const url = window.location.href;
+  const bare = url.replace(/^https?:\/\//, ""); // MetaMask wants host+path, no scheme
+  return [
+    { name: "MetaMask", href: `https://metamask.app.link/dapp/${bare}` },
+    { name: "Coinbase Wallet", href: `https://go.cb-w.com/dapp?cb_url=${encodeURIComponent(url)}` },
+    { name: "Trust", href: `https://link.trustwallet.com/open_url?coin_id=60&url=${encodeURIComponent(url)}` },
+    { name: "Rainbow", href: `https://rnbwapp.com/dapp/${bare}` },
+  ];
+}
+
+/**
  * Which wallet to reach for when the player has not said.
  *
  * Every EIP-1193 wallet works here — this only decides the DEFAULT guess.
@@ -210,6 +237,52 @@ export function useAccount(): [Address | null, (a: Address | null) => void] {
   return [addr, setAddr];
 }
 
+/** Somnia Shannon as the wallet RPCs want it: chainId hex, 50312. */
+const CHAIN_HEX = "0xc488";
+const ADD_CHAIN_PARAMS = {
+  chainId: CHAIN_HEX,
+  chainName: CHAIN.name,
+  nativeCurrency: CHAIN.nativeCurrency,
+  rpcUrls: CHAIN.rpcUrls.default.http as unknown as string[],
+  blockExplorerUrls: [CHAIN.blockExplorers.default.url],
+};
+
+/** EIP-1193 errors carry a numeric code; 4001 is "user rejected". */
+function errCode(e: unknown): number | undefined {
+  const c = (e as { code?: unknown })?.code;
+  return typeof c === "number" ? c : undefined;
+}
+
+/**
+ * Put the wallet on Somnia Shannon.
+ *
+ * The switch/add dance is EIP-3326 + EIP-3085 and the codes matter. The old
+ * version called `wallet_addEthereumChain` on ANY switch failure, so declining
+ * the switch immediately raised a SECOND prompt to add a chain the wallet
+ * already had — two popups for one refusal, which reads as a broken button.
+ * 4902 (and some wallets' 4901/-32603) is the only error that means "I don't
+ * know this chain"; a rejection is final and says so.
+ */
+async function ensureChain(provider: Eip1193) {
+  try {
+    await provider.request({
+      method: "wallet_switchEthereumChain",
+      params: [{ chainId: CHAIN_HEX }],
+    });
+    return;
+  } catch (e) {
+    const code = errCode(e);
+    if (code === 4001) throw new Error("you declined the switch to Somnia Shannon — the game needs that network");
+    // Unknown chain: add it. Adding also switches on every wallet we have seen.
+    try {
+      await provider.request({ method: "wallet_addEthereumChain", params: [ADD_CHAIN_PARAMS] });
+    } catch (addErr) {
+      if (errCode(addErr) === 4001) throw new Error("you declined adding Somnia Shannon — the game needs that network");
+      throw new Error("could not add Somnia Shannon to this wallet. add it manually: chain 50312, rpc api.infra.testnet.somnia.network");
+    }
+  }
+}
+
 /** Connect and land on Somnia Shannon, adding the chain if the wallet lacks it. */
 export async function connect(): Promise<Address> {
   const w = activeWallet();
@@ -223,29 +296,19 @@ export async function connect(): Promise<Address> {
   const known = (await provider
     .request({ method: "eth_accounts" })
     .catch(() => [])) as Address[];
-  const accounts = known?.length
-    ? known
-    : ((await provider.request({ method: "eth_requestAccounts" })) as Address[]);
-  if (!accounts?.length) throw new Error("no account authorized");
-  try {
-    await provider.request({
-      method: "wallet_switchEthereumChain",
-      params: [{ chainId: "0xc488" }], // 50312
-    });
-  } catch {
-    await provider.request({
-      method: "wallet_addEthereumChain",
-      params: [
-        {
-          chainId: "0xc488",
-          chainName: CHAIN.name,
-          nativeCurrency: CHAIN.nativeCurrency,
-          rpcUrls: CHAIN.rpcUrls.default.http,
-          blockExplorerUrls: [CHAIN.blockExplorers.default.url],
-        },
-      ],
-    });
+  let accounts = known as Address[];
+  if (!accounts?.length) {
+    try {
+      accounts = (await provider.request({ method: "eth_requestAccounts" })) as Address[];
+    } catch (e) {
+      if (errCode(e) === 4001) throw new Error("you declined the connection request");
+      // -32002: a previous request is still sitting unanswered in the wallet.
+      if (errCode(e) === -32002) throw new Error("your wallet already has a connection request open — approve it there");
+      throw e;
+    }
   }
+  if (!accounts?.length) throw new Error("no account authorized");
+  await ensureChain(provider);
   return accounts[0];
 }
 

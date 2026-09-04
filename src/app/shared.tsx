@@ -10,6 +10,7 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { shareRunCard } from "./share";
+import { isMobile, walletDeepLinks } from "./wallet";
 import type { ClimberId } from "./Cliff";
 
 export const usd = (n: number) => `${n >= 0 ? "+" : "−"}${Math.abs(n).toFixed(2)}`;
@@ -151,6 +152,42 @@ export function PageHeader({ title }: { title: string }) {
       </Link>
       <SiteNav />
     </header>
+  );
+}
+
+/* ──────────────────────── no wallet on a phone ───────────────────────── */
+
+/**
+ * The way out of "no wallet in this browser" on a phone.
+ *
+ * Mobile browsers inject nothing, so the honest options are: reopen this page
+ * inside a wallet's own browser (one tap, everything works), or keep playing
+ * free. Without this the page just says no wallet and stops, which is where
+ * most phone visitors gave up.
+ */
+export function OpenInWallet() {
+  const [links, setLinks] = useState<{ name: string; href: string }[]>([]);
+  useEffect(() => {
+    if (isMobile()) setLinks(walletDeepLinks());
+  }, []);
+  if (!links.length) return null;
+  return (
+    <div className="mt-2">
+      <p className="text-[10px] font-black tracking-[0.25em] text-[var(--dim)]">
+        ON A PHONE? OPEN THIS PAGE IN YOUR WALLET&apos;S BROWSER
+      </p>
+      <div className="mt-1.5 flex flex-wrap gap-1.5">
+        {links.map((l) => (
+          <a
+            key={l.name}
+            href={l.href}
+            className="chamfer-sm border border-[var(--gold)] px-3 py-2 text-[10px] font-black tracking-[0.12em] text-[var(--gold)] transition hover:bg-[var(--gold)] hover:text-black"
+          >
+            {l.name.toUpperCase()} →
+          </a>
+        ))}
+      </div>
+    </div>
   );
 }
 

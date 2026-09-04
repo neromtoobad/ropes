@@ -683,6 +683,19 @@ lonely side pays a lot. show the crowd's split on screen — that is the strateg
   is pinned SERVER-side from the deposit tx sender, so a browser forgetting the address cannot
   misdirect a withdrawal.
 
+➠ **a phone browser injects NO wallet, and the page used to stop there.** Someone opening the link
+  in mobile Safari/Chrome hit "NO WALLET DETECTED" with no way forward — the most likely reason a
+  new player says "connect didn't work". Extensions do not exist on mobile; the working route is a
+  universal link that REOPENS the page inside the wallet app's own browser, where a provider is
+  injected. `walletDeepLinks()` builds those for MetaMask / Coinbase / Trust / Rainbow and
+  `<OpenInWallet/>` renders them whenever there is no injected provider on a mobile UA.
+➠ **`wallet_addEthereumChain` must NOT be the catch-all for a failed switch.** The old flow called
+  add on ANY switch error, so declining the network switch raised a SECOND popup asking to add a
+  chain the wallet already had — two prompts for one refusal, which reads as a broken button. Only
+  an unknown-chain error should trigger add; 4001 is a final rejection and must say so. 4001 on
+  `eth_requestAccounts` means declined and -32002 means a request is ALREADY open in the wallet
+  (common when someone taps connect twice) — both need their own message, not a generic failure.
+
 ## things NOT to do
 
 ➠ do not build a per-user escrow contract. house executor, disclosed in the video.

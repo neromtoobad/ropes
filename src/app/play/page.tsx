@@ -10,7 +10,7 @@ import { useHasWallet, useAccount, connect, paySeat, collateralBalance, signDepo
 import { useSmoothed } from "../useSmoothed";
 import {
   usd, short, pad, usePlayerKey, useLedger, useClimberTheme, SiteNav, HowItWorks, ShareButton,
-  type LedgerData,
+  type LedgerData, OpenInWallet,
 } from "../shared";
 
 const SEAT = 10_000_000n; // 10 tUSDC, 6 decimals
@@ -1198,9 +1198,10 @@ function Join({
         ) : walletReady ? (
           "CONNECT TO PLAY WITH REAL TESTNET tUSDC — OR TAKE A FREE SEAT ON THE HOUSE BANKROLL"
         ) : (
-          "NO WALLET DETECTED — PLAYING FREE ON THE HOUSE BANKROLL. EVERY TRADE IS STILL REAL AND ON-CHAIN."
+          "NO WALLET IN THIS BROWSER — PLAYING FREE ON THE HOUSE BANKROLL. EVERY TRADE IS STILL REAL AND ON-CHAIN."
         )}
       </p>
+      {!walletReady && <OpenInWallet />}
     </div>
   );
 }

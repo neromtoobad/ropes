@@ -10,8 +10,7 @@ import type { Address } from "viem";
 import type { TableState } from "@/lib/state";
 import { useWallets, useAccount, chooseWallet, walletRank, connect, paySeat, collateralBalance, signDeposit, mintTestUsdc, gasBalance, FAUCET_TUSDC } from "../wallet";
 import {
-  PageHeader, LedgerPanel, usePlayerKey, useLedger, useClimberTheme, usd, short,
-} from "../shared";
+  PageHeader, LedgerPanel, usePlayerKey, useLedger, useClimberTheme, usd, short, OpenInWallet } from "../shared";
 import { CAST, type ClimberId } from "../Cliff";
 
 const DEPOSIT_CHOICES = [10n, 50n, 100n] as const;
@@ -206,7 +205,7 @@ export default function Wallet() {
                 >
                   INSTALL METAMASK
                 </a>
-                . ON A PHONE, OPEN IT INSIDE YOUR WALLET&apos;S OWN BROWSER. FREE PLAY WORKS EITHER WAY.
+                . FREE PLAY WORKS EITHER WAY.
               </span>
             )}
             {bank && bank.balance > 0 && bank.address && (
@@ -265,6 +264,7 @@ export default function Wallet() {
           </p>
         )}
         {hint && <p className="mt-2 text-[10px] font-bold tracking-[0.15em] text-[var(--gold)]">{hint}</p>}
+        {!walletReady && <OpenInWallet />}
         {minted !== null && (
           <p className="mt-3 text-sm font-bold text-[var(--up)]">
             MINTED {minted.toLocaleString()} tUSDC TO YOUR WALLET — NOW DEPOSIT WHAT YOU WANT TO PLAY WITH.
