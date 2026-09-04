@@ -654,6 +654,21 @@ lonely side pays a lot. show the crowd's split on screen — that is the strateg
   is left alive on purpose: links already shared with judges must not break. `NEXT_PUBLIC_BASE_URL`
   drives `metadataBase`, so it has to move with the domain or every OG share image 404s.
 
+➠ **the indexer's Market table can hang while the indexer itself looks perfectly healthy** (4 sep,
+  ~03:43-04:30+ UTC, over 45 min). Every `listLiveBinaryMarkets` call timed out at the SDK's 30s
+  ceiling, the executor burned its 10-failure budget and restarted every ~5.5 min in a loop, and
+  round 6198 sat unsettled the whole time. It is NOT query cost: `limit:100` unfiltered, `limit:5`,
+  and a server-side-filtered `asset:"BTC", intervalSec:60, limit:10` all failed identically at 30s,
+  so narrowing the query is not a workaround. Diagnose it in two curls against `INDEXER_URL`:
+
+    query { __typename }                 -> 200 in 0.45s   (Hasura is alive and validating)
+    query { Market(limit: 1) { marketId } } -> HTTP 504 "stream timeout" after 30s
+
+  A fast `__typename` plus a 504 on the cheapest possible Market read means THEIR data layer behind
+  Hasura is wedged — nothing on our side can route around it, and the fix is to wait. The executor's
+  crash-and-restart loop is correct behaviour here: it costs no gas (it fails long before any order)
+  and it recovers on its own the moment they come back. Do not "fix" it by widening timeouts.
+
 ## things NOT to do
 
 ➠ do not build a per-user escrow contract. house executor, disclosed in the video.
