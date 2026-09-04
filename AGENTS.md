@@ -739,6 +739,11 @@ lonely side pays a lot. show the crowd's split on screen — that is the strateg
   window is a FRACTION (35/60) of the real window so a 5m round is not locked for its first four
   minutes, and the drain bar spans the real length. Nothing longer than 300 is ever eligible —
   a 15-minute round is not this game, and playing one would be worse than showing the banner.
+  **Fall back on ABSENCE, never on runway.** The first cut flattened every cadence into one list, so
+  a 1m window with 9s left failed the 12s runway check and the loop fell through to a 5m market —
+  opening a five-minute round while 1m was perfectly healthy (seen live, round 6575, 4 sep). Take
+  the first cadence that has ANY live market and stop there; if none of its windows is enterable
+  yet, return null and wait a tick. Ten seconds of waiting beats a five-minute round.
 
 ## things NOT to do
 

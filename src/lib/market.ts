@@ -55,12 +55,24 @@ export async function currentMarket(minSecondsLeft = 5): Promise<LiveMarket | nu
    * clock in front of a judge is not. The first cadence with a tradeable
    * window wins, so the game returns to 1m by itself the moment 1m returns.
    */
-  const byCadence = CADENCES.map((sec) =>
+  const forCadence = (sec: number) =>
     rows
       .filter((m: any) => m.asset === ASSET && Number(m.intervalSec) === sec)
-      .sort((a: any, b: any) => Number(a.expiry) - Number(b.expiry)),
-  );
-  const candidates = byCadence.flat();
+      .sort((a: any, b: any) => Number(a.expiry) - Number(b.expiry));
+
+  /*
+   * Fall back only when a cadence is ABSENT, never when its current window is
+   * merely too close to expiry.
+   *
+   * Flattening every cadence into one list was wrong: with ~9s left on the
+   * live 1m window, that window failed the runway check and the loop fell
+   * straight through to a 5m market — opening a five-minute round while 1m was
+   * perfectly healthy (observed live, round 6575). Waiting ten seconds for the
+   * next 1m window is always the right answer. So: take the first cadence that
+   * has ANY live market, and if none of its windows is enterable right now,
+   * return null and try again next tick rather than reaching for a slower one.
+   */
+  const candidates = CADENCES.map(forCadence).find((list) => list.length > 0) ?? [];
 
   for (const row of candidates) {
     const marketId = row.marketId as `0x${string}`;
