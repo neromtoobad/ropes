@@ -634,7 +634,7 @@ function Rail({
           disabled={lockedIn && climber !== c.id}
           title={`${c.code} ${c.label}`}
           aria-pressed={climber === c.id}
-          className={`slot chamfer-sm shrink-0 ${lockedIn ? "h-11 w-11" : "h-[56px] w-[56px]"} lg:h-[60px] lg:w-full ${climber === c.id ? "sel" : ""} disabled:cursor-not-allowed disabled:opacity-35`}
+          className={`slot chamfer-sm shrink-0 ${lockedIn ? "h-10 w-10" : "h-12 w-12"} sm:h-[56px] sm:w-[56px] lg:h-[60px] lg:w-full ${climber === c.id ? "sel" : ""} disabled:cursor-not-allowed disabled:opacity-35`}
         >
           <Image
             src={`/climbers/${c.id}/climb.webp`}
@@ -643,7 +643,7 @@ function Rail({
             height={56}
             unoptimized
             loading="eager"
-            className={`w-auto ${lockedIn ? "h-[34px]" : "h-[44px]"} lg:h-[44px]`}
+            className={`w-auto ${lockedIn ? "h-[30px]" : "h-[38px]"} sm:h-[44px] lg:h-[44px]`}
           />
         </button>
       ))}
@@ -1148,9 +1148,27 @@ function Join({
   // wallet popup. That is the whole point of the bankroll.
   const funded = Boolean(bank && bank.balance >= 10);
   const primary = funded ? onJoin : addr ? onBuy : onJoin;
+  /*
+   * The rules are four cards' worth of screen. A first-timer needs them; a
+   * returning player has read them and just wants the wall back, so they
+   * collapse to one line after the first visit. This block was the single
+   * biggest thing crowding the game.
+   */
+  const [showRules, setShowRules] = useState(false);
+  useEffect(() => setShowRules(safeLocal.get("lc.rulesSeen") !== "1"), []);
   return (
     <div>
-      <HowItWorks />
+      <button
+        onClick={() => {
+          setShowRules((v) => !v);
+          safeLocal.set("lc.rulesSeen", "1");
+        }}
+        className="mb-2 text-[10px] font-black tracking-[0.25em] text-[var(--dim)] transition hover:text-[var(--gold)]"
+        aria-expanded={showRules}
+      >
+        {showRules ? "▾ HOW IT WORKS" : "▸ HOW IT WORKS · 10 tUSDC A SEAT, ONE MINUTE A ROUND"}
+      </button>
+      {showRules && <HowItWorks />}
       <div className="flex flex-wrap gap-2">
         <input
           value={name}
@@ -1382,6 +1400,51 @@ function MoneyBar({
   // label that says WON. Signed net lives in the corner, honest but small.
   const won = ledger?.totals?.won ?? null;
   const bankBalance = ledger?.bank && ledger.bank.address ? ledger.bank.balance : null;
+
+  /*
+   * Nothing to report yet — no seat, no winnings, no bankroll. Two tall cards
+   * of em dashes is the emptiest possible use of the best space on the page,
+   * so before the first run this collapses to one slim line and gives the
+   * height back to the wall.
+   */
+  const nothingYet = onWall === null && won === null && bankBalance === null;
+  if (nothingYet) {
+    return (
+      <div
+        className="chamfer-sm mt-3 flex flex-wrap items-center justify-between gap-2 border px-4 py-2"
+        style={{ borderColor: "var(--edge)", background: "linear-gradient(180deg, var(--panel-2), var(--panel))" }}
+      >
+        <span className="text-[10px] font-black tracking-[0.25em] text-[var(--dim)]">
+          <span className="sm:hidden">TAKE A SEAT · 10 tUSDC OR FREE</span>
+          <span className="hidden sm:inline">TAKE A SEAT TO START A RUN — 10 tUSDC, OR FREE ON THE HOUSE</span>
+        </span>
+        {walletReady && !addr ? (
+          <button
+            onClick={onConnect}
+            className="chamfer-sm shrink-0 whitespace-nowrap border border-[var(--gold)] px-2.5 py-1.5 text-[9px] font-black tracking-[0.15em] text-[var(--gold)] transition hover:bg-[var(--gold)] hover:text-black"
+          >
+            CONNECT WALLET
+          </button>
+        ) : addr ? (
+          <button
+            onClick={onFund}
+            disabled={funding}
+            className="chamfer-sm shrink-0 whitespace-nowrap border border-[var(--gold)] px-2.5 py-1.5 text-[9px] font-black tracking-[0.15em] text-[var(--gold)] transition hover:bg-[var(--gold)] hover:text-black disabled:opacity-50"
+          >
+            {funding ? "FUNDING…" : "DEPOSIT 10"}
+          </button>
+        ) : (
+          <a
+            href="/wallet"
+            className="chamfer-sm shrink-0 whitespace-nowrap border border-[var(--gold)] px-2.5 py-1.5 text-[9px] font-black tracking-[0.15em] text-[var(--gold)] transition hover:bg-[var(--gold)] hover:text-black"
+          >
+            GET A WALLET →
+          </a>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="mt-3 grid grid-cols-2 gap-3">
       <div className="chamfer-sm flex flex-col gap-1.5 border px-3 py-2.5 sm:flex-row sm:items-baseline sm:justify-between sm:px-4"

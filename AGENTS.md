@@ -721,6 +721,14 @@ lonely side pays a lot. show the crowd's split on screen — that is the strateg
   would have stack-overflowed on the first storage read and taken the whole site down. Caught before
   shipping only because the helper was re-read afterwards. Always re-read a file a blind regex touched.
 
+➠ **the screen filled up with EMPTY things before the player had anything.** Not-yet-seated, the
+  page showed two tall money cards reading "—", a four-card rules block, and a stat panel of
+  dashes, all squeezing the wall — the one thing the product is. The rules now collapse to a single
+  line after the first visit (`lc.rulesSeen`) and the money bar collapses to one row until there is
+  a run, a bankroll or winnings to report. That alone gave the wall ~18% more height on desktop
+  (493 -> 584px) and put it above the fold on a 812px phone. Rule of thumb for this screen: a
+  placeholder must never occupy more space than the number it is standing in for.
+
 ## things NOT to do
 
 ➠ do not build a per-user escrow contract. house executor, disclosed in the video.
