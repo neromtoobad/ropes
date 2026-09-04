@@ -8,7 +8,7 @@
 import { useEffect, useState } from "react";
 import type { Address } from "viem";
 import type { TableState } from "@/lib/state";
-import { useWallets, chooseWallet, walletRank, connect, paySeat, collateralBalance, signDeposit } from "../wallet";
+import { useWallets, chooseWallet, walletRank, connect, paySeat, collateralBalance, signDeposit, mintTestUsdc, gasBalance, FAUCET_TUSDC } from "../wallet";
 import {
   PageHeader, LedgerPanel, usePlayerKey, useLedger, useClimberTheme, usd, short,
 } from "../shared";
@@ -24,6 +24,7 @@ export default function Wallet() {
   const [climber, setClimber] = useState<ClimberId>("green");
   const [state, setState] = useState<TableState | null>(null);
   const [addr, setAddr] = useState<Address | null>(null);
+  const [minted, setMinted] = useState<number | null>(null);
   const found = useWallets();
   const walletReady = found.length > 0;
   const [picked, setPicked] = useState<string | null>(null);
@@ -79,7 +80,7 @@ export default function Wallet() {
       setAddr(a);
       const units = amount * 1_000_000n;
       const bal = await collateralBalance(a, state.pay.collateral as Address);
-      if (bal < units) throw new Error(`not enough tUSDC — you hold ${(Number(bal) / 1e6).toFixed(2)}`);
+      if (bal < units) throw new Error(`not enough tUSDC — you hold ${(Number(bal) / 1e6).toFixed(2)}. tap GET TEST tUSDC first, it is free`);
       const tx = await paySeat(a, state.pay.collateral as Address, state.pay.house as Address, units);
       const signature = await signDeposit(a, tx, playerKey);
       const r = await fetch("/api/deposit", {
@@ -90,6 +91,31 @@ export default function Wallet() {
       const j = await r.json();
       if (!r.ok) throw new Error(j.error);
       setRefresh((n) => n + 1);
+    } catch (e) {
+      setErr(String(e).replace("Error: ", "").slice(0, 160));
+    }
+    setBusy(null);
+  };
+
+  /**
+   * Claim test collateral. TestUSDC mints to whoever calls it, so this is the
+   * player's own wallet doing the minting — the house funds nothing and there
+   * is no queue. Gas is the one thing we cannot supply, so an empty tank is
+   * named plainly rather than left to the wallet's own popup.
+   */
+  const claimTestUsdc = async () => {
+    if (!state?.pay || busy) return;
+    setBusy("faucet");
+    setErr(null);
+    try {
+      const a = addr ?? (await connect());
+      setAddr(a);
+      if ((await gasBalance(a)) === 0n) {
+        throw new Error("this wallet has no STT for gas — get some from the Somnia testnet hub first");
+      }
+      await mintTestUsdc(a, state.pay.collateral as Address);
+      setMinted(Number(FAUCET_TUSDC) / 1e6);
+      setTimeout(() => setMinted(null), 6000);
     } catch (e) {
       setErr(String(e).replace("Error: ", "").slice(0, 160));
     }
@@ -147,6 +173,15 @@ export default function Wallet() {
               <span className="tabular text-[10px] font-bold tracking-[0.2em] text-[var(--dim)]">
                 CONNECTED {short(addr)}
               </span>
+            )}
+            {walletReady && (
+              <button
+                onClick={claimTestUsdc}
+                disabled={busy !== null}
+                className="chamfer-sm border border-[var(--up)] px-4 py-2.5 text-xs font-black tracking-[0.12em] text-[var(--up)] transition hover:bg-[var(--up)] hover:text-black disabled:opacity-40"
+              >
+                {busy === "faucet" ? "MINTING…" : "GET TEST tUSDC · FREE"}
+              </button>
             )}
             {walletReady &&
               DEPOSIT_CHOICES.map((n) => (
@@ -230,6 +265,27 @@ export default function Wallet() {
           </p>
         )}
         {hint && <p className="mt-2 text-[10px] font-bold tracking-[0.15em] text-[var(--gold)]">{hint}</p>}
+        {minted !== null && (
+          <p className="mt-3 text-sm font-bold text-[var(--up)]">
+            MINTED {minted.toLocaleString()} tUSDC TO YOUR WALLET — NOW DEPOSIT WHAT YOU WANT TO PLAY WITH.
+          </p>
+        )}
+        {walletReady && (
+          <p className="mt-3 max-w-2xl text-[10px] font-bold leading-relaxed tracking-[0.15em] text-[var(--dim)]">
+            TEST tUSDC IS FREE AND UNLIMITED — IT IS THE COLLATERAL EVERY ROUND TRADES AGAINST. YOU
+            STILL NEED A LITTLE STT FOR GAS (ABOUT 0.0005 PER TRANSACTION), WHICH ONLY SOMNIA CAN
+            ISSUE — GET IT FROM THE{" "}
+            <a
+              href="https://testnet.somnia.network"
+              target="_blank"
+              rel="noreferrer"
+              className="underline decoration-dotted hover:text-[var(--gold)]"
+            >
+              SOMNIA TESTNET HUB
+            </a>
+            . NO WALLET AND NO STT? THE FREE SEAT PLAYS THE SAME REAL MARKETS ON THE HOUSE.
+          </p>
+        )}
         {err && <p className="mt-3 text-sm text-[var(--down)]">{err}</p>}
       </section>
 

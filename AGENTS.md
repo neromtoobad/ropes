@@ -260,8 +260,11 @@ new SomniaMarkets({
 
 mainnet indexer is `https://prd.smk.somnia.host/v1/graphql`. sdk on npm is **0.28.1**.
 
-**collateral is tUSDC, 6 decimals**, `0x70a86D8842FB63C4Ad2b7cdddF530eBf1BB25d8E`. there is no
-faucet page — `exchange.trader.faucet()` mints 10,000 tUSDC to msg.sender, capped per call.
+**collateral is tUSDC, 6 decimals**, `0x70a86D8842FB63C4Ad2b7cdddF530eBf1BB25d8E`. there is no faucet
+PAGE, but the token has a faucet FUNCTION — `faucet(uint256)` on the collateral contract mints to
+msg.sender. The wallet page calls it from the PLAYER's wallet (`mintTestUsdc`), so tUSDC costs the
+house nothing and needs no drip endpoint racing the executor for the nonce. 10,000 is the largest
+round amount it accepts (100,000 reverts `0x37583762`); the call is ~80k gas, about 0.0005 STT.
 STT for gas is a separate, human faucet.
 
 grid on testnet: `tick = lot = minQuantity = 1000` raw = **0.001** in both probability and

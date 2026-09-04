@@ -16,6 +16,7 @@ import {
   custom,
   http,
   erc20Abi,
+  parseAbi,
   type Address,
 } from "viem";
 
@@ -227,6 +228,39 @@ export async function signDeposit(account: Address, txHash: `0x${string}`, playe
   if (!w) throw new Error("no wallet in this browser");
   const wallet = createWalletClient({ account, chain: CHAIN, transport: custom(w.provider) });
   return wallet.signMessage({ message: depositMessage(txHash, playerKey) });
+}
+
+/**
+ * TestUSDC's own faucet. `faucet(amount)` mints to msg.sender, so the PLAYER's
+ * wallet calls it and the house pays nothing — no drip endpoint, no rate limit,
+ * and no second writer racing the executor for the house wallet's nonce.
+ *
+ * 10,000 is the SDK's default and the largest round number the contract
+ * accepts; 100,000 reverts. The call costs ~80k gas (~0.0005 STT), which is
+ * the one thing we cannot hand out — see the STT note on the wallet page.
+ */
+const faucetAbi = parseAbi(["function faucet(uint256 amount)"]);
+export const FAUCET_TUSDC = 10_000n * 1_000_000n;
+
+export async function mintTestUsdc(account: Address, collateral: Address): Promise<`0x${string}`> {
+  const w = activeWallet();
+  if (!w) throw new Error("no wallet in this browser");
+  const wallet = createWalletClient({ account, chain: CHAIN, transport: custom(w.provider) });
+  const hash = await wallet.writeContract({
+    address: collateral,
+    abi: faucetAbi,
+    functionName: "faucet",
+    args: [FAUCET_TUSDC],
+  });
+  const receipt = await publicClient().waitForTransactionReceipt({ hash, timeout: 60_000 });
+  if (receipt.status !== "success") throw new Error("faucet reverted");
+  return hash;
+}
+
+/** Native STT, so an empty tank is named as such instead of surfacing as a
+ *  wallet's own opaque "insufficient funds" popup. */
+export async function gasBalance(account: Address): Promise<bigint> {
+  return publicClient().getBalance({ address: account });
 }
 
 /** The player's tUSDC balance, for the "can you even afford a seat" check. */
