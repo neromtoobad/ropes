@@ -6,3 +6,10 @@ prisma/*.db*
 public/climbers
 scripts/spike
 *.log
+# media and submission assets — the executor box never needs them, and the
+# raw screen recording alone (269MB) pushed the upload past cloudflare's limit
+*.mp4
+*.srt
+*.mov
+submission
+design
