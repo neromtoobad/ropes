@@ -99,11 +99,38 @@ SAME BLOCK: YES
 No keeper. No cron. No listener. Re-run it yourself:
 `REGISTRY=0xfb31455b05ea95b7B4cC4c1e98f03219b995456A npx tsx scripts/spike/reactive-e2e.ts`
 
+### 7,320 windows, and the coin is fair
+
+The executor has run 24/7 since 26 August. As of 5 September:
+
+```
+settled windows   7,320        voided        0
+UP  3,655 (49.9%)              DOWN  3,665 (50.1%)
+```
+
+Ten days of continuous minutes and not one voided window. The split is printed on
+the board in-app rather than buried here — a game that pays 1/p has to show you the
+coin is straight.
+
 ### The verdicts are the chain's verdicts
 
 After three straight test-run deaths looked suspicious, the last six settled positions were audited
 against the venue's own on-chain resolution: **6 of 6 agree**. The streak was market luck
 (~0.6% combined odds), and the audit is a script anyone can rerun.
+
+---
+
+## What a minute actually gives you
+
+Beyond picking a side, the round is built so a one-minute cadence never feels like a scramble:
+
+| | |
+|---|---|
+| **Queue the next side while riding** | Tap UP or DOWN mid-round and the bell rolls a survivor straight into the next window — no dead air, no re-clicking under a countdown. |
+| **Auto-bail at a target** | Name a multiple and the executor sells the moment the book can *actually* pay it. It marks against real resting depth for the whole position, not the touch — a thin book that shows 3× but can only fill 1.7× does not trigger it. |
+| **Mint your own test money** | The wallet page mints 10,000 tUSDC from your own wallet in one tap. No faucet page exists for this token; the contract mints to whoever calls it. |
+| **Plays on a phone** | Controls pin to the bottom of the screen under your thumb, the wall takes the top half, and the roster scrolls. Verified at 375px. |
+| **Falls back rather than freezing** | If the venue stops publishing 1-minute windows — it did for 90 minutes on 4 Sep — the game drops to the 5-minute market and returns to 1m by itself. It never plays anything longer. |
 
 ---
 
@@ -117,7 +144,7 @@ against the venue's own on-chain resolution: **6 of 6 agree**. The streak was ma
                  └───────────────┬──────────────────────────────┘
                                  │ /api/state · /join · /pick · /bank
                  ┌───────────────▼──────────────────────────────┐
-                 │  SQLite (Prisma) — the ledger                │
+                 │  Postgres (Prisma) — the ledger              │
                  │  whose money is whose in a pooled wallet     │
                  └───────────────▲──────────────────────────────┘
                                  │
@@ -151,8 +178,8 @@ book can't fill, the flag survives to the next tick; if the bell wins the race, 
 the player instead — whichever reaches them first.
 
 **The registry is a mirror, never the source of truth** — and that's what makes a custodial
-executor auditable. It also caught a real bug: a `uint128` rejected a negative remainder that
-SQLite had happily stored, exposing an order-sizing overspend.
+executor auditable. It also caught a real bug: a `uint128` rejected a negative remainder the
+ledger had happily stored, exposing an order-sizing overspend.
 
 ---
 
@@ -197,8 +224,9 @@ npm run dev                   # the wall on :3000
 npm run executor              # the game loop (separate terminal — always via the supervisor)
 ```
 
-Fund the wallet with testnet STT for gas; tUSDC mints itself (`exchange.trader.faucet()`, 10,000
-per call — the executor does it automatically).
+Fund the wallet with testnet STT for gas. tUSDC needs no faucet page: `faucet(uint256)` on the
+collateral contract mints to whoever calls it, so the wallet page mints straight from the player's
+own wallet (10,000 per call, ~0.0005 STT of gas). The house funds none of it.
 
 ```bash
 npm run doctor                # does the money add up? (--fix repairs the safe ones)
@@ -213,7 +241,7 @@ runs exactly the same without the public log.
 ## Stack
 
 Next 15 · React 19 · Tailwind 4 · TypeScript · `@somnia-chain/markets-sdk` 0.28.1 ·
-`@somnia-chain/reactivity` 0.2.1 · viem 2 · Prisma 6 + SQLite · Foundry · Solidity 0.8.28
+`@somnia-chain/reactivity` 0.2.1 · viem 2 · Prisma 6 + Postgres · Foundry · Solidity 0.8.28
 
 ```
 src/app/          the wall, the climber, sound, API routes
@@ -238,7 +266,9 @@ Each cost us hours and none is in the docs.
    --gas-limit 80000000`, and explicit `gas` on every viem write.
 
 Also: testnet runs **1m and 5m** markets, not just the 15m/1h the docs list. The one-minute window
-is the entire reason this game works.
+is the entire reason this game works — and it can vanish. Every cadence under four hours
+disappeared for ~90 minutes on 4 September, which froze the game completely until we taught it to
+fall back. If you build on these markets, assume the window you depend on will go away.
 
 ## AI tools
 
