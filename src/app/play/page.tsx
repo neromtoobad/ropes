@@ -576,7 +576,18 @@ function TopBar({
             {roping
               ? `ROPING UP · 0:${String(Math.max(0, Math.round(t!.sealsIn))).padStart(2, "0")}`
               : me
-                ? me.paid ? "ON THE WALL · REAL STAKE" : "ON THE WALL · FREE SEAT"
+                ? (
+                  /* The title block and the clock together need 364px of a
+                     343px header at 375 wide, so the long form wrapped the
+                     clock onto its own row. The money bar and the nameplate
+                     both carry the qualifier; here the short form is enough. */
+                  <>
+                    {me.paid ? "REAL STAKE" : "FREE SEAT"}
+                    <span className="hidden sm:inline">
+                      {me.paid ? " · YOUR tUSDC" : " · HOUSE MONEY"}
+                    </span>
+                  </>
+                )
                 : `BTC · ${Math.round((state?.round?.intervalSec ?? 60) / 60)} MINUTE`}
           </p>
         </div>
@@ -1156,7 +1167,17 @@ function Join({
    * biggest thing crowding the game.
    */
   const [showRules, setShowRules] = useState(false);
-  useEffect(() => setShowRules(safeLocal.get("lc.rulesSeen") !== "1"), []);
+  useEffect(() => {
+    /*
+     * Expanded-by-default is right on a desktop and wrong on a phone. Four
+     * rule cards are ~185px, which pushed the name field and the seat button
+     * to 899px on an 812px screen — a first-time visitor landed on the wall,
+     * scrolled past the rules, and never saw the way in. On a narrow screen
+     * the button wins; the rules are one tap away for anyone who wants them.
+     */
+    const roomy = window.matchMedia("(min-width: 1024px)").matches;
+    setShowRules(roomy && safeLocal.get("lc.rulesSeen") !== "1");
+  }, []);
   return (
     <div>
       <button
@@ -1164,7 +1185,7 @@ function Join({
           setShowRules((v) => !v);
           safeLocal.set("lc.rulesSeen", "1");
         }}
-        className="mb-2 text-[10px] font-black tracking-[0.25em] text-[var(--dim)] transition hover:text-[var(--gold)]"
+        className="mb-2 flex min-h-[40px] items-center text-[10px] font-black tracking-[0.25em] text-[var(--dim)] transition hover:text-[var(--gold)] lg:min-h-0"
         aria-expanded={showRules}
       >
         {showRules ? "▾ HOW IT WORKS" : "▸ HOW IT WORKS · 10 tUSDC A SEAT, ONE MINUTE A ROUND"}
@@ -1188,7 +1209,15 @@ function Join({
             disabled={!name.trim() || busy}
             className="chamfer-sm border border-[var(--up)] px-5 py-3 text-sm font-black tracking-[0.1em] text-[var(--up)] transition hover:bg-[var(--up)] hover:text-black disabled:opacity-40"
           >
-            {busy && !paying ? "SEATING…" : "PLAY FREE · HOUSE MONEY"}
+            {busy && !paying ? "SEATING…" : (
+              <>
+                PLAY FREE
+                {/* the qualifier costs the name field its width on a 375px
+                    screen, and the caption underneath already says whose
+                    money it is. The green stays either way. */}
+                <span className="hidden sm:inline"> · HOUSE MONEY</span>
+              </>
+            )}
           </button>
         )}
         {funded ? (
@@ -1197,7 +1226,12 @@ function Join({
             disabled={!name.trim() || busy}
             className="chamfer-sm bg-[var(--gold)] px-6 py-3 text-sm font-black tracking-[0.1em] text-black disabled:opacity-40"
           >
-            {busy ? "SEATING…" : `PLAY FOR REAL · 10 FROM BANKROLL (${bank!.balance.toFixed(2)})`}
+            {busy ? "SEATING…" : (
+              <>
+                PLAY FOR REAL
+                <span className="hidden sm:inline"> · 10 FROM BANKROLL ({bank!.balance.toFixed(2)})</span>
+              </>
+            )}
           </button>
         ) : addr ? (
           <button
@@ -1205,7 +1239,12 @@ function Join({
             disabled={!name.trim() || paying || busy}
             className="chamfer-sm bg-[var(--gold)] px-6 py-3 text-sm font-black tracking-[0.1em] text-black disabled:opacity-40"
           >
-            {paying ? "PAYING…" : busy ? "SEATING…" : "PLAY FOR REAL · DEPOSIT 10 tUSDC"}
+            {paying ? "PAYING…" : busy ? "SEATING…" : (
+              <>
+                PLAY FOR REAL
+                <span className="hidden sm:inline"> · DEPOSIT 10 tUSDC</span>
+              </>
+            )}
           </button>
         ) : null}
         {walletReady && !addr && !funded && (
@@ -1418,8 +1457,14 @@ function MoneyBar({
   const nothingYet = onWall === null && !won && !bankBalance;
   if (nothingYet) {
     return (
+      /*
+       * Hidden on a phone. With no run, no bankroll and nothing won, this row
+       * only repeats the seat control that is already a few hundred pixels
+       * below it — and those ~55px were the difference between the PLAY FREE
+       * button being on screen and under the fold. Desktop has the room.
+       */
       <div
-        className="chamfer-sm mt-3 flex flex-wrap items-center justify-between gap-2 border px-4 py-2"
+        className="chamfer-sm mt-3 hidden flex-wrap items-center justify-between gap-2 border px-4 py-2 lg:flex"
         style={{ borderColor: "var(--edge)", background: "linear-gradient(180deg, var(--panel-2), var(--panel))" }}
       >
         <span className="text-[10px] font-black tracking-[0.25em] text-[var(--dim)]">
@@ -1467,7 +1512,11 @@ function MoneyBar({
                   ? { background: "var(--gold)", color: "#000" }
                   : { border: "1px solid var(--edge)", color: "var(--dim)" }}
               >
-                {me.paid ? "YOUR tUSDC" : "HOUSE MONEY"}
+                {/* the long form does not fit beside the label on a 375px
+                    card — it clipped to "HOUSE MO…". The top bar carries the
+                    full wording; here the short form is enough. */}
+                <span className="sm:hidden">{me.paid ? "REAL" : "FREE"}</span>
+                <span className="hidden sm:inline">{me.paid ? "YOUR tUSDC" : "HOUSE MONEY"}</span>
               </span>
             )}
           </p>

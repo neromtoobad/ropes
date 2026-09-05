@@ -415,6 +415,11 @@ body::after {
 
 /* Game-tab nav. One active pill, everything else recedes. */
 .gametab {
+  /* 44px is the smallest reliable touch target; the nav sits right under the
+     clock on a phone, where a mis-tap costs you the round you're watching. */
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
   padding: 8px 12px;
   font-size: 10px;
   font-weight: 800;

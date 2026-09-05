@@ -225,7 +225,7 @@ export function OpenInWallet() {
           <a
             key={l.name}
             href={l.href}
-            className="chamfer-sm border border-[var(--gold)] px-3 py-2 text-[10px] font-black tracking-[0.12em] text-[var(--gold)] transition hover:bg-[var(--gold)] hover:text-black"
+            className="chamfer-sm flex min-h-[44px] items-center border border-[var(--gold)] px-4 text-[10px] font-black tracking-[0.12em] text-[var(--gold)] transition hover:bg-[var(--gold)] hover:text-black"
           >
             {l.name.toUpperCase()} →
           </a>
