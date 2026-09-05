@@ -187,7 +187,7 @@ export default function Game() {
       const units = amount * 1_000_000n;
       const held = await collateralBalance(a, state.pay.collateral as Address);
       if (held < units) {
-        throw new Error(`not enough tUSDC — you hold ${(Number(held) / 1e6).toFixed(2)}`);
+        throw new Error(`not enough tUSDC — you hold ${(Number(held) / 1e6).toFixed(2)}. mint some free on the wallet page (GET TEST tUSDC)`);
       }
       const tx = await paySeat(a, state.pay.collateral as Address, state.pay.house as Address, units);
       const signature = await signDeposit(a, tx, playerKey);
