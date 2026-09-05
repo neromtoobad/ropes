@@ -248,6 +248,3 @@ generated with Higgsfield
 column-density valleys and keeps the largest connected blob per frame. The height curve was not
 designed — it was **measured**, by sampling live rounds every second and sweeping the gain until
 the smallest climbs became visible without clipping the dramatic ones.
-
-Everything else built with Claude Code (Claude Opus). Every claim in this README is a transaction
-hash, a block number, or a script you can rerun — not a model's word for it.
