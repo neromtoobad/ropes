@@ -576,6 +576,14 @@ export function Cliff({
             <span className="text-[10px] font-black tracking-[0.25em] text-[var(--accent)]">
               {seat.name.toUpperCase()}
             </span>
+            <span
+              className="rounded-sm px-1.5 py-[1px] text-[8px] font-black tracking-[0.2em]"
+              style={seat.paid
+                ? { background: "var(--gold)", color: "#000" }
+                : { border: "1px solid var(--edge)", color: "var(--dim)" }}
+            >
+              {seat.paid ? "REAL STAKE" : "HOUSE MONEY"}
+            </span>
           </div>
         </div>
       )}

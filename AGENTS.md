@@ -745,6 +745,15 @@ lonely side pays a lot. show the crowd's split on screen — that is the strateg
   the first cadence that has ANY live market and stop there; if none of its windows is enterable
   yet, return null and wait a tick. Ten seconds of waiting beats a five-minute round.
 
+➠ **"absent" must mean absent for a WHOLE WINDOW, not for one tick.** the 5m fallback fired at every
+  :00/:05 boundary because the indexer lists the new 5m window a few seconds before the new 1m one —
+  so for those seconds 1m had zero rows, and a five-minute round was opened beside the one-minute
+  one. 183 leaked over twenty hours before anyone noticed; round 7094 caught a real player's pick in
+  a 5m round they never chose, and the page's countdown sometimes showed 4:30 because the newest
+  INDEX was the 5m round. `currentMarket` now remembers when each cadence last had a row and only
+  falls past it after 90s (`ABSENT_AFTER_S`); `/api/state` picks the SHORTEST open round, not the
+  newest. When quoting "settled windows", filter `intervalSec = 60` — 7,257, not 7,439.
+
 ## things NOT to do
 
 ➠ do not build a per-user escrow contract. house executor, disclosed in the video.

@@ -99,13 +99,13 @@ SAME BLOCK: YES
 No keeper. No cron. No listener. Re-run it yourself:
 `REGISTRY=0xfb31455b05ea95b7B4cC4c1e98f03219b995456A npx tsx scripts/spike/reactive-e2e.ts`
 
-### 7,320 windows, and the coin is fair
+### 7,257 windows, and the coin is fair
 
 The executor has run 24/7 since 26 August. As of 5 September:
 
 ```
-settled windows   7,320        voided        0
-UP  3,655 (49.9%)              DOWN  3,665 (50.1%)
+settled 1m windows   7,257     voided        0
+UP  3,637 (50.1%)                 DOWN  3,620 (49.9%)
 ```
 
 Ten days of continuous minutes and not one voided window. The split is printed on

@@ -43,6 +43,10 @@ export interface SeatView {
    * to be filling globally.
    */
   playing: boolean;
+  /** True for a seat bought with real tUSDC (the run carries a payout address);
+   *  false for a free seat on the house bankroll. The UI keeps the two visibly
+   *  apart so nobody mistakes house money for their own. */
+  paid: boolean;
 }
 
 export interface TableState {
@@ -169,7 +173,15 @@ async function btcPrice(): Promise<number | null> {
 }
 
 export async function getTableState(): Promise<TableState> {
-  const round = await db.round.findFirst({ orderBy: { index: "desc" } });
+  // The round the page counts down to. When a 5m fallback round and a 1m
+  // round are both open (a real overlap seen 4-5 sep), the newest INDEX was
+  // sometimes the five-minute one, so the clock showed 4:30 in a one-minute
+  // game. Prefer the shortest open window; fall back to newest of anything.
+  const round =
+    (await db.round.findFirst({
+      where: { status: { in: ["open", "locked"] } },
+      orderBy: [{ intervalSec: "asc" }, { index: "desc" }],
+    })) ?? (await db.round.findFirst({ orderBy: { index: "desc" } }));
 
   // The book, the line and the oracle link all come from the row the executor
   // mirrors each tick. The web app never touches the chain: a second
@@ -252,6 +264,7 @@ export async function getTableState(): Promise<TableState> {
         buyIn: toUsd(r.buyIn),
         autoBailAt: r.autoBailAt,
         playing: r.table?.status === "sealed",
+        paid: r.payoutAddress !== null,
       };
     });
 

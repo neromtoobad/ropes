@@ -576,7 +576,7 @@ function TopBar({
             {roping
               ? `ROPING UP · 0:${String(Math.max(0, Math.round(t!.sealsIn))).padStart(2, "0")}`
               : me
-                ? "ON THE WALL"
+                ? me.paid ? "ON THE WALL · REAL STAKE" : "ON THE WALL · FREE SEAT"
                 : `BTC · ${Math.round((state?.round?.intervalSec ?? 60) / 60)} MINUTE`}
           </p>
         </div>
@@ -1179,13 +1179,25 @@ function Join({
           maxLength={12}
           className="min-w-0 flex-1 rounded-lg border border-[var(--edge)] bg-[var(--panel)] px-4 py-3 text-base outline-none focus:border-[var(--gold)]"
         />
+        {/* Two doors, always visibly different: green outline is the house's
+            money, solid gold is yours. A single button whose meaning depended
+            on wallet state read as one door with a surprise behind it. */}
+        {!funded && (
+          <button
+            onClick={onJoin}
+            disabled={!name.trim() || busy}
+            className="chamfer-sm border border-[var(--up)] px-5 py-3 text-sm font-black tracking-[0.1em] text-[var(--up)] transition hover:bg-[var(--up)] hover:text-black disabled:opacity-40"
+          >
+            {busy && !paying ? "SEATING…" : "PLAY FREE · HOUSE MONEY"}
+          </button>
+        )}
         {funded ? (
           <button
             onClick={onJoin}
             disabled={!name.trim() || busy}
             className="chamfer-sm bg-[var(--gold)] px-6 py-3 text-sm font-black tracking-[0.1em] text-black disabled:opacity-40"
           >
-            {busy ? "SEATING…" : `SIT · 10 FROM BANKROLL (${bank!.balance.toFixed(2)})`}
+            {busy ? "SEATING…" : `PLAY FOR REAL · 10 FROM BANKROLL (${bank!.balance.toFixed(2)})`}
           </button>
         ) : addr ? (
           <button
@@ -1193,23 +1205,15 @@ function Join({
             disabled={!name.trim() || paying || busy}
             className="chamfer-sm bg-[var(--gold)] px-6 py-3 text-sm font-black tracking-[0.1em] text-black disabled:opacity-40"
           >
-            {paying ? "PAYING…" : busy ? "SEATING…" : "DEPOSIT & SIT · 10 tUSDC"}
+            {paying ? "PAYING…" : busy ? "SEATING…" : "PLAY FOR REAL · DEPOSIT 10 tUSDC"}
           </button>
-        ) : (
-          <button
-            onClick={onJoin}
-            disabled={!name.trim() || busy}
-            className="chamfer-sm bg-[var(--gold)] px-6 py-3 text-sm font-black tracking-[0.1em] text-black disabled:opacity-40"
-          >
-            {busy ? "SEATING…" : "TAKE A SEAT · FREE"}
-          </button>
-        )}
+        ) : null}
         {walletReady && !addr && !funded && (
           <button
             onClick={onConnect}
             className="chamfer-sm border border-[var(--gold)] px-4 py-3 text-xs font-black tracking-[0.1em] text-[var(--gold)]"
           >
-            CONNECT WALLET
+            CONNECT WALLET · PLAY FOR REAL
           </button>
         )}
       </div>
@@ -1228,9 +1232,9 @@ function Join({
             </button>
           </>
         ) : walletReady ? (
-          "CONNECT TO PLAY WITH REAL TESTNET tUSDC — OR TAKE A FREE SEAT ON THE HOUSE BANKROLL"
+          "FREE = THE HOUSE STAKES 10 AND KEEPS THE WINNINGS (THEY COUNT FOR THE BOARD). REAL = YOUR tUSDC, YOUR WINNINGS, WITHDRAWABLE."
         ) : (
-          "NO WALLET IN THIS BROWSER — PLAYING FREE ON THE HOUSE BANKROLL. EVERY TRADE IS STILL REAL AND ON-CHAIN."
+          "NO WALLET IN THIS BROWSER — FREE SEATS ONLY. THE HOUSE STAKES 10; THE TRADE IS STILL REAL AND ON-CHAIN."
         )}
       </p>
       {!walletReady && <OpenInWallet />}
@@ -1454,7 +1458,19 @@ function MoneyBar({
       <div className="chamfer-sm flex flex-col gap-1.5 border px-3 py-2.5 sm:flex-row sm:items-baseline sm:justify-between sm:px-4"
         style={{ borderColor: "var(--edge)", background: "linear-gradient(180deg, var(--panel-2), var(--panel))" }}>
         <div>
-          <p className="whitespace-nowrap text-[9px] font-black tracking-[0.3em] text-[var(--dim)]">ON THE WALL</p>
+          <p className="whitespace-nowrap text-[9px] font-black tracking-[0.3em] text-[var(--dim)]">
+            ON THE WALL
+            {me && (
+              <span
+                className="ml-2 rounded-sm px-1.5 py-[1px] text-[8px] tracking-[0.2em]"
+                style={me.paid
+                  ? { background: "var(--gold)", color: "#000" }
+                  : { border: "1px solid var(--edge)", color: "var(--dim)" }}
+              >
+                {me.paid ? "YOUR tUSDC" : "HOUSE MONEY"}
+              </span>
+            )}
+          </p>
           <p className="display tabular text-2xl leading-none min-[400px]:text-3xl sm:text-4xl"
             style={onWall !== null ? { color: upC, textShadow: `0 0 34px ${upC}55` } : { color: "var(--dim)" }}>
             {onWall !== null ? onWall.toFixed(2) : "—"}

@@ -45,6 +45,11 @@ const TRADING = 1;
  * `minSecondsLeft` guards the lock race: a window seconds from close can lock
  * between our snapshot and our send.
  */
+/** When each cadence last had a live row. Module state is fine: one executor. */
+const lastSeenAt = new Map<number, number>();
+/** A cadence must be missing for longer than its own 1m window to count as gone. */
+const ABSENT_AFTER_S = 90;
+
 export async function currentMarket(minSecondsLeft = 5): Promise<LiveMarket | null> {
   const rows = await exchange.client.listLiveBinaryMarkets({ limit: 100 });
   /*
@@ -72,7 +77,27 @@ export async function currentMarket(minSecondsLeft = 5): Promise<LiveMarket | nu
    * has ANY live market, and if none of its windows is enterable right now,
    * return null and try again next tick rather than reaching for a slower one.
    */
-  const candidates = CADENCES.map(forCadence).find((list) => list.length > 0) ?? [];
+  /*
+   * "Absent" means absent for a sustained stretch, not for one tick.
+   *
+   * At every :00/:05 boundary the indexer lists the new 5m window a few
+   * seconds BEFORE it lists the new 1m window. For those seconds 1m genuinely
+   * has no rows, the first cut fell back, and a five-minute round was opened
+   * alongside the one-minute one — 183 times over twenty hours, and once with
+   * a real player's position in it (round 7094). A cadence only counts as
+   * gone when it has been missing for longer than one of its own windows.
+   */
+  const now = Date.now();
+  for (const sec of CADENCES) if (forCadence(sec).length) lastSeenAt.set(sec, now);
+  let candidates: any[] = [];
+  for (const sec of CADENCES) {
+    const seen = lastSeenAt.get(sec) ?? 0;
+    const missingFor = (now - seen) / 1000;
+    if (missingFor <= ABSENT_AFTER_S) {
+      candidates = forCadence(sec);
+      break; // this cadence is live (or only just blinked) — never reach past it
+    }
+  }
 
   for (const row of candidates) {
     const marketId = row.marketId as `0x${string}`;

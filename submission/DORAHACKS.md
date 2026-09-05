@@ -92,7 +92,7 @@ That is the whole game, and it runs every minute, forever.
 - **The chain ends the round.** Somnia's reactivity precompile calls our registry
   contract from inside the block that finalises the market. Eliminations are not
   something our server decides and then reports.
-- **7,320 windows settled**, 0 voided, 49.9% UP / 50.1% DOWN. The coin is fair and
+- **7,257 one-minute windows settled**, 0 voided, 50.1% UP / 49.9% DOWN. The coin is fair and
   we print that on screen instead of hiding it.
 - **Free to try, instantly.** No wallet, no funds, no signature — one click seats
   you in the next live round, and the trade behind it is still real.
@@ -204,12 +204,12 @@ a real book.
   suspicious, we audited the last six settled positions against the venue's own
   on-chain resolution: 6 of 6 agreed.
 
-### What 7,320 windows taught us
+### What 7,257 windows taught us
 
 The executor has run 24/7 since 26 August:
 
 - **0 voided.** Not one.
-- **49.9% UP / 50.1% DOWN** (3,655 / 3,665). The coin is fair, and the game says so
+- **50.1% UP / 49.9% DOWN** (3,637 / 3,620). The coin is fair, and the game says so
   on screen.
 - Books are **empty for the first 5–10 seconds** of a new 1m window, so entry has
   to retry across the window instead of firing once at the open.
