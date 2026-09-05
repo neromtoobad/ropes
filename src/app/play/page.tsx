@@ -206,7 +206,7 @@ export default function Game() {
     setErr(null);
     try {
       const bal = await collateralBalance(addr, state.pay.collateral as Address);
-      if (bal < SEAT) throw new Error("not enough tUSDC — a seat costs 10");
+      if (bal < SEAT) throw new Error("not enough tUSDC — a seat costs 10. mint some free on the wallet page (GET TEST tUSDC) and come back");
       const tx = await paySeat(addr, state.pay.collateral as Address, state.pay.house as Address, SEAT);
       await join(tx, undefined, await signDeposit(addr, tx, playerKey!));
     } catch (e) {
