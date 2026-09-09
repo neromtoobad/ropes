@@ -771,6 +771,21 @@ lonely side pays a lot. show the crowd's split on screen — that is the strateg
   travel is clamped to the band between the top HUD and a one-line nameplate, and the left
   flags hide in the same bands the right-hand ledge labels already do. Desktop is untouched.
 
+➠ **the play screen is a STAGE, not a page (9 sep).** Five stacked bands — header with clock,
+  two money cards, rail, wall, phase strip, sticky controls — left the wall 45% of a phone and
+  clipped the buttons on a 680px laptop. The crash games (Aviator, Stake crash, Polymarket's
+  1-minute markets) all do the same thing: one stage fills the screen, the number that matters is
+  drawn ON the stage, one dominant action sits in the thumb zone, secondary controls collapse to a
+  single row, history is a thin strip. ROPES now: below lg the header is one row (mark + nav), the
+  clock and the player's money are HUD on the wall, the money bar is gone, the controls are a
+  `fixed` dock at the bottom, and the wall is `100dvh − var(--chrome-h)` where `--chrome-h` is
+  the MEASURED header + rail + dock (ResizeObserver in play/page.tsx). Measure the chrome, never
+  guess a budget; keep the viewport half in CSS (`dvh`) so a collapsing address bar needs no JS.
+  On lg the money bar is one scoreboard row and the phase strip is gone (the dock's status line and
+  the clock already said it). Wall: 362 → 602px on a 375×812 phone; 244 → 350px at 1470×680.
+➠ **a `fixed` element inside `main.shake` jumps during the shake** — a transformed ancestor turns
+  fixed into absolute for the animation's 0.6s. The bell overlay hides it; leave it.
+
 ## things NOT to do
 
 ➠ do not build a per-user escrow contract. house executor, disclosed in the video.

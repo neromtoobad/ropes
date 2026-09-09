@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import Image from "next/image";
 import type { TableState } from "@/lib/state";
 import type { Address } from "viem";
@@ -375,17 +375,65 @@ export default function Game() {
     }
   }, [runId, ledger]);
 
+  /*
+   * The phone layout is a GAME SCREEN, the way the crash games do it: one
+   * stage that fills the screen, the number that matters drawn on the stage,
+   * one dominant action in the thumb zone, everything secondary collapsed
+   * into a single row. Header on top, controls docked to the bottom, and the
+   * wall gets every pixel in between. The dock's height changes with the
+   * moment (join box, UP/DOWN, BAIL), so the chrome is MEASURED and the wall
+   * is handed the remainder as a CSS variable — no guessed budgets.
+   *
+   * On lg the grid is one viewport and the wall flexes; the dock sits in flow.
+   */
+  const topRef = useRef<HTMLDivElement>(null);
+  const railRef = useRef<HTMLDivElement>(null);
+  const dockRef = useRef<HTMLDivElement>(null);
+  // Only the CHROME is measured; the viewport side stays in CSS (`100dvh`),
+  // so an address bar collapsing or a rotation never waits on a JS event.
+  const [chrome, setChrome] = useState({ chromeH: 0, dockH: 0 });
+  useEffect(() => {
+    const measure = () => {
+      const h = (r: React.RefObject<HTMLDivElement | null>) => r.current?.getBoundingClientRect().height ?? 0;
+      const top = h(topRef);
+      const rail = h(railRef);
+      const dock = Math.round(h(dockRef));
+      // main's top padding (12) + the grid's margin (8) + a breath (6), and
+      // the grid gap under the rail when it is showing.
+      const chromeH = Math.round(top + rail + dock + 26 + (rail > 0 ? 12 : 0));
+      setChrome((c) => (c.chromeH === chromeH && c.dockH === dock ? c : { chromeH, dockH: dock }));
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    for (const r of [topRef, railRef, dockRef]) if (r.current) ro.observe(r.current);
+    window.addEventListener("resize", measure);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, []);
+  const stageVars = {
+    "--chrome-h": chrome.chromeH > 0 ? `${chrome.chromeH}px` : undefined,
+    "--dock-h": `${chrome.dockH}px`,
+  } as CSSProperties;
+
   // lg is one viewport by design, but `overflow-hidden` CLIPPED the side
   // buttons on a 13" laptop whose Chrome + dock leave ~680px: the wall had
   // already shrunk to its floor and UP/DOWN ran off the bottom. Scroll is the
   // honest fallback; when everything fits, nothing scrolls.
   return (
-    <main className={`relative z-10 mx-auto flex min-h-dvh max-w-6xl flex-col px-4 py-3 lg:h-screen lg:max-h-screen lg:overflow-y-auto lg:overflow-x-hidden ${myBell ? "shake" : ""}`}>
+    <main
+      style={stageVars}
+      className={`relative z-10 mx-auto flex min-h-dvh max-w-6xl flex-col px-4 pt-3 pb-[calc(var(--dock-h)+12px)] lg:h-screen lg:max-h-screen lg:overflow-y-auto lg:overflow-x-hidden lg:pb-3 ${myBell ? "shake" : ""}`}
+    >
       {secs > 0 && secs < 10 && <div className="danger" />}
 
+      <div ref={topRef}>
       <TopBar state={view} urgent={urgent} sound={sound} me={me} stalled={stalled} />
 
-      <div className="shrink-0"><MoneyBar
+      {/* Desktop only. On a phone the money is drawn on the wall itself
+          (top-left HUD) and the bankroll lives on the wallet page. */}
+      <div className="hidden shrink-0 lg:block"><MoneyBar
           me={me}
           price={state?.price ?? { up: null, down: null }}
           ledger={ledger}
@@ -415,6 +463,7 @@ export default function Game() {
           RECONNECTING — THE MARKET CLOCK IS AHEAD OF US. NOTHING IS LOST; PICKS AND STACKS ARE SAFE.
         </div>
       )}
+      </div>
 
       {seatFlash && (
         <div className="pointer-events-none fixed inset-x-0 top-[20%] z-40 text-center">
@@ -434,7 +483,7 @@ export default function Game() {
       <div className="mt-2 grid grid-cols-1 gap-3 lg:min-h-0 lg:flex-1 lg:grid-cols-[72px_minmax(0,1fr)_240px]">
         {/* Once seated the rail is disabled — a row of dimmed thumbnails a
             phone cannot afford. The nameplate on the wall says who you are. */}
-        <div className={`min-w-0 lg:min-h-0 lg:overflow-y-auto ${me ? "hidden lg:block" : ""}`}>
+        <div ref={railRef} className={`min-w-0 lg:min-h-0 lg:overflow-y-auto ${me ? "hidden lg:block" : ""}`}>
           <Rail climber={climber} onPick={pickClimber} lockedIn={Boolean(me)} />
         </div>
 
@@ -446,6 +495,8 @@ export default function Game() {
             seats={state?.seats ?? []}
             price={state?.price ?? { up: null, down: null }}
             secondsLeft={secs}
+            clockUrgent={urgent}
+            stalled={stalled}
             intervalSec={state?.round?.intervalSec ?? 60}
             myRunId={runId}
             falling={(bell?.killed ?? []).map((k) => k.runId)}
@@ -462,23 +513,14 @@ export default function Game() {
           />
           </div>
 
-          {me && view?.round && <PhaseStrip state={view} me={me} />}
-
-          {/* One control, matched to the moment. Never several at once.
-
-              On a phone this block is sticky so BAIL is always under the
-              thumb — which means it FLOATS OVER whatever precedes it until
-              the page is scrolled to its natural place. Everything above is
-              sized so that at the top of the page the block sits just under
-              the wall (see the wall's height in Cliff.tsx), and the block
-              itself is kept short: no explanatory sentences, one line per
-              row. A tall sticky block is a wall you cannot see. */}
+          {/* THE DOCK. One control, matched to the moment, never several at
+              once. On a phone it is fixed to the bottom edge — the thumb
+              zone — and the wall above is sized to end exactly where it
+              begins (see the measurement above), so it never covers play.
+              On lg it sits in flow under the wall. */}
           <div
-            className={`mt-2 shrink-0 ${
-              me
-                ? "sticky bottom-0 z-30 -mx-4 bg-[linear-gradient(to_top,var(--bg)_calc(100%_-_14px),transparent)] px-4 pb-[max(8px,env(safe-area-inset-bottom))] pt-3 lg:static lg:mx-0 lg:bg-none lg:px-0 lg:pb-0 lg:pt-0"
-                : ""
-            }`}
+            ref={dockRef}
+            className="fixed inset-x-0 bottom-0 z-30 border-t border-[var(--edge)] bg-[var(--bg)] px-4 pt-2 pb-[max(8px,env(safe-area-inset-bottom))] lg:static lg:mt-2 lg:border-0 lg:bg-transparent lg:px-0 lg:pt-0 lg:pb-0"
           >
             {!runId || !me ? (
               <Join
@@ -574,10 +616,12 @@ function TopBar({
   const t = state?.table;
   const roping = t?.status === "filling" && t.seated > 0;
   return (
-    <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+    <header className="flex items-center justify-between gap-3">
       <div className="flex items-center gap-3">
         <Image src="/mark.webp" alt="" width={64} height={32} priority className="h-9 w-auto" />
-        <div>
+        {/* the mark IS the logo; on a phone the word and the subtitle cost
+            the nav its row, and the nameplate on the wall says whose money */}
+        <div className="hidden sm:block">
           <h1 className="display whitespace-nowrap text-base leading-none tracking-[0.2em] sm:text-lg">ROPES</h1>
           <p className="mt-0.5 text-[9px] font-bold tracking-[0.3em] text-[var(--dim)]">
             {roping
@@ -600,7 +644,7 @@ function TopBar({
         </div>
       </div>
 
-      <div className="order-3 flex w-full items-center justify-center gap-1 sm:order-none sm:w-auto">
+      <div className="flex items-center gap-0.5 sm:gap-1">
         <SiteNav />
         <button
           onClick={sound.toggle}
@@ -612,7 +656,9 @@ function TopBar({
         </button>
       </div>
 
-      <div className="text-right">
+      {/* lg and up only: below that the clock is drawn ON the wall, where
+          the crash games put the number that matters */}
+      <div className="hidden text-right lg:block">
         <div className={`display tabular outline-num clock-num text-5xl leading-[0.85] sm:text-7xl ${urgent && !stalled ? "clock-urgent" : ""}`}
           style={stalled ? { color: "var(--dim)" } : undefined}>
           {stalled ? "··" : String(secs).padStart(2, "0")}
@@ -810,76 +856,6 @@ function StatPanel({
   );
 }
 
-/* ─────────────────────────── phase strip ─────────────────────────── */
-
-/**
- * The round as a ritual: BET → ENTER → RIDE → BELL, with the viewer's own
- * run highlighted on the step it is at and a countdown for what's next.
- * One glance answers "what is happening and when is my moment".
- */
-function PhaseStrip({ state, me }: { state: TableState; me: TableState["seats"][number] }) {
-  const r = state.round!;
-  const secs = Math.floor(r.secondsLeft);
-  const betsIn = Math.floor(r.betsCloseIn);
-  const phase = me.inRound ? 2 : me.pick ? 1 : 0;
-
-  // `short` is the phone form: the clock alone, shown only on the active
-  // step, so four cells fit one line at 375px.
-  const steps = [
-    {
-      label: "BET",
-      detail:
-        phase === 0
-          ? betsIn > 0
-            ? `OPEN · 0:${pad(betsIn)}`
-            : `NEXT · 0:${pad(secs)}`
-          : "PLACED",
-      short: betsIn > 0 ? `0:${pad(betsIn)}` : `0:${pad(secs)}`,
-    },
-    {
-      label: "ENTER",
-      detail:
-        phase === 1 ? (betsIn > 0 ? "FILLING…" : `OPENS 0:${pad(secs)}`) : phase > 1 ? "FILLED" : "·",
-      short: betsIn > 0 ? "…" : `0:${pad(secs)}`,
-    },
-    { label: "RIDE", detail: phase === 2 ? `LIVE · 0:${pad(secs)}` : "·", short: `0:${pad(secs)}` },
-    { label: "BELL", detail: `RND ${r.index}`, short: "" },
-  ];
-
-  return (
-    <div className="phase-strip mt-2 grid grid-cols-4 gap-1 sm:gap-1.5 lg:mt-3" aria-label="round phases">
-      {steps.map((s, i) => {
-        const active = i === phase;
-        const done = i < phase;
-        return (
-          <div
-            key={s.label}
-            className="chamfer-sm border px-1 py-1.5 text-center sm:px-2"
-            style={{
-              borderColor: active ? "var(--gold)" : "var(--edge)",
-              background: active ? "#241c07" : "var(--panel)",
-              opacity: done ? 0.55 : 1,
-              boxShadow: active ? "0 0 24px -12px var(--gold)" : "none",
-            }}
-          >
-            <p
-              className="whitespace-nowrap text-[9px] font-black tracking-[0.12em] sm:text-[10px] sm:tracking-[0.25em]"
-              style={{ color: active ? "var(--gold)" : done ? "var(--up)" : "var(--dim)" }}
-            >
-              {done ? "✓ " : <span className="hidden sm:inline">{i + 1} </span>}
-              {s.label}
-              {active && s.short && <span className="tabular ml-1 sm:hidden">{s.short}</span>}
-            </p>
-            <p className="tabular mt-0.5 hidden text-[9px] font-bold tracking-[0.15em] text-[var(--dim)] sm:block">
-              {s.detail}
-            </p>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
 /* ─────────────────────────── action bar ──────────────────────────── */
 
 const AUTO_BAIL_PRESETS = [1.5, 2, 3, 5] as const;
@@ -940,17 +916,22 @@ function BailBar({
       <span className="display tabular text-3xl glow-gold sm:text-4xl">{liveMult.toFixed(2)}×</span>
     </button>
 
-      {/* The discipline tool: pick a line once and the executor pulls the
-          ripcord for you, at whatever the book pays when it crosses. */}
+      {/* Everything secondary on ONE row: the auto-bail line (the executor
+          pulls the ripcord for you) and the side queued for the next minute
+          (the bell rolls a survivor straight in). Labels shrink to their
+          icons on a phone; the lit chip is the state. */}
       <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[10px] font-black tracking-[0.2em]">
-        <span className="mr-1 text-[var(--dim)]">⚡ AUTO-BAIL</span>
+        <span className="text-[var(--dim)]">
+          <span className="sm:hidden">⚡</span>
+          <span className="hidden sm:inline">⚡ AUTO-BAIL</span>
+        </span>
         {AUTO_BAIL_PRESETS.map((at) => {
           const active = autoBail === at;
           return (
             <button
               key={at}
               onClick={() => onAutoBail(active ? null : at)}
-              className="chamfer-sm min-h-[34px] border px-2.5 py-1 transition"
+              className="chamfer-sm min-h-[34px] border px-2 py-1 transition sm:px-2.5"
               style={{
                 borderColor: active ? "var(--gold)" : "var(--edge)",
                 color: active ? "var(--gold)" : "var(--dim)",
@@ -964,17 +945,11 @@ function BailBar({
         {autoBail !== null && !AUTO_BAIL_PRESETS.includes(autoBail as (typeof AUTO_BAIL_PRESETS)[number]) && (
           <span className="text-[var(--gold)]">{autoBail}×</span>
         )}
-        {/* the lit chip already says it on a phone; the sentence is for
-            screens with a spare 200px */}
-        {autoBail !== null && (
-          <span className="ml-auto hidden text-[var(--gold)] sm:inline">SELLS AT {autoBail}× — TAP TO DISARM</span>
-        )}
-      </div>
-
-      {/* No dead time: queue the next side NOW and the bell rolls the stack
-          straight into the next window. Survive, and you are already in. */}
-      <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[10px] font-black tracking-[0.2em]">
-        <span className="mr-1 text-[var(--dim)]">⟳ NEXT MINUTE</span>
+        <span className="mx-0.5 h-5 w-px bg-[var(--edge)]" aria-hidden="true" />
+        <span className="text-[var(--dim)]">
+          <span className="sm:hidden">⟳</span>
+          <span className="hidden sm:inline">⟳ NEXT MINUTE</span>
+        </span>
         {(["UP", "DOWN"] as const).map((side) => {
           const active = next === side;
           const c = side === "UP" ? "var(--up)" : "var(--down)";
@@ -985,7 +960,7 @@ function BailBar({
                 setNextOptimistic(side);
                 onNext(side);
               }}
-              className="chamfer-sm min-h-[34px] border px-2.5 py-1 transition"
+              className="chamfer-sm min-h-[34px] border px-2 py-1 transition sm:px-2.5"
               style={{
                 borderColor: active ? c : "var(--edge)",
                 color: active ? c : "var(--dim)",
@@ -997,11 +972,10 @@ function BailBar({
             </button>
           );
         })}
-        <span className="ml-auto text-[var(--dim)]">
-          <span className="hidden sm:inline">
-            {next ? `QUEUED — IF YOU SURVIVE THE BELL YOU'RE ALREADY IN` : "QUEUE A SIDE — SKIP THE WAIT AFTER THE BELL"}
-          </span>
-          {next && <span className="text-[var(--gold)] sm:hidden">QUEUED ✓</span>}
+        <span className="ml-auto hidden whitespace-nowrap text-[var(--dim)] lg:inline">
+          {autoBail !== null && <span className="text-[var(--gold)]">SELLS AT {autoBail}×</span>}
+          {autoBail !== null && next && " · "}
+          {next && "NEXT MINUTE QUEUED"}
         </span>
       </div>
     </>
@@ -1490,8 +1464,7 @@ function MoneyBar({
         style={{ borderColor: "var(--edge)", background: "linear-gradient(180deg, var(--panel-2), var(--panel))" }}
       >
         <span className="text-[10px] font-black tracking-[0.25em] text-[var(--dim)]">
-          <span className="sm:hidden">TAKE A SEAT · 10 tUSDC OR FREE</span>
-          <span className="hidden sm:inline">TAKE A SEAT TO START A RUN — 10 tUSDC, OR FREE ON THE HOUSE</span>
+          TAKE A SEAT TO START A RUN — 10 tUSDC, OR FREE ON THE HOUSE
         </span>
         {walletReady && !addr ? (
           <button
@@ -1520,88 +1493,85 @@ function MoneyBar({
     );
   }
 
+  // One scoreboard row. Two tall cards were 100px of a short laptop's
+  // viewport; the same four facts fit on a line.
+  const fund =
+    bankBalance === null ? (
+      walletReady && !addr ? (
+        <button
+          onClick={onConnect}
+          className="chamfer-sm shrink-0 whitespace-nowrap border border-[var(--gold)] px-2.5 py-1.5 text-[9px] font-black tracking-[0.15em] text-[var(--gold)] transition hover:bg-[var(--gold)] hover:text-black"
+        >
+          CONNECT WALLET
+        </button>
+      ) : addr ? (
+        <button
+          onClick={onFund}
+          disabled={funding}
+          className="chamfer-sm shrink-0 whitespace-nowrap border border-[var(--gold)] px-2.5 py-1.5 text-[9px] font-black tracking-[0.15em] text-[var(--gold)] transition hover:bg-[var(--gold)] hover:text-black disabled:opacity-50"
+        >
+          {funding ? "FUNDING…" : "DEPOSIT 10"}
+        </button>
+      ) : (
+        <a
+          href="/wallet"
+          className="chamfer-sm shrink-0 whitespace-nowrap border border-[var(--gold)] px-2.5 py-1.5 text-[9px] font-black tracking-[0.15em] text-[var(--gold)] transition hover:bg-[var(--gold)] hover:text-black"
+        >
+          GET A WALLET →
+        </a>
+      )
+    ) : (
+      <a
+        href="/wallet"
+        className="tabular text-[9px] font-bold tracking-[0.2em] underline decoration-dotted"
+        style={{ color: net !== null && net < 0 ? "var(--down)" : "var(--dim)" }}
+      >
+        {net !== null ? `NET ${usd(net)}` : "MANAGE"}
+      </a>
+    );
+
   return (
-    <div className="mt-3 grid grid-cols-2 gap-3">
-      <div className="chamfer-sm flex flex-col gap-1.5 border px-3 py-2.5 sm:flex-row sm:items-baseline sm:justify-between sm:px-4"
-        style={{ borderColor: "var(--edge)", background: "linear-gradient(180deg, var(--panel-2), var(--panel))" }}>
-        <div>
-          <p className="whitespace-nowrap text-[9px] font-black tracking-[0.3em] text-[var(--dim)]">
-            ON THE WALL
-            {me && (
-              <span
-                className="ml-2 rounded-sm px-1.5 py-[1px] text-[8px] tracking-[0.2em]"
-                style={me.paid
-                  ? { background: "var(--gold)", color: "#000" }
-                  : { border: "1px solid var(--edge)", color: "var(--dim)" }}
-              >
-                {/* the long form does not fit beside the label on a 375px
-                    card — it clipped to "HOUSE MO…". The top bar carries the
-                    full wording; here the short form is enough. */}
-                <span className="sm:hidden">{me.paid ? "REAL" : "FREE"}</span>
-                <span className="hidden sm:inline">{me.paid ? "YOUR tUSDC" : "HOUSE MONEY"}</span>
-              </span>
-            )}
-          </p>
-          <p className="money-num display tabular text-2xl leading-none min-[400px]:text-3xl sm:text-4xl"
-            style={onWall !== null ? { color: upC, textShadow: `0 0 34px ${upC}55` } : { color: "var(--dim)" }}>
-            {onWall !== null ? onWall.toFixed(2) : "—"}
-          </p>
-        </div>
+    <div
+      className="chamfer-sm mt-3 flex items-center gap-6 border px-4 py-2"
+      style={{ borderColor: "var(--edge)", background: "linear-gradient(180deg, var(--panel-2), var(--panel))" }}
+    >
+      <div className="flex items-baseline gap-3">
+        <span className="whitespace-nowrap text-[9px] font-black tracking-[0.3em] text-[var(--dim)]">ON THE WALL</span>
+        {me && (
+          <span
+            className="rounded-sm px-1.5 py-[1px] text-[8px] font-black tracking-[0.2em]"
+            style={me.paid
+              ? { background: "var(--gold)", color: "#000" }
+              : { border: "1px solid var(--edge)", color: "var(--dim)" }}
+          >
+            {me.paid ? "YOUR tUSDC" : "HOUSE MONEY"}
+          </span>
+        )}
+        <span
+          className="display tabular text-3xl leading-none"
+          style={onWall !== null ? { color: upC, textShadow: `0 0 34px ${upC}55` } : { color: "var(--dim)" }}
+        >
+          {onWall !== null ? onWall.toFixed(2) : "—"}
+        </span>
         {delta !== null && (
-          <span className="tabular whitespace-nowrap text-[11px] font-black sm:text-sm" style={{ color: upC }}>
+          <span className="tabular whitespace-nowrap text-sm font-black" style={{ color: upC }}>
             THIS RUN {usd(delta)}
           </span>
         )}
       </div>
-      <div className="chamfer-sm flex flex-col gap-1.5 border px-3 py-2.5 sm:flex-row sm:items-baseline sm:justify-between sm:px-4"
-        style={{ borderColor: "var(--edge)", background: "linear-gradient(180deg, var(--panel-2), var(--panel))" }}>
-        <div>
-          <p className="whitespace-nowrap text-[9px] font-black tracking-[0.3em] text-[var(--dim)]">
-            {bankBalance !== null ? "BANKROLL" : "WON ALL TIME"}
-          </p>
-          <p className="money-num display tabular text-2xl leading-none min-[400px]:text-3xl sm:text-4xl"
-            style={bankBalance !== null
-              ? { color: "var(--gold)", textShadow: "0 0 34px var(--gold-glow)" }
-              : won !== null ? { color: "var(--up)", textShadow: "0 0 34px var(--up-glow)" } : { color: "var(--dim)" }}>
-            {bankBalance !== null ? bankBalance.toFixed(2) : won !== null ? `+${won.toFixed(2)}` : "—"}
-          </p>
-        </div>
-        {bankBalance === null ? (
-          /* Real money, reachable from the wall itself. CONNECT WALLET used to
-             live only in the join box — which is hidden the moment you hold a
-             seat, so a seated player could not get to it at all. Connect here,
-             then fund here; the wallet page is for anything bigger. */
-          walletReady && !addr ? (
-            <button
-              onClick={onConnect}
-              className="chamfer-sm shrink-0 self-start whitespace-nowrap border border-[var(--gold)] px-2 py-1.5 sm:self-auto text-[9px] font-black tracking-[0.15em] text-[var(--gold)] transition hover:bg-[var(--gold)] hover:text-black sm:px-2.5"
-            >
-              <span className="sm:hidden">CONNECT</span>
-              <span className="hidden sm:inline">CONNECT WALLET</span>
-            </button>
-          ) : addr ? (
-            <button
-              onClick={onFund}
-              disabled={funding}
-              className="chamfer-sm shrink-0 self-start whitespace-nowrap border border-[var(--gold)] px-2 py-1.5 sm:self-auto text-[9px] font-black tracking-[0.15em] text-[var(--gold)] transition hover:bg-[var(--gold)] hover:text-black disabled:opacity-50 sm:px-2.5"
-            >
-              {funding ? "FUNDING…" : "DEPOSIT 10"}
-            </button>
-          ) : (
-            <a
-              href="/wallet"
-              className="chamfer-sm shrink-0 self-start whitespace-nowrap border border-[var(--gold)] px-2 py-1.5 sm:self-auto text-[9px] font-black tracking-[0.15em] text-[var(--gold)] transition hover:bg-[var(--gold)] hover:text-black sm:px-2.5"
-            >
-              <span className="sm:hidden">FUND →</span>
-              <span className="hidden sm:inline">GET A WALLET →</span>
-            </a>
-          )
-        ) : (
-          <a href="/wallet" className="tabular hidden text-[9px] font-bold tracking-[0.2em] underline decoration-dotted sm:inline"
-            style={{ color: net !== null && net < 0 ? "var(--down)" : "var(--dim)" }}>
-            {net !== null ? `NET ${usd(net)}` : "tUSDC"}
-          </a>
-        )}
+      <div className="ml-auto flex items-baseline gap-3">
+        <span className="whitespace-nowrap text-[9px] font-black tracking-[0.3em] text-[var(--dim)]">
+          {bankBalance !== null ? "BANKROLL" : "WON ALL TIME"}
+        </span>
+        <span
+          className="display tabular text-3xl leading-none"
+          style={bankBalance !== null
+            ? { color: "var(--gold)", textShadow: "0 0 34px var(--gold-glow)" }
+            : won !== null ? { color: "var(--up)", textShadow: "0 0 34px var(--up-glow)" } : { color: "var(--dim)" }}
+        >
+          {bankBalance !== null ? bankBalance.toFixed(2) : won !== null ? `+${won.toFixed(2)}` : "—"}
+        </span>
+        {fund}
       </div>
     </div>
   );

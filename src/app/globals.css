@@ -304,23 +304,14 @@ body::after {
   .plate-name { font-size: 1.5rem !important; }
 }
 
-/* A short phone (667px: iPhone SE, small Androids) has no row to spare
-   between a 240px wall and the sticky control block; the strip is the one
-   thing there that the clock and the bet slip already say. */
-@media (max-height: 700px) and (max-width: 639px) {
-  .phase-strip { display: none; }
-}
-
 /* A SHORT desktop: a 13" laptop running Chrome with a tab strip, a bookmarks
    bar and the dock has ~680-800px of viewport. The layout is one viewport
    on lg, so every pixel of chrome comes straight out of the wall — and the
    wall is the product. Below 820px tall the numbers around it step down a
-   size and the phase strip goes; the wall keeps its floor (play/page.tsx)
+   size; the wall keeps its floor (play/page.tsx)
    and the page scrolls rather than clip if it still cannot fit. */
 @media (max-height: 820px) and (min-width: 1024px) {
-  .phase-strip { display: none; }
   .clock-num { font-size: 3.5rem !important; }
-  .money-num { font-size: 1.75rem !important; }
   .pays-num { font-size: 2.75rem !important; margin-top: 0.5rem !important; }
   .pays-wait { height: 44px !important; margin-top: 0.5rem !important; }
   .side { padding: 14px 18px !important; }
@@ -442,13 +433,16 @@ body::after {
   min-height: 44px;
   display: inline-flex;
   align-items: center;
-  padding: 8px 12px;
+  padding: 8px 8px;
   font-size: 10px;
   font-weight: 800;
   letter-spacing: 0.22em;
   color: var(--dim);
   border: 1px solid transparent;
   transition: color 150ms ease;
+}
+@media (min-width: 640px) {
+  .gametab { padding: 8px 12px; }
 }
 .gametab.active {
   color: var(--accent);

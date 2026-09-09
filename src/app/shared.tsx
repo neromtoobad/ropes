@@ -214,13 +214,21 @@ export function OpenInWallet() {
   useEffect(() => {
     if (isMobile()) setLinks(walletDeepLinks());
   }, []);
+  const [open, setOpen] = useState(false);
   if (!links.length) return null;
   return (
-    <div className="mt-2">
-      <p className="text-[10px] font-black tracking-[0.25em] text-[var(--dim)]">
-        ON A PHONE? OPEN THIS PAGE IN YOUR WALLET&apos;S BROWSER
-      </p>
-      <div className="mt-1.5 flex flex-wrap gap-1.5">
+    <div className="mt-1.5">
+      {/* One line until tapped. Four 44px links stood ~140px tall on the
+          phone's first screen, for the route most first-timers take later. */}
+      <button
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="flex min-h-[36px] items-center text-left text-[10px] font-black tracking-[0.25em] text-[var(--gold)]"
+      >
+        {open ? "▾" : "▸"} HAVE A WALLET APP? OPEN THIS PAGE IN IT
+      </button>
+      {open && (
+      <div className="mt-1 flex flex-wrap gap-1.5">
         {links.map((l) => (
           <a
             key={l.name}
@@ -231,6 +239,7 @@ export function OpenInWallet() {
           </a>
         ))}
       </div>
+      )}
     </div>
   );
 }

@@ -87,6 +87,8 @@ export function Cliff({
   seats,
   price,
   secondsLeft,
+  clockUrgent,
+  stalled,
   intervalSec,
   myRunId,
   falling,
@@ -100,6 +102,9 @@ export function Cliff({
   seats: TableState["seats"];
   price: TableState["price"];
   secondsLeft: number;
+  /** Last ten seconds / clock lost: the wall draws the clock below lg. */
+  clockUrgent: boolean;
+  stalled: boolean;
   /** The window's full length, so the drain bar empties over the real round. */
   intervalSec: number;
   myRunId: string | null;
@@ -172,7 +177,8 @@ export function Cliff({
   // compact nameplate (30px). Top: keep the tag (≈26px above the frame)
   // inside the wall.
   const maxDown = small ? Math.max(4, (0.5 - (30 + bodyOff) / wallBox.h) * 100) : MAX_OFFSET;
-  const maxUp = small ? Math.max(4, ((wallBox.h - 6 - ropeH - 26 + bodyOff) / wallBox.h - 0.5) * 100) : MAX_OFFSET;
+  // 64px at the top is the clock's; the tag never climbs into it.
+  const maxUp = small ? Math.max(4, ((wallBox.h - 64 - ropeH - 26 + bodyOff) / wallBox.h - 0.5) * 100) : MAX_OFFSET;
 
   // BTC's last move, held for a beat so a tick reads as motion, not a blink.
   // The feed repeats the same number across polls (see the chart gotcha), so
@@ -315,12 +321,10 @@ export function Cliff({
   return (
     <div
       ref={wallRef}
-      /* On a phone the wall's height is what is LEFT after the header, the
-         money bar and the sticky control block — sized so that, at the top of
-         the page, the block sits just under the wall instead of over it.
-         The 450px is that chrome's budget; the clamp keeps a short phone
-         from squeezing the wall past usefulness. */
-      className="ticks relative h-[clamp(240px,calc(100dvh-450px),520px)] overflow-hidden rounded-2xl border lg:h-full lg:min-h-0"
+      /* Below lg the wall is the viewport minus `--chrome-h` — the MEASURED
+         header, rail and dock from play/page.tsx — so the stage ends exactly
+         where the docked controls begin. */
+      className="ticks relative h-[calc(100dvh-var(--chrome-h,420px))] min-h-[240px] overflow-hidden rounded-2xl border lg:h-full lg:min-h-0"
       style={{
         borderColor: urgent ? "#3d1220" : "var(--edge)",
         background:
@@ -609,7 +613,7 @@ export function Cliff({
       {/* the wall remembers: how the last windows closed, oldest fading out
           on the left, the newest bell at full strength on the right */}
       {bells.length > 0 && (
-        <div className="absolute inset-x-0 top-2 z-10 hidden justify-center gap-[5px] sm:flex">
+        <div className="absolute inset-x-0 top-[62px] z-10 hidden justify-center gap-[5px] sm:flex lg:top-2">
           {bells.map((b, i) => (
             <span
               key={b.index}
@@ -674,15 +678,39 @@ export function Cliff({
         </div>
       )}
 
-      {/* altitude, top-left: the stat panel carries this on desktop */}
-      {seat && (
-        <div className="pointer-events-none absolute left-4 top-3 lg:hidden">
-          <p className="text-[9px] font-black tracking-[0.25em] text-[var(--dim)]">ALTITUDE</p>
-          <p className="display tabular text-2xl leading-none glow-gold sm:text-3xl">
-            {multiple.toFixed(2)}×
-          </p>
+      {/* the clock, top-centre, below lg: the number that matters lives on
+          the stage. From lg the header's outlined 7xl numeral carries it. */}
+      <div className="pointer-events-none absolute left-1/2 top-2 z-10 -translate-x-1/2 text-center lg:hidden">
+        <div
+          className={`display tabular outline-num text-4xl leading-none sm:text-5xl ${clockUrgent && !stalled ? "clock-urgent" : ""}`}
+          style={stalled ? { color: "var(--dim)" } : undefined}
+        >
+          {stalled ? "··" : String(Math.max(0, Math.floor(secondsLeft))).padStart(2, "0")}
         </div>
-      )}
+        <p className="mt-0.5 text-[8px] font-bold tracking-[0.3em] text-[var(--dim)]">
+          {stalled ? "CLOCK PAUSED" : "TO THE BELL"}
+        </p>
+      </div>
+
+      {/* your money, top-left, below lg: the stat panel and the money bar
+          carry this on desktop. Dollars big, the multiple and the run's
+          delta small — what a player actually checks between glances. */}
+      {seat && (() => {
+        const dollars = multiple * seat.buyIn;
+        const delta = dollars - seat.buyIn;
+        const c = delta >= 0 ? "var(--up)" : "var(--down)";
+        return (
+          <div className="pointer-events-none absolute left-3 top-2.5 lg:hidden">
+            <p className="text-[8px] font-black tracking-[0.25em] text-[var(--dim)]">ON THE WALL</p>
+            <p className="display tabular text-2xl leading-none sm:text-3xl" style={{ color: c, textShadow: `0 0 24px ${c}55` }}>
+              {dollars.toFixed(2)}
+            </p>
+            <p className="tabular mt-0.5 text-[9px] font-black tracking-[0.15em]" style={{ color: c }}>
+              {multiple.toFixed(2)}× · {delta >= 0 ? "+" : "−"}{Math.abs(delta).toFixed(2)}
+            </p>
+          </div>
+        );
+      })()}
 
       {/* time, draining */}
       <div className="absolute inset-x-0 bottom-0 h-[3px] bg-[#ffffff0a]">
