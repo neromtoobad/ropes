@@ -375,8 +375,12 @@ export default function Game() {
     }
   }, [runId, ledger]);
 
+  // lg is one viewport by design, but `overflow-hidden` CLIPPED the side
+  // buttons on a 13" laptop whose Chrome + dock leave ~680px: the wall had
+  // already shrunk to its floor and UP/DOWN ran off the bottom. Scroll is the
+  // honest fallback; when everything fits, nothing scrolls.
   return (
-    <main className={`relative z-10 mx-auto flex min-h-dvh max-w-6xl flex-col px-4 py-3 lg:h-screen lg:max-h-screen lg:overflow-hidden ${myBell ? "shake" : ""}`}>
+    <main className={`relative z-10 mx-auto flex min-h-dvh max-w-6xl flex-col px-4 py-3 lg:h-screen lg:max-h-screen lg:overflow-y-auto lg:overflow-x-hidden ${myBell ? "shake" : ""}`}>
       {secs > 0 && secs < 10 && <div className="danger" />}
 
       <TopBar state={view} urgent={urgent} sound={sound} me={me} stalled={stalled} />
@@ -437,7 +441,7 @@ export default function Game() {
         <div className="flex min-w-0 flex-col lg:min-h-0">
           {/* The wall's height floor belongs HERE, not on the wall itself —
               the wall is lg:h-full and must never outgrow this slot. */}
-          <div className="lg:min-h-[240px] lg:flex-1">
+          <div className="lg:min-h-[300px] lg:flex-1">
           <Cliff
             seats={state?.seats ?? []}
             price={state?.price ?? { up: null, down: null }}
@@ -609,7 +613,7 @@ function TopBar({
       </div>
 
       <div className="text-right">
-        <div className={`display tabular outline-num text-5xl leading-[0.85] sm:text-7xl ${urgent && !stalled ? "clock-urgent" : ""}`}
+        <div className={`display tabular outline-num clock-num text-5xl leading-[0.85] sm:text-7xl ${urgent && !stalled ? "clock-urgent" : ""}`}
           style={stalled ? { color: "var(--dim)" } : undefined}>
           {stalled ? "··" : String(secs).padStart(2, "0")}
         </div>
@@ -1115,14 +1119,14 @@ function Sides({
 
               {pays ? (
                 <div
-                  className="display tabular mt-2 text-4xl leading-none min-[400px]:text-5xl sm:mt-3 sm:text-7xl"
+                  className="pays-num display tabular mt-2 text-4xl leading-none min-[400px]:text-5xl sm:mt-3 sm:text-7xl"
                   style={{ textShadow: `0 0 44px ${c}55` }}
                 >
                   {pays.toFixed(2)}
                   <span className="align-super text-2xl opacity-60">×</span>
                 </div>
               ) : (
-                <div className="mt-2 flex h-[40px] items-center sm:mt-3 sm:h-[72px]">
+                <div className="pays-wait mt-2 flex h-[40px] items-center sm:mt-3 sm:h-[72px]">
                   <span className="text-sm font-semibold tracking-[0.2em] text-[var(--dim)]">
                     WAITING FOR THE BOOK
                   </span>
@@ -1538,7 +1542,7 @@ function MoneyBar({
               </span>
             )}
           </p>
-          <p className="display tabular text-2xl leading-none min-[400px]:text-3xl sm:text-4xl"
+          <p className="money-num display tabular text-2xl leading-none min-[400px]:text-3xl sm:text-4xl"
             style={onWall !== null ? { color: upC, textShadow: `0 0 34px ${upC}55` } : { color: "var(--dim)" }}>
             {onWall !== null ? onWall.toFixed(2) : "—"}
           </p>
@@ -1555,7 +1559,7 @@ function MoneyBar({
           <p className="whitespace-nowrap text-[9px] font-black tracking-[0.3em] text-[var(--dim)]">
             {bankBalance !== null ? "BANKROLL" : "WON ALL TIME"}
           </p>
-          <p className="display tabular text-2xl leading-none min-[400px]:text-3xl sm:text-4xl"
+          <p className="money-num display tabular text-2xl leading-none min-[400px]:text-3xl sm:text-4xl"
             style={bankBalance !== null
               ? { color: "var(--gold)", textShadow: "0 0 34px var(--gold-glow)" }
               : won !== null ? { color: "var(--up)", textShadow: "0 0 34px var(--up-glow)" } : { color: "var(--dim)" }}>
