@@ -17,3 +17,6 @@ contracts/cache/
 # local pointer to AGENTS.md, never committed
 CLAUDE.md
 .vercel
+
+# macOS AppleDouble sidecars on the external volume
+._*

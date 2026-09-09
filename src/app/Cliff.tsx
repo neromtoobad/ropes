@@ -131,6 +131,49 @@ export function Cliff({
   const anchor = useSmoothed(anchorTarget, 340, 3);
   const meH = heightOfMultiple(anchor);
 
+  /**
+   * The wall's own size, so the climber can be scaled and clamped to it.
+   *
+   * On a desktop the wall is ~600px tall and the HUD corners are hundreds of
+   * pixels from the centred sprite, so a fixed 225px figure with ±34% of
+   * travel never touches anything. On a 375px phone the wall is ~360px tall
+   * and 343 wide: the same figure at the bottom of its travel stood on the
+   * nameplate, and its tag ran into the BTC readout at the top. So below
+   * 640px the figure shrinks with the wall and its travel is clamped to the
+   * band between the top HUD and the nameplate — on a phone the character
+   * is never printed through text.
+   */
+  const MAX_OFFSET = 34; // % of wall, the desktop's full travel either way
+  const wallRef = useRef<HTMLDivElement>(null);
+  const [wallBox, setWallBox] = useState({ w: 1024, h: 600 });
+  useEffect(() => {
+    const el = wallRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([e]) => {
+      const { width, height } = e.contentRect;
+      setWallBox((b) => (Math.abs(b.w - width) < 1 && Math.abs(b.h - height) < 1 ? b : { w: width, h: height }));
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const small = wallBox.w < 640;
+  /** Height of a cycle frame (the rope-carrying sprite), in px. */
+  const ropeH = small ? Math.round(Math.min(150, Math.max(104, wallBox.h * 0.42))) : 225;
+  /**
+   * How far the sprite's bottom edge sits below the anchor line. The figure
+   * occupies the middle 55% of a cycle frame, so 0.45·H puts its centre ON
+   * the line; the desktop keeps its tuned 58px (figure a little above it).
+   */
+  const bodyOff = small ? Math.round(ropeH * 0.45) : 58;
+  /** Where the rope tile tucks in: just above the figure's head, so the join
+   *  hides in the frame's own rope. 78% up the frame, same as the desktop. */
+  const ropeJoin = small ? Math.round(ropeH * 0.78) - bodyOff : 82;
+  // Travel clamp, in % of wall height. Bottom: keep the sprite off the
+  // compact nameplate (30px). Top: keep the tag (≈26px above the frame)
+  // inside the wall.
+  const maxDown = small ? Math.max(4, (0.5 - (30 + bodyOff) / wallBox.h) * 100) : MAX_OFFSET;
+  const maxUp = small ? Math.max(4, ((wallBox.h - 6 - ropeH - 26 + bodyOff) / wallBox.h - 0.5) * 100) : MAX_OFFSET;
+
   // BTC's last move, held for a beat so a tick reads as motion, not a blink.
   // The feed repeats the same number across polls (see the chart gotcha), so
   // direction only updates on an actual change.
@@ -173,10 +216,9 @@ export function Cliff({
    * bell settles the round and the anchor glides to the new height.
    */
   const OFFSET_PER_POINT = 1.1; // % of wall per BTC point off the strike
-  const MAX_OFFSET = 34;
   const rawOffset =
     seat?.inRound && btc.price !== null && btc.strike !== null
-      ? Math.max(-MAX_OFFSET, Math.min(MAX_OFFSET, (btc.price - btc.strike) * OFFSET_PER_POINT))
+      ? Math.max(-maxDown, Math.min(maxUp, (btc.price - btc.strike) * OFFSET_PER_POINT))
       : 0;
   const offset = useSmoothed(rawOffset, 300, 200);
 
@@ -233,6 +275,9 @@ export function Cliff({
   // Off the rope (falling, leaping) = the pose sprites, which have none.
   const hasCycle = CYCLE_READY.has(art);
   const onRope = hasCycle && !dead && !bailed;
+  // Pose sprites have no rope above or below the figure, so they render at
+  // ~61% of a cycle frame to keep the CHARACTER the same size.
+  const spriteH = onRope ? ropeH : Math.round(ropeH * 0.61);
   const [frame, setFrame] = useState(0);
   const cycleActive = onRope && !hanging && (rising || sinking);
   useEffect(() => {
@@ -269,7 +314,13 @@ export function Cliff({
   // nameplate floating on top.
   return (
     <div
-      className="ticks relative h-[min(520px,52dvh)] min-h-[300px] overflow-hidden rounded-2xl border lg:h-full lg:min-h-0"
+      ref={wallRef}
+      /* On a phone the wall's height is what is LEFT after the header, the
+         money bar and the sticky control block — sized so that, at the top of
+         the page, the block sits just under the wall instead of over it.
+         The 450px is that chrome's budget; the clamp keeps a short phone
+         from squeezing the wall past usefulness. */
+      className="ticks relative h-[clamp(240px,calc(100dvh-450px),520px)] overflow-hidden rounded-2xl border lg:h-full lg:min-h-0"
       style={{
         borderColor: urgent ? "#3d1220" : "var(--edge)",
         background:
@@ -384,9 +435,16 @@ export function Cliff({
                   opacity: 0.55,
                 }}
               />
-              <span className="absolute left-3 -top-4 text-[9px] font-black tracking-[0.2em] text-[var(--gold)] opacity-90">
-                ⚑ {record.name.toUpperCase()} · {record.multiple.toFixed(2)}×
-              </span>
+              {/* the altitude readout owns the top-left, the nameplate the
+                  bottom-left; a flag drifting into either printed through it */}
+              {(() => {
+                const b = bottomOf(heightOfMultiple(record.multiple));
+                return b < 78 && b > 12;
+              })() && (
+                <span className="absolute left-3 -top-4 text-[9px] font-black tracking-[0.2em] text-[var(--gold)] opacity-90">
+                  ⚑ {record.name.toUpperCase()} · {record.multiple.toFixed(2)}×
+                </span>
+              )}
             </div>
           )}
 
@@ -407,12 +465,17 @@ export function Cliff({
                 boxShadow: bestBeaten ? "0 0 12px var(--gold-glow)" : "none",
               }}
             />
-            <span
-              className="absolute left-3 -top-4 text-[9px] font-black tracking-[0.2em]"
-              style={{ color: bestBeaten ? "var(--gold)" : "var(--dim)" }}
-            >
-              {bestBeaten ? "★ NEW BEST" : `YOUR BEST · ${myBest.toFixed(2)}×`}
-            </span>
+            {(() => {
+              const b = bottomOf(heightOfMultiple(myBest));
+              return b < 78 && b > 12;
+            })() && (
+              <span
+                className="absolute left-3 -top-4 text-[9px] font-black tracking-[0.2em]"
+                style={{ color: bestBeaten ? "var(--gold)" : "var(--dim)" }}
+              >
+                {bestBeaten ? "★ NEW BEST" : `YOUR BEST · ${myBest.toFixed(2)}×`}
+              </span>
+            )}
           </div>
         )}
 
@@ -426,7 +489,7 @@ export function Cliff({
             className="pointer-events-none absolute left-1/2 z-10 w-[8px] -translate-x-1/2"
             style={{
               top: "-5%",
-              bottom: `calc(${50 + offset}% + 82px)`,
+              bottom: `calc(${50 + offset}% + ${ropeJoin}px)`,
               backgroundImage: `url(/climbers/${art}/rope.webp)`,
               backgroundRepeat: "repeat-y",
               backgroundSize: "100% auto",
@@ -442,7 +505,7 @@ export function Cliff({
           <div
             className="absolute left-1/2 flex flex-col items-center"
             style={{
-              bottom: bailed ? "118%" : dead ? "-30%" : `calc(${50 + offset}% - 58px)`,
+              bottom: bailed ? "118%" : dead ? "-30%" : `calc(${50 + offset}% - ${bodyOff}px)`,
               transform: bailed
                 ? "translateX(-50%) translateX(90px)"
                 : `translateX(-50%) translateY(${dead ? 0 : nudge}px)`,
@@ -472,10 +535,13 @@ export function Cliff({
               // so they render taller to keep the CHARACTER the same size.
               // While moving, the frames ARE the animation; holding still
               // gets the dangle sway, barely-alive gets the scrabble.
-              className={`w-auto ${onRope ? "h-[180px] sm:h-[225px]" : "h-[110px] sm:h-[140px]"} ${
+              className={`w-auto ${onRope ? "h-[150px] sm:h-[225px]" : "h-[92px] sm:h-[140px]"} ${
                 cycleActive ? "" : onRope ? (hanging ? "hanging" : "dangling") : grip
               }`}
               style={{
+                // measured, not breakpointed: the phone figure scales with
+                // the wall it is on (see wallBox above)
+                height: small ? spriteH : undefined,
                 filter: "drop-shadow(0 0 16px var(--gold-glow))",
                 transform: !onRope && pose === "slip" ? "scaleX(-1)" : undefined,
               }}
@@ -519,7 +585,7 @@ export function Cliff({
       {btc.price !== null && btc.strike !== null && (
         <div className="pointer-events-none absolute right-4 top-3 text-right">
           <p
-            className="display tabular text-2xl leading-none sm:text-3xl"
+            className="display tabular text-xl leading-none sm:text-3xl"
             style={{
               color: btc.price >= btc.strike ? "var(--up)" : "var(--down)",
               textShadow: `0 0 36px ${btc.price >= btc.strike ? "var(--up-glow)" : "var(--down-glow)"}`,
@@ -564,9 +630,29 @@ export function Cliff({
         </div>
       )}
 
-      {/* the nameplate — a character, not a cursor */}
+      {/* the nameplate — a character, not a cursor. On a phone the 3xl
+          plate was a third of the wall's width and the climber stood on it;
+          there it is one slim line along the bottom edge instead. */}
       {seat && (
-        <div className="pointer-events-none absolute bottom-5 left-4 z-10">
+        <div className="pointer-events-none absolute bottom-2.5 left-3 z-10 flex items-center gap-1.5 sm:hidden">
+          <span className="display text-[11px] tracking-[0.06em]" style={{ color: "#eeecf5" }}>
+            {cast.label}
+          </span>
+          <span className="text-[9px] font-black tracking-[0.2em] text-[var(--accent)]">
+            {seat.name.toUpperCase()}
+          </span>
+          <span
+            className="rounded-sm px-1 py-[1px] text-[8px] font-black tracking-[0.2em]"
+            style={seat.paid
+              ? { background: "var(--gold)", color: "#000" }
+              : { border: "1px solid var(--edge)", color: "var(--dim)" }}
+          >
+            {seat.paid ? "REAL" : "FREE"}
+          </span>
+        </div>
+      )}
+      {seat && (
+        <div className="pointer-events-none absolute bottom-5 left-4 z-10 hidden sm:block">
           <p className="text-[9px] font-black tracking-[0.35em] text-[var(--dim)]">{cast.code}</p>
           <p className="plate-name display text-3xl leading-none tracking-[0.06em] sm:text-5xl" style={{ color: "#eeecf5", textShadow: "0 0 34px #00000088" }}>
             {cast.label}

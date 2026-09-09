@@ -754,6 +754,23 @@ lonely side pays a lot. show the crowd's split on screen — that is the strateg
   falls past it after 90s (`ABSENT_AFTER_S`); `/api/state` picks the SHORTEST open round, not the
   newest. When quoting "settled windows", filter `intervalSec = 60` — 7,257, not 7,439.
 
+➠ **a sticky-bottom control block covers whatever precedes it until the page is scrolled to
+  where the block naturally sits.** On a phone the seated /play screen stacked the phase strip,
+  the bet slip, BAIL, the auto-bail row AND the next-minute row inside one `sticky bottom-0`
+  block — ~330px of an 812px screen — so it floated over the bottom third of the wall: the
+  nameplate, the climber and RIDING DOWN all sat under BAIL, and it read as "overlapping".
+  The fix is a height BUDGET, not z-index: the wall is `clamp(240px, 100dvh - 450px, 520px)` so
+  at the top of the page the block lands just under it, the block itself is one line per row
+  (explanatory sentences are `hidden sm:inline`), the rail hides once seated, and the phase
+  strip lives in normal flow (hidden under 700px tall). Verify with the sticky's `top` ≥ the
+  wall's `bottom` via getBoundingClientRect at 375×812 AND 375×667, never by eye.
+➠ **a centred sprite on a 343px-wide wall collides with corner HUD text that a 900px wall keeps
+  metres away.** The 225px figure at the bottom of its ±34% travel stood on the 3xl nameplate,
+  and the record/best flags (`left-3 -top-4`) printed straight through it. Below 640px the wall
+  now measures itself (ResizeObserver): the figure scales to 42% of the wall's height, its
+  travel is clamped to the band between the top HUD and a one-line nameplate, and the left
+  flags hide in the same bands the right-hand ledge labels already do. Desktop is untouched.
+
 ## things NOT to do
 
 ➠ do not build a per-user escrow contract. house executor, disclosed in the video.

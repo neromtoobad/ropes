@@ -412,7 +412,11 @@ export function LeadersPanel({ rows, myId }: { rows: LeaderRow[] | null; myId: s
                 </span>
                 <span className="font-bold">
                   {r.name}
-                  {r.alive && <span className="ml-2 text-[9px] font-black tracking-[0.2em] text-[var(--gold)]">● ON THE WALL</span>}
+                  {r.alive && (
+                    <span className="ml-2 whitespace-nowrap text-[9px] font-black tracking-[0.2em] text-[var(--gold)]">
+                      ●<span className="hidden sm:inline"> ON THE WALL</span>
+                    </span>
+                  )}
                 </span>
                 <span className="text-sm">{r.badges.join(" ")}</span>
               </span>

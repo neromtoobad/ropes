@@ -428,7 +428,9 @@ export default function Game() {
       {/* The HUD: roster rail · the wall · the stat block. One viewport,
           no scroll — the wall flexes to fill whatever height is left. */}
       <div className="mt-2 grid grid-cols-1 gap-3 lg:min-h-0 lg:flex-1 lg:grid-cols-[72px_minmax(0,1fr)_240px]">
-        <div className="min-w-0 lg:min-h-0 lg:overflow-y-auto">
+        {/* Once seated the rail is disabled — a row of dimmed thumbnails a
+            phone cannot afford. The nameplate on the wall says who you are. */}
+        <div className={`min-w-0 lg:min-h-0 lg:overflow-y-auto ${me ? "hidden lg:block" : ""}`}>
           <Rail climber={climber} onPick={pickClimber} lockedIn={Boolean(me)} />
         </div>
 
@@ -456,25 +458,24 @@ export default function Game() {
           />
           </div>
 
-          {me && view?.round && (
-            <div className="hidden lg:block">
-              <PhaseStrip state={view} me={me} />
-            </div>
-          )}
+          {me && view?.round && <PhaseStrip state={view} me={me} />}
 
-          {/* One control, matched to the moment. Never several at once. */}
+          {/* One control, matched to the moment. Never several at once.
+
+              On a phone this block is sticky so BAIL is always under the
+              thumb — which means it FLOATS OVER whatever precedes it until
+              the page is scrolled to its natural place. Everything above is
+              sized so that at the top of the page the block sits just under
+              the wall (see the wall's height in Cliff.tsx), and the block
+              itself is kept short: no explanatory sentences, one line per
+              row. A tall sticky block is a wall you cannot see. */}
           <div
             className={`mt-2 shrink-0 ${
               me
-                ? "sticky bottom-0 z-30 -mx-4 bg-[linear-gradient(to_top,var(--bg)_calc(100%_-_14px),transparent)] px-4 pb-[max(10px,env(safe-area-inset-bottom))] pt-4 lg:static lg:mx-0 lg:bg-none lg:px-0 lg:pb-0 lg:pt-0"
+                ? "sticky bottom-0 z-30 -mx-4 bg-[linear-gradient(to_top,var(--bg)_calc(100%_-_14px),transparent)] px-4 pb-[max(8px,env(safe-area-inset-bottom))] pt-3 lg:static lg:mx-0 lg:bg-none lg:px-0 lg:pb-0 lg:pt-0"
                 : ""
             }`}
           >
-            {me && view?.round && (
-              <div className="mb-2 lg:hidden [&>div]:mt-0">
-                <PhaseStrip state={view} me={me} />
-              </div>
-            )}
             {!runId || !me ? (
               <Join
                 name={name}
@@ -532,8 +533,10 @@ export default function Game() {
         <StatPanel state={view} me={me} climber={climber} series={ledger?.series ?? null} />
       </div>
 
+      {/* 40% of the viewport is inside the wall on every layout; at 28% a
+          phone printed this over the money bar's FUND button. */}
       {passed && (
-        <div className="pointer-events-none fixed inset-x-0 top-[28%] z-40 text-center">
+        <div className="pointer-events-none fixed inset-x-0 top-[40%] z-40 text-center">
           <span className="display text-3xl glow-gold sm:text-4xl">LEDGE {passed}</span>
         </div>
       )}
@@ -816,6 +819,8 @@ function PhaseStrip({ state, me }: { state: TableState; me: TableState["seats"][
   const betsIn = Math.floor(r.betsCloseIn);
   const phase = me.inRound ? 2 : me.pick ? 1 : 0;
 
+  // `short` is the phone form: the clock alone, shown only on the active
+  // step, so four cells fit one line at 375px.
   const steps = [
     {
       label: "BET",
@@ -825,25 +830,27 @@ function PhaseStrip({ state, me }: { state: TableState; me: TableState["seats"][
             ? `OPEN · 0:${pad(betsIn)}`
             : `NEXT · 0:${pad(secs)}`
           : "PLACED",
+      short: betsIn > 0 ? `0:${pad(betsIn)}` : `0:${pad(secs)}`,
     },
     {
       label: "ENTER",
       detail:
         phase === 1 ? (betsIn > 0 ? "FILLING…" : `OPENS 0:${pad(secs)}`) : phase > 1 ? "FILLED" : "·",
+      short: betsIn > 0 ? "…" : `0:${pad(secs)}`,
     },
-    { label: "RIDE", detail: phase === 2 ? `LIVE · 0:${pad(secs)}` : "·" },
-    { label: "BELL", detail: `RND ${r.index}` },
+    { label: "RIDE", detail: phase === 2 ? `LIVE · 0:${pad(secs)}` : "·", short: `0:${pad(secs)}` },
+    { label: "BELL", detail: `RND ${r.index}`, short: "" },
   ];
 
   return (
-    <div className="mt-3 grid grid-cols-4 gap-1.5" aria-label="round phases">
+    <div className="phase-strip mt-2 grid grid-cols-4 gap-1 sm:gap-1.5 lg:mt-3" aria-label="round phases">
       {steps.map((s, i) => {
         const active = i === phase;
         const done = i < phase;
         return (
           <div
             key={s.label}
-            className="chamfer-sm border px-2 py-1.5 text-center"
+            className="chamfer-sm border px-1 py-1.5 text-center sm:px-2"
             style={{
               borderColor: active ? "var(--gold)" : "var(--edge)",
               background: active ? "#241c07" : "var(--panel)",
@@ -852,13 +859,14 @@ function PhaseStrip({ state, me }: { state: TableState; me: TableState["seats"][
             }}
           >
             <p
-              className="text-[10px] font-black tracking-[0.25em]"
+              className="whitespace-nowrap text-[9px] font-black tracking-[0.12em] sm:text-[10px] sm:tracking-[0.25em]"
               style={{ color: active ? "var(--gold)" : done ? "var(--up)" : "var(--dim)" }}
             >
-              {done ? "✓ " : `${i + 1} `}
+              {done ? "✓ " : <span className="hidden sm:inline">{i + 1} </span>}
               {s.label}
+              {active && s.short && <span className="tabular ml-1 sm:hidden">{s.short}</span>}
             </p>
-            <p className="tabular mt-0.5 text-[9px] font-bold tracking-[0.15em] text-[var(--dim)]">
+            <p className="tabular mt-0.5 hidden text-[9px] font-bold tracking-[0.15em] text-[var(--dim)] sm:block">
               {s.detail}
             </p>
           </div>
@@ -902,7 +910,7 @@ function BailBar({
   return (
     <>
       {/* the bet slip — what's riding, at what price */}
-      <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 text-[10px] font-bold tracking-[0.25em]">
+      <div className="mb-1.5 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 text-[10px] font-bold tracking-[0.25em]">
         <span style={{ color: sideC }}>
           YOUR BET: {me.pick === "UP" ? "▲ UP" : "▼ DOWN"}
           {me.fillPrice ? ` · FILLED @ ${me.fillPrice.toFixed(3)}` : ""}
@@ -912,7 +920,7 @@ function BailBar({
     <button
       onClick={onBank}
       disabled={pending}
-      className="chamfer flex w-full items-center justify-between gap-3 border px-4 py-3.5 text-left transition disabled:opacity-70 sm:px-5 sm:py-4"
+      className="chamfer flex w-full items-center justify-between gap-3 border px-4 py-3 text-left transition disabled:opacity-70 sm:px-5 sm:py-4"
       style={{
         borderColor: "var(--gold)",
         background: "linear-gradient(90deg, #241c07, var(--panel))",
@@ -938,7 +946,7 @@ function BailBar({
             <button
               key={at}
               onClick={() => onAutoBail(active ? null : at)}
-              className="chamfer-sm min-h-[30px] border px-2.5 py-1 transition"
+              className="chamfer-sm min-h-[34px] border px-2.5 py-1 transition"
               style={{
                 borderColor: active ? "var(--gold)" : "var(--edge)",
                 color: active ? "var(--gold)" : "var(--dim)",
@@ -952,8 +960,10 @@ function BailBar({
         {autoBail !== null && !AUTO_BAIL_PRESETS.includes(autoBail as (typeof AUTO_BAIL_PRESETS)[number]) && (
           <span className="text-[var(--gold)]">{autoBail}×</span>
         )}
+        {/* the lit chip already says it on a phone; the sentence is for
+            screens with a spare 200px */}
         {autoBail !== null && (
-          <span className="ml-auto text-[var(--gold)]">SELLS AT {autoBail}× — TAP TO DISARM</span>
+          <span className="ml-auto hidden text-[var(--gold)] sm:inline">SELLS AT {autoBail}× — TAP TO DISARM</span>
         )}
       </div>
 
@@ -971,7 +981,7 @@ function BailBar({
                 setNextOptimistic(side);
                 onNext(side);
               }}
-              className="chamfer-sm min-h-[30px] border px-2.5 py-1 transition"
+              className="chamfer-sm min-h-[34px] border px-2.5 py-1 transition"
               style={{
                 borderColor: active ? c : "var(--edge)",
                 color: active ? c : "var(--dim)",
@@ -984,7 +994,10 @@ function BailBar({
           );
         })}
         <span className="ml-auto text-[var(--dim)]">
-          {next ? `QUEUED — IF YOU SURVIVE THE BELL YOU'RE ALREADY IN` : "QUEUE A SIDE — SKIP THE WAIT AFTER THE BELL"}
+          <span className="hidden sm:inline">
+            {next ? `QUEUED — IF YOU SURVIVE THE BELL YOU'RE ALREADY IN` : "QUEUE A SIDE — SKIP THE WAIT AFTER THE BELL"}
+          </span>
+          {next && <span className="text-[var(--gold)] sm:hidden">QUEUED ✓</span>}
         </span>
       </div>
     </>
@@ -1056,7 +1069,7 @@ function Sides({
           <button
             onClick={onWalk}
             disabled={walking}
-            className="tabular font-black tracking-[0.2em] underline decoration-dotted underline-offset-2 transition hover:text-[var(--gold)] disabled:opacity-60"
+            className="tabular whitespace-nowrap font-black tracking-[0.2em] underline decoration-dotted underline-offset-2 transition hover:text-[var(--gold)] disabled:opacity-60"
           >
             {walking ? "CASHING OUT…" : `TAKE ${me.stack.toFixed(2)} & WALK →`}
           </button>
@@ -1102,14 +1115,14 @@ function Sides({
 
               {pays ? (
                 <div
-                  className="display tabular mt-3 text-4xl leading-none min-[400px]:text-5xl sm:text-7xl"
+                  className="display tabular mt-2 text-4xl leading-none min-[400px]:text-5xl sm:mt-3 sm:text-7xl"
                   style={{ textShadow: `0 0 44px ${c}55` }}
                 >
                   {pays.toFixed(2)}
                   <span className="align-super text-2xl opacity-60">×</span>
                 </div>
               ) : (
-                <div className="mt-3 flex h-[48px] items-center sm:h-[72px]">
+                <div className="mt-2 flex h-[40px] items-center sm:mt-3 sm:h-[72px]">
                   <span className="text-sm font-semibold tracking-[0.2em] text-[var(--dim)]">
                     WAITING FOR THE BOOK
                   </span>
@@ -1185,10 +1198,15 @@ function Join({
           setShowRules((v) => !v);
           safeLocal.set("lc.rulesSeen", "1");
         }}
-        className="mb-2 flex min-h-[40px] items-center text-[10px] font-black tracking-[0.25em] text-[var(--dim)] transition hover:text-[var(--gold)] lg:min-h-0"
+        className="mb-2 flex min-h-[40px] items-center text-left text-[10px] font-black tracking-[0.25em] text-[var(--dim)] transition hover:text-[var(--gold)] lg:min-h-0"
         aria-expanded={showRules}
       >
-        {showRules ? "▾ HOW IT WORKS" : "▸ HOW IT WORKS · 10 tUSDC A SEAT, ONE MINUTE A ROUND"}
+        {showRules ? "▾ HOW IT WORKS" : (
+          <>
+            ▸ HOW IT WORKS
+            <span className="hidden sm:inline"> · 10 tUSDC A SEAT, ONE MINUTE A ROUND</span>
+          </>
+        )}
       </button>
       {showRules && <HowItWorks />}
       <div className="flex flex-wrap gap-2">
@@ -1296,7 +1314,7 @@ function Bell({
       <div className="text-center">
         <p className="text-xs font-bold tracking-[0.5em] text-[var(--dim)]">THE BELL</p>
         <p
-          className="display mt-2 text-[3rem] leading-[0.85] tracking-tight sm:text-[6rem]"
+          className="display mt-2 text-[2.5rem] leading-[0.9] tracking-tight sm:text-[6rem] sm:leading-[0.85]"
           style={{ color: c, textShadow: `0 0 90px ${c}` }}
         >
           {result.voided ? "NO VERDICT" : result.winner === "UP" ? "▲ ABOVE THE LINE" : "▼ BELOW THE LINE"}

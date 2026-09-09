@@ -304,6 +304,13 @@ body::after {
   .plate-name { font-size: 1.5rem !important; }
 }
 
+/* A short phone (667px: iPhone SE, small Androids) has no row to spare
+   between a 240px wall and the sticky control block; the strip is the one
+   thing there that the clock and the bet slip already say. */
+@media (max-height: 700px) and (max-width: 639px) {
+  .phase-strip { display: none; }
+}
+
 /* ── side buttons ──────────────────────────────────────────────────────── */
 
 .side {
