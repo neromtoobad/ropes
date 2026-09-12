@@ -79,10 +79,10 @@ export default function Landing() {
             {[
               {
                 label: "BTC RIGHT NOW",
-                value: state?.btc.price
+                value: state?.btc?.price
                   ? `$${state.btc.price.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
                   : "—",
-                c: state?.btc.price && state?.btc.strike && state.btc.price >= state.btc.strike ? "var(--up)" : "var(--down)",
+                c: state?.btc?.price && state?.btc?.strike && state.btc.price >= state.btc.strike ? "var(--up)" : "var(--down)",
               },
               { label: "NEXT BELL", value: state?.round ? `0:${String(Math.floor(state.round.secondsLeft)).padStart(2, "0")}` : "—", c: "var(--text)" },
               { label: "ROUNDS PLAYED", value: state?.round ? String(state.round.index) : "—", c: "var(--gold)" },

@@ -801,6 +801,34 @@ lonely side pays a lot. show the crowd's split on screen — that is the strateg
   name step has ◂ CHANGE CLIMBER, and the same steps serve the wallet path (CONNECT WALLET → PLAY
   FOR REAL lives on step 2). `?seat=1` still auto-seats past both steps.
 
+➠ **the climber looked stagnant because the wall's BTC scale was measured in DOLLARS, and gated on
+  holding a position.** Sampled the live feed across five consecutive 1m windows: |price − line| has
+  a median of **$2** and a p75 of **$7.83**, with the odd $28 excursion. At the old flat
+  `1.1% of wall per dollar`, half the time the climber moved under 13px in a whole minute, and a
+  $20+ move slammed into the hard clamp and sat there — stagnant at both ends. Worse, `rawOffset`
+  was gated on `seat.inRound`, and entries fill late on these books, so a player spent much of the
+  minute pinned dead centre with the market moving. Now: the reference is a FRACTION of the strike
+  (1 basis point ≈ $7.70 at $77k = 76% of travel) so it keeps its feel at any BTC price, scaled by
+  √cadence for the 5m fallback, soft-clipped with `tanh` so a big move keeps creeping instead of
+  hitting a wall, travel symmetric (`min(maxUp, maxDown)`) so a rise and a fall of equal size read
+  the same, and no `inRound` gate — the line is real whether or not your money is on it yet.
+  Measured against the real sampled windows, travel roughly doubles on the quiet ones (30→73px,
+  41→86px) and is unchanged on the violent ones.
+➠ **`state?.btc.oracleQuestionId` is NOT a guard — optional chaining stops at `state`.** A frame
+  with no `btc` threw "Cannot read properties of undefined (reading 'oracleQuestionId')" and took
+  the whole page down. The /play poll only validated `Array.isArray(next.seats)`; it now checks
+  `next.btc` and `next.price` too, and both reads use `state?.btc?.`. Validate the SHAPE you index
+  into, not a neighbouring field.
+➠ **you cannot verify an animation from the Browser pane while it is hidden: `requestAnimationFrame`
+  gets ZERO frames** (measured: 0 in 1.2s at `visibilityState = "hidden"`), and `useSmoothed` runs
+  entirely on rAF with `snapAbove` far above its range, so the glide freezes and every pixel
+  measurement is of a stale value. A screenshot pumps a frame or two, so a burst of them creeps the
+  value toward target — which looks exactly like a broken animation. Verify the MAPPING numerically
+  and confirm motion on a real device.
+➠ **local `next dev` against the production Supabase pooler can take 4-80s per `/api/state`** from
+  this machine, so the page barely updates and mock harnesses appear not to work. Production is
+  0.5-1s. Verify anything timing-dependent against production, not local dev.
+
 ## things NOT to do
 
 ➠ do not build a per-user escrow contract. house executor, disclosed in the video.

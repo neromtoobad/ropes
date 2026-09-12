@@ -95,7 +95,10 @@ export default function Game() {
         // meet a blip eventually — keep the last good frame instead.
         if (!res.ok) return;
         const next: TableState = await res.json();
-        if (!alive || !Array.isArray(next?.seats)) return;
+        // `btc` is read unguarded in two places below; a frame without it
+        // took the whole page down with "Cannot read properties of undefined
+        // (reading 'oracleQuestionId')". Validate the SHAPE, not just seats.
+        if (!alive || !Array.isArray(next?.seats) || !next.btc || !next.price) return;
         stateAt.current = Date.now();
         setState(next);
 
@@ -998,7 +1001,7 @@ function StatPanel({
           </div>
         </div>
       )}
-      {state?.btc.oracleQuestionId && (
+      {state?.btc?.oracleQuestionId && (
         <a
           className="text-[8px] font-bold tracking-[0.2em] text-[var(--dim)] underline decoration-dotted hover:text-[var(--gold)]"
           href={`https://prd.oracle.somnia.host/questions/${state.btc.oracleQuestionId}?view=graph`}
@@ -1772,7 +1775,7 @@ function Footnote({ state }: { state: TableState | null }) {
       order book, not a house line — there is no house edge, and you can never lose more than your
       seat. Prices shown are indicative: the book is thin at the start of a window, so your fill
       price is whatever the market gives you.{" "}
-      {state?.btc.oracleQuestionId && (
+      {state?.btc?.oracleQuestionId && (
         <a
           className="underline decoration-dotted underline-offset-2 hover:text-[var(--gold)]"
           href={`https://prd.oracle.somnia.host/questions/${state.btc.oracleQuestionId}?view=graph`}

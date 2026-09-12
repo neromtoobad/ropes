@@ -213,18 +213,40 @@ export function Cliff({
   }, [btc.price]);
 
   /**
-   * In-round, the climber's position on screen IS bitcoin against the line:
-   * center = the strike, above = UP winning, below = DOWN winning. A DOWN
-   * bettor cheers the dive. Money never leaves the numbers — tag, altitude
-   * and BAIL keep the honest mark — but the BODY belongs to BTC.
+   * The climber's position on screen IS bitcoin against the line: center is
+   * the strike, above is UP winning, below is DOWN winning. A DOWN bettor
+   * cheers the dive. Money never leaves the numbers — tag, altitude and BAIL
+   * keep the honest mark — but the BODY belongs to BTC.
    *
    * The cumulative altitude (ledges, records) is the camera's anchor; the
    * bell settles the round and the anchor glides to the new height.
+   *
+   * THE SCALE. This was a flat 1.1% of wall per DOLLAR off the line, hard
+   * clamped. Measured against the live feed over five consecutive windows,
+   * that is stagnant at both ends: |price − line| has a median of $2 and a
+   * p75 of $7.83, so half the time the climber moved under 13px in a whole
+   * minute — while the occasional $28 excursion slammed into the clamp and
+   * then sat there. Both read as "it isn't moving".
+   *
+   * So: a FRACTION of the line rather than dollars, which keeps the feel at
+   * any BTC price; √cadence, because a 5m window wanders about 2.2× as far
+   * as a 1m one; and tanh instead of a clamp, so a big move keeps creeping
+   * instead of hitting a wall. One basis point of BTC (~$7.70 at $77k) is
+   * 76% of the way to the top.
    */
-  const OFFSET_PER_POINT = 1.1; // % of wall per BTC point off the strike
+  const REF_FRACTION = 0.0001;
+  const ref = Math.max(btc.strike ?? 0, 1) * REF_FRACTION * Math.sqrt(intervalSec / 60);
+  /** Symmetric, so a rise and a fall of the same size travel the same way. */
+  const travel = Math.min(maxUp, maxDown);
+  /*
+   * Not gated on holding a position any more. Entries fill late on these
+   * books and rounds overlap, so a player spends much of the minute with
+   * `inRound` false — and the gate pinned them dead centre for all of it.
+   * The line is real whether or not their money is on it yet.
+   */
   const rawOffset =
-    seat?.inRound && btc.price !== null && btc.strike !== null
-      ? Math.max(-maxDown, Math.min(maxUp, (btc.price - btc.strike) * OFFSET_PER_POINT))
+    btc.price !== null && btc.strike !== null
+      ? travel * Math.tanh((btc.price - btc.strike) / ref)
       : 0;
   const offset = useSmoothed(rawOffset, 300, 200);
 
