@@ -49,6 +49,18 @@ export default function Game() {
   const [name, setName] = useState("");
   const [err, setErr] = useState<string | null>(null);
   const [bell, setBell] = useState<TableState["lastResult"]>(null);
+  /**
+   * What the last bell did to YOUR run, captured the moment it lands and kept
+   * until you act on it. It used to be derived from `runId` on every render —
+   * and the ledger refresh that follows a death clears `runId` within a
+   * second, so the verdict vanished almost as it appeared and a lost round
+   * read as "nothing happened". This survives that, and it is what the result
+   * card (CONTINUE / CASH OUT / PLAY AGAIN / BACK) is built on.
+   */
+  const [verdict, setVerdict] = useState<Verdict>(null);
+  const runIdRef = useRef<string | null>(null);
+  /** Before a seat: choose a climber, then a name. */
+  const [preStage, setPreStage] = useState<"climber" | "name">("climber");
   const [leaping, setLeaping] = useState<string[]>([]);
   const [passed, setPassed] = useState<string | null>(null);
   const [optimisticPick, setOptimisticPick] = useState<"UP" | "DOWN" | null>(null);
@@ -91,6 +103,16 @@ export default function Game() {
         if (idx !== null && lastBellIndex.current !== null && idx !== lastBellIndex.current) {
           setBell(next.lastResult);
           setTimeout(() => setBell(null), 3400);
+          const r = next.lastResult!;
+          const id = runIdRef.current;
+          if (id) {
+            if (r.killed.some((k) => k.runId === id)) {
+              setVerdict({ kind: "lost", closedBy: r.closedBy, winner: r.winner });
+            } else {
+              const s = r.survived.find((x) => x.runId === id);
+              if (s) setVerdict(r.voided ? { kind: "push", to: s.to } : { kind: "won", from: s.from, to: s.to });
+            }
+          }
           // A bell consumes every pick — showing the old one as "YOUR BET"
           // would claim a stake that is not on the table.
           setOptimisticPick(null);
@@ -124,6 +146,10 @@ export default function Game() {
   }, []);
 
   const [seatFlash, setSeatFlash] = useState<null | "paid" | "free">(null);
+
+  useEffect(() => {
+    runIdRef.current = runId;
+  }, [runId]);
 
   const join = async (depositTx?: string, who?: string, signature?: string) => {
     const called = (who ?? name).trim();
@@ -285,8 +311,13 @@ export default function Game() {
     setLeaping((n) => [...n, runId]);
     sound.play("win");
     const r = await post("/api/bank", { runId, playerKey });
-    if (r?.ok) safeLocal.remove("lc.runId");
-    else setBailing(false);
+    if (r?.ok) {
+      safeLocal.remove("lc.runId");
+      // Between rounds the stack banks as it stands; mid-ride the sale lands
+      // at live value a tick later — either way this is the number the
+      // player just chose to walk with.
+      setVerdict({ kind: "banked", amount: liveMultipleOf(me, state?.price ?? { up: null, down: null }) * me.buyIn });
+    } else setBailing(false);
     setTimeout(() => setLeaping((n) => n.filter((x) => x !== runId)), 1400);
   };
   useEffect(() => {
@@ -314,16 +345,14 @@ export default function Game() {
   // The bell, made personal: did YOUR money win, lose, or carry? Matched by
   // runId, never display name — names are free text and can collide, and the
   // runId state outlives the seat the settling poll removes.
-  const mine: BellVerdict = !bell || !runId
-    ? null
-    : bell.voided
-      ? { kind: "push" }
-      : bell.killed.some((k) => k.runId === runId)
-        ? { kind: "lost" }
-        : (() => {
-            const s = bell.survived.find((x) => x.runId === runId);
-            return s ? { kind: "won" as const, from: s.from, to: s.to } : null;
-          })();
+  const mine: BellVerdict =
+    !bell || !verdict || verdict.kind === "banked"
+      ? null
+      : verdict.kind === "won"
+        ? { kind: "won", from: verdict.from, to: verdict.to }
+        : verdict.kind === "lost"
+          ? { kind: "lost" }
+          : { kind: "push" };
   /**
    * The bell belongs to whoever had a stake in it. A visitor who has not
    * joined should not have the screen shaken, a verdict flashed over the wall
@@ -334,6 +363,16 @@ export default function Game() {
    * the wall right now and simply sat this window out.
    */
   const myBell = bell && (mine || me) ? bell : null;
+
+  // A survivor who had already queued the next side is riding again by the
+  // time the card could show — do not block their screen, just let the
+  // banner go by itself.
+  useEffect(() => {
+    if (verdict && verdict.kind !== "lost" && verdict.kind !== "banked" && me?.inRound) {
+      const t = setTimeout(() => setVerdict(null), 5000);
+      return () => clearTimeout(t);
+    }
+  }, [verdict, me?.inRound]);
 
   // A ref, not a dep: `me` changes on every poll, and a dep that churns would
   // replay the bell sound for the whole 3.4s the verdict is up.
@@ -387,7 +426,6 @@ export default function Game() {
    * On lg the grid is one viewport and the wall flexes; the dock sits in flow.
    */
   const topRef = useRef<HTMLDivElement>(null);
-  const railRef = useRef<HTMLDivElement>(null);
   const dockRef = useRef<HTMLDivElement>(null);
   // Only the CHROME is measured; the viewport side stays in CSS (`100dvh`),
   // so an address bar collapsing or a rotation never waits on a JS event.
@@ -396,16 +434,14 @@ export default function Game() {
     const measure = () => {
       const h = (r: React.RefObject<HTMLDivElement | null>) => r.current?.getBoundingClientRect().height ?? 0;
       const top = h(topRef);
-      const rail = h(railRef);
       const dock = Math.round(h(dockRef));
-      // main's top padding (12) + the grid's margin (8) + a breath (6), and
-      // the grid gap under the rail when it is showing.
-      const chromeH = Math.round(top + rail + dock + 26 + (rail > 0 ? 12 : 0));
+      // main's top padding (12) + the grid's margin (8) + a breath (6).
+      const chromeH = Math.round(top + dock + 26);
       setChrome((c) => (c.chromeH === chromeH && c.dockH === dock ? c : { chromeH, dockH: dock }));
     };
     measure();
     const ro = new ResizeObserver(measure);
-    for (const r of [topRef, railRef, dockRef]) if (r.current) ro.observe(r.current);
+    for (const r of [topRef, dockRef]) if (r.current) ro.observe(r.current);
     window.addEventListener("resize", measure);
     return () => {
       ro.disconnect();
@@ -480,12 +516,7 @@ export default function Game() {
 
       {/* The HUD: roster rail · the wall · the stat block. One viewport,
           no scroll — the wall flexes to fill whatever height is left. */}
-      <div className="mt-2 grid grid-cols-1 gap-3 lg:min-h-0 lg:flex-1 lg:grid-cols-[72px_minmax(0,1fr)_240px]">
-        {/* Once seated the rail is disabled — a row of dimmed thumbnails a
-            phone cannot afford. The nameplate on the wall says who you are. */}
-        <div ref={railRef} className={`min-w-0 lg:min-h-0 lg:overflow-y-auto ${me ? "hidden lg:block" : ""}`}>
-          <Rail climber={climber} onPick={pickClimber} lockedIn={Boolean(me)} />
-        </div>
+      <div className="mt-2 grid grid-cols-1 gap-3 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_240px]">
 
         <div className="flex min-w-0 flex-col lg:min-h-0">
           {/* The wall's height floor belongs HERE, not on the wall itself —
@@ -522,7 +553,28 @@ export default function Game() {
             ref={dockRef}
             className="fixed inset-x-0 bottom-0 z-30 border-t border-[var(--edge)] bg-[var(--bg)] px-4 pt-2 pb-[max(8px,env(safe-area-inset-bottom))] lg:static lg:mt-2 lg:border-0 lg:bg-transparent lg:px-0 lg:pt-0 lg:pb-0"
           >
-            {!runId || !me ? (
+            {verdict && (!me || !me.inRound || verdict.kind === "lost" || verdict.kind === "banked") ? (
+              <Result
+                verdict={verdict}
+                busy={busy || bailing}
+                onContinue={() => setVerdict(null)}
+                onCashOut={() => {
+                  void bankOut();
+                }}
+                onAgain={() => {
+                  setVerdict(null);
+                  sound.arm();
+                  void join(undefined, name || undefined);
+                }}
+                onBack={() => {
+                  setVerdict(null);
+                  setPreStage("climber");
+                }}
+              />
+            ) : !runId || !me ? (
+              preStage === "climber" ? (
+                <ChooseClimber climber={climber} onPick={pickClimber} onNext={() => { sound.arm(); setPreStage("name"); }} />
+              ) : (
               <Join
                 name={name}
                 setName={setName}
@@ -535,7 +587,9 @@ export default function Game() {
                 onConnect={connectWallet}
                 onBuy={buySeat}
                 onPlayFree={() => setAddr(null)}
+                onBack={() => setPreStage("climber")}
               />
+              )
             ) : me.inRound ? (
               <BailBar
                 me={me}
@@ -671,47 +725,149 @@ function TopBar({
   );
 }
 
-/* ─────────────────────────── roster rail ─────────────────────────── */
+/* ───────────────────────── step 1 · the climber ───────────────────────── */
 
 /**
- * The selection rail from every mech garage: eight climbers, one outlined.
+ * The selection screen from every mech garage: eight climbers, one outlined.
  * Purely cosmetic — the market does not care what you look like — but choosing
- * a body is half of what makes a game feel like one.
+ * a body is half of what makes a game feel like one, and it is the FIRST thing
+ * a new player does here, before a name and before a bet.
  */
-function Rail({
+function ChooseClimber({
   climber,
   onPick,
-  lockedIn,
+  onNext,
 }: {
   climber: ClimberId;
   onPick: (id: ClimberId) => void;
-  lockedIn: boolean;
+  onNext: () => void;
 }) {
+  const cast = CAST.find((c) => c.id === climber) ?? CAST[0];
   return (
-    <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 lg:mx-0 lg:flex-col lg:overflow-visible lg:px-0 lg:pb-0">
-      <p className="hidden text-[8px] font-black tracking-[0.3em] text-[var(--dim)] lg:block">
-        CLIMBER
+    <div>
+      <div className="mb-1.5 flex items-center justify-between">
+        <p className="text-[10px] font-black tracking-[0.3em] text-[var(--dim)]">
+          <span className="text-[var(--gold)]">1</span> · CHOOSE YOUR CLIMBER
+        </p>
+        <p className="text-[10px] font-black tracking-[0.2em] text-[var(--accent)]">
+          {cast.code} · {cast.label}
+        </p>
+      </div>
+      <div className="grid grid-cols-8 gap-1.5 sm:gap-2">
+        {CAST.map((c) => (
+          <button
+            key={c.id}
+            onClick={() => onPick(c.id)}
+            title={`${c.code} ${c.label}`}
+            aria-pressed={climber === c.id}
+            className={`slot chamfer-sm aspect-[3/4] w-full ${climber === c.id ? "sel" : ""}`}
+          >
+            <Image
+              src={`/climbers/${c.id}/climb.webp`}
+              alt={c.label}
+              width={40}
+              height={56}
+              unoptimized
+              loading="eager"
+              className="h-[72%] w-auto"
+            />
+          </button>
+        ))}
+      </div>
+      <button
+        onClick={onNext}
+        className="chamfer mt-2 w-full bg-[var(--gold)] px-6 py-3 text-sm font-black tracking-[0.15em] text-black transition hover:brightness-110"
+      >
+        CONTINUE AS {cast.label} →
+      </button>
+    </div>
+  );
+}
+
+/* ───────────────────────── after the bell · the result ───────────────────────── */
+
+type Verdict =
+  | { kind: "won"; from: number; to: number }
+  | { kind: "push"; to: number }
+  | { kind: "lost"; closedBy: number | null; winner: "UP" | "DOWN" | null }
+  | { kind: "banked"; amount: number }
+  | null;
+
+/**
+ * The bell has rung and it concerned you. Say what happened in dollars and
+ * offer exactly the two moves that exist: go on, or go back. Nothing else on
+ * the screen changes until you choose.
+ */
+function Result({
+  verdict,
+  busy,
+  onContinue,
+  onCashOut,
+  onAgain,
+  onBack,
+}: {
+  verdict: NonNullable<Verdict>;
+  busy: boolean;
+  onContinue: () => void;
+  onCashOut: () => void;
+  onAgain: () => void;
+  onBack: () => void;
+}) {
+  const c =
+    verdict.kind === "won" ? "var(--up)" : verdict.kind === "lost" ? "var(--down)" : "var(--gold)";
+  const title =
+    verdict.kind === "won"
+      ? `YOU WON +${(verdict.to - verdict.from).toFixed(2)}`
+      : verdict.kind === "lost"
+        ? "YOU FELL"
+        : verdict.kind === "push"
+          ? "PUSH"
+          : `BANKED ${verdict.amount.toFixed(2)}`;
+  const line =
+    verdict.kind === "won"
+      ? `STACK NOW ${verdict.to.toFixed(2)} — RIDE IT AGAIN, OR CASH OUT`
+      : verdict.kind === "lost"
+        ? verdict.closedBy !== null
+          ? `BTC CLOSED $${Math.abs(verdict.closedBy).toFixed(2)} ${verdict.closedBy >= 0 ? "OVER" : "UNDER"} THE LINE — ${verdict.winner} WON. ONLY YOUR SEAT WAS AT RISK`
+          : "THE OTHER SIDE WON. ONLY YOUR SEAT WAS AT RISK"
+        : verdict.kind === "push"
+          ? `THE ORACLE VOIDED THE ROUND — YOUR STACK OF ${verdict.to.toFixed(2)} CARRIES`
+          : "THE RUN IS OVER AND THE MONEY IS BOOKED";
+  const primary =
+    verdict.kind === "lost" || verdict.kind === "banked"
+      ? { label: busy ? "SEATING…" : "PLAY AGAIN", on: onAgain }
+      : { label: "CONTINUE — PICK A SIDE", on: onContinue };
+  const secondary =
+    verdict.kind === "lost" || verdict.kind === "banked"
+      ? { label: "◂ BACK TO START", on: onBack }
+      : { label: busy ? "CASHING OUT…" : "CASH OUT & LEAVE", on: onCashOut };
+  return (
+    <div
+      className="chamfer border px-4 py-3"
+      style={{ borderColor: c, background: "linear-gradient(180deg, var(--panel-2), var(--panel))", boxShadow: `0 0 44px -18px ${c}` }}
+      role="status"
+    >
+      <p className="text-[10px] font-black tracking-[0.3em] text-[var(--dim)]">THE BELL</p>
+      <p className="display mt-1 text-3xl leading-none sm:text-4xl" style={{ color: c, textShadow: `0 0 34px ${c}55` }}>
+        {title}
       </p>
-      {CAST.map((c) => (
+      <p className="mt-1.5 text-[10px] font-bold tracking-[0.2em] text-[var(--dim)]">{line}</p>
+      <div className="mt-3 grid grid-cols-2 gap-2">
         <button
-          key={c.id}
-          onClick={() => onPick(c.id)}
-          disabled={lockedIn && climber !== c.id}
-          title={`${c.code} ${c.label}`}
-          aria-pressed={climber === c.id}
-          className={`slot chamfer-sm shrink-0 ${lockedIn ? "h-10 w-10" : "h-12 w-12"} sm:h-[56px] sm:w-[56px] lg:h-[60px] lg:w-full ${climber === c.id ? "sel" : ""} disabled:cursor-not-allowed disabled:opacity-35`}
+          onClick={primary.on}
+          disabled={busy}
+          className="chamfer-sm min-h-[46px] bg-[var(--gold)] px-3 text-sm font-black tracking-[0.12em] text-black transition hover:brightness-110 disabled:opacity-60"
         >
-          <Image
-            src={`/climbers/${c.id}/climb.webp`}
-            alt={c.label}
-            width={40}
-            height={56}
-            unoptimized
-            loading="eager"
-            className={`w-auto ${lockedIn ? "h-[30px]" : "h-[38px]"} sm:h-[44px] lg:h-[44px]`}
-          />
+          {primary.label}
         </button>
-      ))}
+        <button
+          onClick={secondary.on}
+          disabled={busy}
+          className="chamfer-sm min-h-[46px] border border-[var(--edge)] px-3 text-sm font-black tracking-[0.12em] text-[var(--dim)] transition hover:border-[var(--gold)] hover:text-[var(--gold)] disabled:opacity-60"
+        >
+          {secondary.label}
+        </button>
+      </div>
     </div>
   );
 }
@@ -1134,6 +1290,7 @@ function Join({
   onConnect,
   onBuy,
   onPlayFree,
+  onBack,
 }: {
   name: string;
   setName: (v: string) => void;
@@ -1146,6 +1303,7 @@ function Join({
   onConnect: () => void;
   onBuy: () => void;
   onPlayFree: () => void;
+  onBack: () => void;
 }) {
   // A funded bankroll seats with ONE click — the server debits it, no
   // wallet popup. That is the whole point of the bankroll.
@@ -1171,6 +1329,14 @@ function Join({
   }, []);
   return (
     <div>
+      <div className="mb-1.5 flex items-center justify-between">
+        <p className="text-[10px] font-black tracking-[0.3em] text-[var(--dim)]">
+          <span className="text-[var(--gold)]">2</span> · YOUR NAME
+        </p>
+        <button onClick={onBack} className="min-h-[36px] text-[10px] font-black tracking-[0.2em] text-[var(--dim)] transition hover:text-[var(--gold)]">
+          ◂ CHANGE CLIMBER
+        </button>
+      </div>
       <button
         onClick={() => {
           setShowRules((v) => !v);
@@ -1194,6 +1360,7 @@ function Join({
           onKeyDown={(e) => e.key === "Enter" && primary()}
           placeholder="your name"
           maxLength={12}
+          autoFocus
           className="min-w-0 flex-1 rounded-lg border border-[var(--edge)] bg-[var(--panel)] px-4 py-3 text-base outline-none focus:border-[var(--gold)]"
         />
         {/* Two doors, always visibly different: green outline is the house's

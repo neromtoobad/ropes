@@ -786,6 +786,21 @@ lonely side pays a lot. show the crowd's split on screen — that is the strateg
 ➠ **a `fixed` element inside `main.shake` jumps during the shake** — a transformed ancestor turns
   fixed into absolute for the animation's 0.6s. The bell overlay hides it; leave it.
 
+➠ **"free mode doesn't resolve" (12 sep) was the CLIENT eating its own verdict.** The executor
+  settled every round on time (logs: fills, a death at 20:07, wins at 20:28 and 20:30, all
+  within seconds of expiry). But the bell's verdict was DERIVED from `runId` on every render, and
+  the ledger refresh that follows a death clears `runId` within a second — so YOU LOST blinked and
+  the join box was back before anyone read it, and after a win nothing said what to do next. The
+  verdict is now CAPTURED at the bell (`verdict` state, keyed off a ref of the run id at that
+  instant) and kept until the player acts on it: a result card with exactly two moves — won/push:
+  CONTINUE or CASH OUT & LEAVE; lost/banked: PLAY AGAIN or BACK TO START. A survivor already riding
+  a queued pick gets the banner for 5s and is not blocked. Never derive a one-shot event from
+  state that the same event mutates.
+➠ **the way in is a flow, not a form: 1 choose your climber → 2 name → bet → result → continue or
+  back.** The rail of dimmed thumbnails is gone; the climber choice is step one in the dock, the
+  name step has ◂ CHANGE CLIMBER, and the same steps serve the wallet path (CONNECT WALLET → PLAY
+  FOR REAL lives on step 2). `?seat=1` still auto-seats past both steps.
+
 ## things NOT to do
 
 ➠ do not build a per-user escrow contract. house executor, disclosed in the video.
