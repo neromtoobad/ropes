@@ -176,12 +176,32 @@ export async function getTableState(): Promise<TableState> {
   // The round the page counts down to. When a 5m fallback round and a 1m
   // round are both open (a real overlap seen 4-5 sep), the newest INDEX was
   // sometimes the five-minute one, so the clock showed 4:30 in a one-minute
-  // game. Prefer the shortest open window; fall back to newest of anything.
+  // game. Prefer the shortest window that is STILL RUNNING.
+  //
+  // "Still running" is the part that was missing, and it froze the clock. A
+  // round only leaves open/locked when closeRound settles it, and closeRound
+  // bails out (`if (!s.settled) return false`) whenever the oracle has not
+  // paid out yet — so a 1m round the venue never settled sits open forever.
+  // Ranked on intervalSec alone it then outranks EVERY live 5m fallback
+  // round, and the page counts down to a window that expired hours ago:
+  // secondsLeft pinned at 0, the wall reading CLOCK PAUSED, while the game
+  // itself is running fine one cadence down. That is exactly the freeze the
+  // 5m fallback exists to prevent, so the shortest-window preference only
+  // applies to windows that have not expired.
+  const now = new Date();
   const round =
     (await db.round.findFirst({
-      where: { status: { in: ["open", "locked"] } },
+      where: { status: { in: ["open", "locked"] }, expiresAt: { gt: now } },
       orderBy: [{ intervalSec: "asc" }, { index: "desc" }],
-    })) ?? (await db.round.findFirst({ orderBy: { index: "desc" } }));
+    })) ??
+    // Nothing live: show the most RECENT window rather than the shortest
+    // stale one, so the age the client measures off `expiresAt` is the true
+    // age of the game and the stall banner tells the truth.
+    (await db.round.findFirst({
+      where: { status: { in: ["open", "locked"] } },
+      orderBy: { index: "desc" },
+    })) ??
+    (await db.round.findFirst({ orderBy: { index: "desc" } }));
 
   // The book, the line and the oracle link all come from the row the executor
   // mirrors each tick. The web app never touches the chain: a second

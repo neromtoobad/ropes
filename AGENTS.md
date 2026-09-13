@@ -754,6 +754,17 @@ lonely side pays a lot. show the crowd's split on screen — that is the strateg
   falls past it after 90s (`ABSENT_AFTER_S`); `/api/state` picks the SHORTEST open round, not the
   newest. When quoting "settled windows", filter `intervalSec = 60` — 7,257, not 7,439.
 
+➠ **"shortest open round" has to mean shortest round still RUNNING.** A round only leaves
+  open/locked when `closeRound` settles it, and `closeRound` returns false whenever the oracle has
+  not paid out (`if (!s.settled) return false`), so an unsettled 1m window stays open forever.
+  Ranked on `intervalSec` alone that corpse outranks every live 5m fallback round, and `/api/state`
+  hands the page a window that expired hours ago: `secondsLeft` pinned at 0, CLOCK PAUSED on the
+  wall, no countdown — while the executor is happily playing 5m rounds. The freeze the fallback was
+  built to prevent, delivered by the query that reads it. The shortest-window preference now
+  carries `expiresAt: { gt: now }`, and the no-live-round fallback takes the newest INDEX (not the
+  shortest), so the age the client measures off `expiresAt` is the real age of the game.
+  Symptom to recognise: the clock sits still but the book, the BTC price and the feed all move.
+
 ➠ **a sticky-bottom control block covers whatever precedes it until the page is scrolled to
   where the block naturally sits.** On a phone the seated /play screen stacked the phase strip,
   the bet slip, BAIL, the auto-bail row AND the next-minute row inside one `sticky bottom-0`
