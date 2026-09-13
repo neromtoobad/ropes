@@ -765,20 +765,39 @@ lonely side pays a lot. show the crowd's split on screen — that is the strateg
   shortest), so the age the client measures off `expiresAt` is the real age of the game.
   Symptom to recognise: the clock sits still but the book, the BTC price and the feed all move.
 
-➠ **a cadence with only EXPIRED rows held the loop hostage, and it did it silently (13 sep).**
-  `currentMarket` treated "this cadence has rows listed" as "this cadence is alive". A row whose
-  expiry has already passed is a corpse, not a window: it held the loop on its cadence, every
-  candidate then failed the runway check, and `currentMarket` returned null on every tick — no
-  round opened, and the executor logged NOTHING. Measured on the live Railway executor: once every
-  four hours to the minute (15:55, 19:55, 23:55, 03:55, 07:55, 11:55 UTC on 12-13 sep) one whole
-  5-minute window went dark, an hour of dead clock a day, each one a player staring at 0:00 with a
-  live game either side of it. Liveness is now judged on a FUTURE expiry, which keeps "fall back on
-  absence, never on runway" exactly as it was (a 1m window with 9s left is still ahead of us, so it
-  still holds the loop) while letting a cadence that is nothing but corpses stop counting.
-  **And a dark clock now says so in the log** (`NO MARKET TO OPEN`, throttled, with the reason and
-  how long it has been dark, plus a line when it comes back) — the last seconds of every window are
-  legitimately marketless, so nothing is reported until a gap outlives that (`DARK_AFTER_MS`).
-  A loop that stops the game must never again do it without a word.
+➠ **the venue publishes NO window under 15m for five minutes, every four hours (13 sep).** Once
+  every four hours to the minute — 15:55, 19:55, 23:55, 03:55, 07:55, 11:55 UTC observed on 12-13
+  sep — a round opens at :55 and the next one not until :05. One whole 5-minute window never
+  happens: an hour of dead clock a day, each one a player staring at 0:00 with a live game either
+  side of it. It is the VENUE, not us. The executor's own log now says so in as many words:
+
+      16:00:36 NO MARKET TO OPEN — the clock is dark for 47s. cadence 300s is held but has no
+               live window right now. 23 live rows listed.
+      16:01:42 NO MARKET TO OPEN — the clock is dark for 112s. no cadence in 60/300s has a live
+               window. 23 live rows listed.
+      16:04:52 NO MARKET TO OPEN — the clock is dark for 302s. no cadence in 60/300s has a live
+               window. 23 live rows listed.
+
+  Twenty-three markets listed the whole time and not one of them a BTC window at 60s or 300s. There
+  is nothing to select, so no selection logic can fix it; `CADENCES` stops at 300 on purpose (a
+  15-minute round is not this game). Leave it dark, let the page say CLOCK PAUSED, and — because it
+  is a real gap in the venue's series — it is worth reporting to them.
+
+  **Do not re-diagnose this as ours.** The first cut of this note blamed `currentMarket` counting
+  expired rows as a live cadence, and pushed a fix for it three hours before the 16:00 window went
+  dark anyway. That WAS a real latent bug and the fix stands (liveness is judged on a FUTURE expiry
+  now, which keeps "fall back on absence, never on runway" exactly as it was — a 1m window with 9s
+  left is still ahead of us, so it still holds the loop). It was simply never this bug. The lesson
+  is the one below it.
+
+➠ **instrument the silence BEFORE theorising about it.** The 4-hourly blackout was invisible: no
+  round, no error, no failed tick, five minutes of nothing. That silence is what made a plausible
+  wrong theory survive — there was no evidence to contradict it, so it read as proven. One log line
+  (`NO MARKET TO OPEN`, throttled, naming which cadence is held, why each candidate was refused, and
+  how long it has been dark, plus a line when it comes back) settled the question on the very next
+  occurrence. The last seconds of every window are legitimately marketless, so nothing is reported
+  until a gap outlives that (`DARK_AFTER_MS`). A loop that stops the game must never do it without
+  a word — and when it is quiet, go and make it talk before you go and fix something.
 
 ➠ **the clock is a 1m clock, and the 5m fallback made it print "0:287".** Every readout was written
   as a literal `0:${pad(secs)}` with the minute hard-coded — fine for a 60-second game, nonsense the
