@@ -7,6 +7,11 @@ node_modules/
 .DS_Store
 dist/
 .next/
+# TypeScript's incremental build cache. It was committed, and Railway's
+# Nixpacks build mounts a cache directory at that exact path — mounting a
+# directory over a real file fails the image build outright ("not a directory"),
+# which is what broke the first GitHub-sourced deploy on 13 sep.
+tsconfig.tsbuildinfo
 prisma/*.db
 prisma/*.db-journal
 prisma/*.db-shm
