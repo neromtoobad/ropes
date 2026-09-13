@@ -121,6 +121,7 @@ export async function currentMarket(minSecondsLeft = 5): Promise<LiveMarket | nu
       break; // this cadence is live (or only just blinked) — never reach past it
     }
   }
+  reportCadence(heldBy);
 
   const rejected: string[] = [];
   for (const row of candidates) {
@@ -206,6 +207,38 @@ function reportDark(heldBy: number, rowCount: number, candidateCount: number, re
     `${new Date().toISOString().slice(11, 19)} NO MARKET TO OPEN — the clock is dark for ` +
     `${Math.round((now - darkSince) / 1000)}s. ${why}. ${rowCount} live rows listed.`,
   );
+}
+
+/**
+ * Say which cadence the game is on, whenever that changes.
+ *
+ * The venue stopped publishing 1m BTC windows around midday on 12 sep and the
+ * game moved to its 5m fallback — correctly, silently, and for over a day
+ * before anyone noticed the clock was counting five minutes instead of one.
+ * Nothing in the log marked the change, so working out WHEN it happened meant
+ * reading round expiry times by hand across two days of history.
+ *
+ * This is a one-line answer to "why is the round five minutes?" and, more
+ * usefully, to "has the one-minute game come back yet?" — the return is
+ * automatic and takes one tick, so the log is the only place it shows up.
+ */
+let lastCadence = 0;
+
+function reportCadence(heldBy: number) {
+  // 0 means nothing is live at all; that is the dark path's story to tell,
+  // not a cadence change, and treating it as one would log a switch every
+  // time the venue blinked.
+  if (!heldBy || heldBy === lastCadence) return;
+  const was = lastCadence;
+  lastCadence = heldBy;
+  const t = new Date().toISOString().slice(11, 19);
+  if (!was) {
+    console.log(`${t} cadence: ${heldBy}s windows`);
+  } else if (heldBy < was) {
+    console.log(`${t} cadence: BACK to ${heldBy}s windows (was ${was}s) — the venue is publishing them again`);
+  } else {
+    console.log(`${t} cadence: FELL BACK to ${heldBy}s windows (was ${was}s) — the venue has stopped publishing ${was}s windows`);
+  }
 }
 
 /** Called on the way out of a successful pick, so the next outage starts clean
