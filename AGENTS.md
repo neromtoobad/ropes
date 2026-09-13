@@ -765,6 +765,29 @@ lonely side pays a lot. show the crowd's split on screen — that is the strateg
   shortest), so the age the client measures off `expiresAt` is the real age of the game.
   Symptom to recognise: the clock sits still but the book, the BTC price and the feed all move.
 
+➠ **a cadence with only EXPIRED rows held the loop hostage, and it did it silently (13 sep).**
+  `currentMarket` treated "this cadence has rows listed" as "this cadence is alive". A row whose
+  expiry has already passed is a corpse, not a window: it held the loop on its cadence, every
+  candidate then failed the runway check, and `currentMarket` returned null on every tick — no
+  round opened, and the executor logged NOTHING. Measured on the live Railway executor: once every
+  four hours to the minute (15:55, 19:55, 23:55, 03:55, 07:55, 11:55 UTC on 12-13 sep) one whole
+  5-minute window went dark, an hour of dead clock a day, each one a player staring at 0:00 with a
+  live game either side of it. Liveness is now judged on a FUTURE expiry, which keeps "fall back on
+  absence, never on runway" exactly as it was (a 1m window with 9s left is still ahead of us, so it
+  still holds the loop) while letting a cadence that is nothing but corpses stop counting.
+  **And a dark clock now says so in the log** (`NO MARKET TO OPEN`, throttled, with the reason and
+  how long it has been dark, plus a line when it comes back) — the last seconds of every window are
+  legitimately marketless, so nothing is reported until a gap outlives that (`DARK_AFTER_MS`).
+  A loop that stops the game must never again do it without a word.
+
+➠ **the clock is a 1m clock, and the 5m fallback made it print "0:287".** Every readout was written
+  as a literal `0:${pad(secs)}` with the minute hard-coded — fine for a 60-second game, nonsense the
+  moment the venue dropped to 5m windows (all day, 12-13 sep): the 7xl numeral on the wall read
+  "287" and the status line read "BELL 0:287". A three-digit number where a clock goes does not read
+  as a countdown, it reads as a broken gauge. `clock()` (m:ss) and `bigClock()` (two digits inside
+  the last minute, m:ss above it) live in shared.tsx — use them for anything timed off a round.
+  Under a minute the output is byte-identical to the old code, so the 1m game is untouched.
+
 ➠ **a sticky-bottom control block covers whatever precedes it until the page is scrolled to
   where the block naturally sits.** On a phone the seated /play screen stacked the phase strip,
   the bet slip, BAIL, the auto-bail row AND the next-minute row inside one `sticky bottom-0`

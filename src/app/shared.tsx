@@ -61,6 +61,29 @@ export const usd = (n: number) => `${n >= 0 ? "+" : "−"}${Math.abs(n).toFixed(
 export const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
 export const pad = (n: number) => String(Math.max(0, Math.floor(n))).padStart(2, "0");
 
+/**
+ * A round's remaining time, as a clock.
+ *
+ * This is a one-minute game, so every readout was written as a literal
+ * `0:${pad(secs)}` with the minute hard-coded to zero. Then the venue stopped
+ * publishing 1m windows and the game dropped to its 5m fallback — which it did
+ * for a solid day in september — and the same code printed "BELL 0:287" and a
+ * bare "287" in the 7xl numeral on the wall. A three-digit number where a
+ * clock belongs does not read as a countdown at all; it reads as a broken
+ * gauge, which is the one impression this screen cannot afford.
+ */
+export const clock = (n: number) => {
+  const s = Math.max(0, Math.floor(n));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+};
+
+/** The big numeral on the stage: two digits inside the final minute — the
+ *  shape the wall is designed around — and m:ss above it. */
+export const bigClock = (n: number) => {
+  const s = Math.max(0, Math.floor(n));
+  return s < 60 ? String(s).padStart(2, "0") : clock(s);
+};
+
 /** Paint the world in the chosen climber's colours. Reads localStorage so
  *  every page (landing, wallet, board) wears the theme, not just the game. */
 export function useClimberTheme(override?: string) {

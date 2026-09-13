@@ -9,7 +9,7 @@ import { useSound, useHeartbeat } from "../sound";
 import { useHasWallet, useAccount, wallets, connect, paySeat, collateralBalance, signDeposit } from "../wallet";
 import { useSmoothed } from "../useSmoothed";
 import {
-  usd, short, pad, usePlayerKey, useLedger, useClimberTheme, SiteNav, HowItWorks, ShareButton,
+  usd, short, clock, bigClock, usePlayerKey, useLedger, useClimberTheme, SiteNav, HowItWorks, ShareButton,
   type LedgerData, OpenInWallet, safeLocal} from "../shared";
 
 const SEAT = 10_000_000n; // 10 tUSDC, 6 decimals
@@ -686,7 +686,7 @@ function TopBar({
           <h1 className="display whitespace-nowrap text-base leading-none tracking-[0.2em] sm:text-lg">ROPES</h1>
           <p className="mt-0.5 text-[9px] font-bold tracking-[0.3em] text-[var(--dim)]">
             {roping
-              ? `ROPING UP · 0:${String(Math.max(0, Math.round(t!.sealsIn))).padStart(2, "0")}`
+              ? `ROPING UP · ${clock(t!.sealsIn)}`
               : me
                 ? (
                   /* The title block and the clock together need 364px of a
@@ -722,7 +722,7 @@ function TopBar({
       <div className="hidden text-right lg:block">
         <div className={`display tabular outline-num clock-num text-5xl leading-[0.85] sm:text-7xl ${urgent && !stalled ? "clock-urgent" : ""}`}
           style={stalled ? { color: "var(--dim)" } : undefined}>
-          {stalled ? "··" : String(secs).padStart(2, "0")}
+          {stalled ? "··" : bigClock(secs)}
         </div>
         <p className="mt-0.5 text-[9px] font-bold tracking-[0.3em] text-[var(--dim)]">
           {stalled ? "CLOCK PAUSED" : "TO THE BELL"}
@@ -1179,7 +1179,7 @@ function Sides({
     ? "TOO PRICEY — HOLDING FOR A BETTER QUOTE"
     : pickPrice === null
       ? windowOpen
-        ? `WAITING FOR THE BOOK · 0:${pad(state.round?.betsCloseIn ?? 0)}`
+        ? `WAITING FOR THE BOOK · ${clock(state.round?.betsCloseIn ?? 0)}`
         : "NO BOOK THIS WINDOW — RIDES THE NEXT"
       : windowOpen
         ? "ENTERING NOW"
@@ -1197,8 +1197,8 @@ function Sides({
                 ? `YOUR BET: ${shownPick === "UP" ? "▲ UP" : "▼ DOWN"} — ${pickStatus}`
                 : canPick
                   ? (state.round?.betsCloseIn ?? 0) > 0
-                    ? `BETS OPEN — CLOSE IN 0:${pad(state.round!.betsCloseIn)}`
-                    : `BETS CLOSED — NEXT WINDOW IN 0:${pad(state.round?.secondsLeft ?? 0)}`
+                    ? `BETS OPEN — CLOSE IN ${clock(state.round!.betsCloseIn)}`
+                    : `BETS CLOSED — NEXT WINDOW IN ${clock(state.round?.secondsLeft ?? 0)}`
                   : "NEXT ROUND"}
           {me?.autoBailAt != null && (
             <span className="ml-2 text-[var(--gold)]">⚡ AUTO-BAIL {me.autoBailAt}×</span>
@@ -1216,8 +1216,8 @@ function Sides({
           </button>
         ) : (
           <span className="tabular">
-            {state.round ? `ROUND ${state.round.index} · ` : ""}BELL 0:
-            {pad(state.round?.secondsLeft ?? 0)}
+            {state.round ? `ROUND ${state.round.index} · ` : ""}BELL{" "}
+            {clock(state.round?.secondsLeft ?? 0)}
           </span>
         )}
       </div>

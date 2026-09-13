@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import type { TableState } from "@/lib/state";
 import { useSmoothed } from "./useSmoothed";
+import { bigClock } from "./shared";
 
 /**
  * ROPES — solo.
@@ -707,7 +708,7 @@ export function Cliff({
           className={`display tabular outline-num text-4xl leading-none sm:text-5xl ${clockUrgent && !stalled ? "clock-urgent" : ""}`}
           style={stalled ? { color: "var(--dim)" } : undefined}
         >
-          {stalled ? "··" : String(Math.max(0, Math.floor(secondsLeft))).padStart(2, "0")}
+          {stalled ? "··" : bigClock(secondsLeft)}
         </div>
         <p className="mt-0.5 text-[8px] font-bold tracking-[0.3em] text-[var(--dim)]">
           {stalled ? "CLOCK PAUSED" : "TO THE BELL"}

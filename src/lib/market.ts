@@ -87,27 +87,57 @@ export async function currentMarket(minSecondsLeft = 5): Promise<LiveMarket | nu
    * a real player's position in it (round 7094). A cadence only counts as
    * gone when it has been missing for longer than one of its own windows.
    */
+  /*
+   * And "has a row" must mean "has a window still AHEAD of us".
+   *
+   * A listed row whose expiry is already in the past is a corpse, not a live
+   * cadence — but counting rows alone could not tell the difference, so a
+   * corpse held the loop on its cadence, every window it offered failed the
+   * runway check, and `currentMarket` returned null on every tick for as long
+   * as the venue kept listing it. The loop then sat there opening nothing,
+   * silently: no round, no error, nothing in the log. Measured on the live
+   * executor, once every four hours to the minute (15:55, 19:55, 23:55, 03:55,
+   * 07:55, 11:55 UTC on 12-13 sep), one whole five-minute window went dark
+   * each time — an hour of dead clock a day, and a player who arrived in one
+   * saw a countdown frozen at 0:00 with a live game either side of it.
+   *
+   * Judging liveness on a FUTURE expiry keeps both rules intact: a 1m window
+   * with 9s left is still ahead of us, so it still holds the loop and we still
+   * wait a tick for the next 1m window rather than reaching for a 5m one
+   * (fall back on absence, never on runway), while a cadence that has nothing
+   * but expired rows stops counting as present and the fallback can do its job.
+   */
   const now = Date.now();
-  for (const sec of CADENCES) if (forCadence(sec).length) lastSeenAt.set(sec, now);
+  const liveFor = (sec: number) => forCadence(sec).filter((m: any) => Number(m.expiry) * 1000 > now);
+  for (const sec of CADENCES) if (liveFor(sec).length) lastSeenAt.set(sec, now);
   let candidates: any[] = [];
+  let heldBy = 0;
   for (const sec of CADENCES) {
     const seen = lastSeenAt.get(sec) ?? 0;
     const missingFor = (now - seen) / 1000;
     if (missingFor <= ABSENT_AFTER_S) {
-      candidates = forCadence(sec);
+      heldBy = sec;
+      candidates = liveFor(sec);
       break; // this cadence is live (or only just blinked) — never reach past it
     }
   }
 
+  const rejected: string[] = [];
   for (const row of candidates) {
     const marketId = row.marketId as `0x${string}`;
     const rowInterval = Number(row.intervalSec);
     const onchain = await exchange.client.getMarketOnchain(marketId);
-    if (onchain.status !== TRADING) continue;
+    if (onchain.status !== TRADING) {
+      rejected.push(`${marketId.slice(0, 10)}… status=${onchain.status}`);
+      continue;
+    }
 
     const expiresAt = new Date(Number(row.expiry) * 1000);
     const secondsLeft = (expiresAt.getTime() - Date.now()) / 1000;
-    if (secondsLeft < minSecondsLeft) continue;
+    if (secondsLeft < minSecondsLeft) {
+      rejected.push(`${marketId.slice(0, 10)}… ${secondsLeft.toFixed(0)}s left`);
+      continue;
+    }
 
     const pool = onchain.pool as `0x${string}`;
     const grid = await exchange.client.getBinaryBookParams(pool);
@@ -118,6 +148,7 @@ export async function currentMarket(minSecondsLeft = 5): Promise<LiveMarket | nu
     await exchange.client.watchMarket(pool);
     const book = exchange.client.getLiveBinaryOrderBook(pool);
 
+    reportLit();
     return {
       marketId,
       pool,
@@ -136,7 +167,57 @@ export async function currentMarket(minSecondsLeft = 5): Promise<LiveMarket | nu
       oracleQuestionId: row.oracleQuestionId ? String(row.oracleQuestionId) : null,
     };
   }
+  reportDark(heldBy, rows.length, candidates.length, rejected);
   return null;
+}
+
+/**
+ * Say so when there is nothing to open.
+ *
+ * Returning null here stops the whole game — no round opens, so the page has
+ * nothing to count down to — and it used to do that in complete silence: the
+ * executor's log went blank for five minutes at a stretch with no round, no
+ * error and no failed tick, which is indistinguishable from a healthy quiet
+ * spell right up until someone tries to play. A dark game has to be legible
+ * in the log of the process that turned the lights off.
+ *
+ * The last seconds of every window are legitimately marketless — the live one
+ * has less runway than `minSecondsLeft` and the next is not listed yet — so a
+ * gap only counts as dark once it outlasts that (`DARK_AFTER_MS`), and is then
+ * reported every 30s plus once on recovery. A healthy game says nothing at
+ * all; a stuck one costs a couple of lines a minute.
+ */
+const DARK_AFTER_MS = 45_000;
+let darkSince = 0;
+let darkLoggedAt = 0;
+
+function reportDark(heldBy: number, rowCount: number, candidateCount: number, rejected: string[]) {
+  const now = Date.now();
+  if (!darkSince) darkSince = now;
+  if (now - darkSince < DARK_AFTER_MS) return;
+  if (darkLoggedAt && now - darkLoggedAt < 30_000) return;
+  darkLoggedAt = now;
+  const why = candidateCount === 0
+    ? heldBy
+      ? `cadence ${heldBy}s is held but has no live window right now`
+      : `no cadence in ${CADENCES.join("/")}s has a live window`
+    : `every ${heldBy}s window was refused: ${rejected.slice(0, 4).join(", ")}`;
+  console.log(
+    `${new Date().toISOString().slice(11, 19)} NO MARKET TO OPEN — the clock is dark for ` +
+    `${Math.round((now - darkSince) / 1000)}s. ${why}. ${rowCount} live rows listed.`,
+  );
+}
+
+/** Called on the way out of a successful pick, so the next outage starts clean
+ *  and the log says how long this one lasted. */
+function reportLit() {
+  if (!darkSince) return;
+  const was = Math.round((Date.now() - darkSince) / 1000);
+  darkSince = 0;
+  darkLoggedAt = 0;
+  if (was * 1000 >= DARK_AFTER_MS) {
+    console.log(`${new Date().toISOString().slice(11, 19)} market found again after ${was}s dark`);
+  }
 }
 
 /** Re-read a market's settlement state. Cheap, on-chain, authoritative. */
