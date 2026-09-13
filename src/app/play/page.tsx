@@ -295,7 +295,11 @@ export default function Game() {
    */
   const roundAge = state?.round ? (nowMs - Date.parse(state.round.expiresAt)) / 1000 : 0;
   const pollAge = (nowMs - stateAt.current) / 1000;
-  const stalled = Boolean(state) && (roundAge > 90 || pollAge > 25);
+  // A frame with no round at all is the third way, and it used to slip
+  // through: `roundAge` stayed 0, nothing looked stale, and the clock sat at
+  // 00 reading TO THE BELL with no bell coming. There is nothing to count
+  // down to — say so.
+  const stalled = Boolean(state) && (!state?.round || roundAge > 90 || pollAge > 25);
 
   /** What the children render: the newest state, with the clock replaced by
    *  the locally-run one so nothing on screen disagrees about the time. */
