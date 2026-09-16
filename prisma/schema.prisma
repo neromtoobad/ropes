@@ -11,10 +11,18 @@ generator client {
 }
 
 datasource db {
-  // Hosted Postgres (Supabase free tier) so the web app can live on Vercel
-  // while the executor runs wherever it runs — they share this one ledger.
-  // DATABASE_URL: session pooler (long-lived: executor, local dev). On
-  // serverless, point it at the transaction pooler with ?pgbouncer=true.
+  // Hosted Postgres so the web app can live on Vercel while the executor runs
+  // wherever it runs — they share this one ledger.
+  //
+  // It lived on a Supabase free-tier project until 16 sep, when the free plan's
+  // two-active-project limit paused it to make room for another project and
+  // took the whole game down with it. It is now Railway Postgres, in the same
+  // project and region as the executor: the executor reaches it over Railway's
+  // private network (no egress, no pooler in the path), and Vercel reaches it
+  // through the service's TCP proxy.
+  //
+  // DATABASE_URL is a long-lived connection (executor, local dev). On
+  // serverless, point it at a pooled URL with ?pgbouncer=true.
   // DIRECT_URL is for migrations/db push.
   provider  = "postgresql"
   url       = env("DATABASE_URL")

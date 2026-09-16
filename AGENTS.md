@@ -878,6 +878,22 @@ lonely side pays a lot. show the crowd's split on screen — that is the strateg
   measurement is of a stale value. A screenshot pumps a frame or two, so a burst of them creeps the
   value toward target — which looks exactly like a broken animation. Verify the MAPPING numerically
   and confirm motion on a real device.
+➠ **a free-tier Supabase project can be PAUSED out from under production (16 sep).** The ledger
+  lived on a Supabase free-tier project. The free plan allows two ACTIVE projects per org; a third
+  project was created, and the game's database was paused to make room. Every tick then died on
+  `FATAL: (ENOTFOUND) tenant/user climb.flprhfxryvpe` — the pooler could not find the tenant because
+  the tenant was asleep — and the executor crash-looped every 30s while `/api/state` 500'd. Free
+  Supabase also auto-pauses a project after 7 days idle, so this was always going to happen
+  eventually; the third project just brought it forward.
+  The ledger is now **Railway Postgres in the same project and region as the executor**: private
+  networking service-to-service (no egress, no pooler in the path, and the 30.4s-vs-6.7s pooler
+  problem below simply stops existing), a TCP proxy for Vercel, and no slot to lose. Nothing is
+  free — it is billed Railway usage — but the game no longer shares a fate with whatever else got
+  built that week.
+  **The schema now provisions itself.** `start-prod.sh` runs `prisma db push` before the loop,
+  because the fix for an empty database otherwise needs a laptop that can reach it, and needing a
+  laptop is exactly what broke this. It is idempotent and deliberately non-fatal.
+
 ➠ **local `next dev` against the production Supabase pooler can take 4-80s per `/api/state`** from
   this machine, so the page barely updates and mock harnesses appear not to work. Production is
   0.5-1s. Verify anything timing-dependent against production, not local dev.
