@@ -14,12 +14,17 @@ datasource db {
   // Hosted Postgres so the web app can live on Vercel while the executor runs
   // wherever it runs — they share this one ledger.
   //
-  // It lived on a Supabase free-tier project until 16 sep, when the free plan's
-  // two-active-project limit paused it to make room for another project and
-  // took the whole game down with it. It is now Railway Postgres, in the same
-  // project and region as the executor: the executor reaches it over Railway's
-  // private network (no egress, no pooler in the path), and Vercel reaches it
-  // through the service's TCP proxy.
+  // Supabase, and the free plan's two-active-project limit is a live hazard:
+  // on 16 sep a third project was created, this one was paused to make room,
+  // and the whole game went down. It briefly moved to Railway Postgres and
+  // then came back here — because Vercel's env vars point at Supabase and
+  // nobody could edit them from a phone. Read AGENTS.md before moving it
+  // again: the database and the web app's env vars have to move together.
+  //
+  // The executor connects as `ropes_exec`, a role granted membership in
+  // `climb` (which owns the tables). The web app keeps using `climb` directly.
+  // Two roles, one ledger — so either side can be re-credentialed without
+  // touching the other.
   //
   // DATABASE_URL is a long-lived connection (executor, local dev). On
   // serverless, point it at a pooled URL with ?pgbouncer=true.
