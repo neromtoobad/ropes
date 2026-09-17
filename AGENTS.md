@@ -885,14 +885,29 @@ lonely side pays a lot. show the crowd's split on screen — that is the strateg
   the tenant was asleep — and the executor crash-looped every 30s while `/api/state` 500'd. Free
   Supabase also auto-pauses a project after 7 days idle, so this was always going to happen
   eventually; the third project just brought it forward.
-  The ledger is now **Railway Postgres in the same project and region as the executor**: private
-  networking service-to-service (no egress, no pooler in the path, and the 30.4s-vs-6.7s pooler
-  problem below simply stops existing), a TCP proxy for Vercel, and no slot to lose. Nothing is
-  free — it is billed Railway usage — but the game no longer shares a fate with whatever else got
-  built that week.
-  **The schema now provisions itself.** `start-prod.sh` runs `prisma db push` before the loop,
-  because the fix for an empty database otherwise needs a laptop that can reach it, and needing a
-  laptop is exactly what broke this. It is idempotent and deliberately non-fatal.
+  It moved to Railway Postgres for about an hour and then came straight back, which is the part
+  worth remembering: **the database cannot move unless the web app's env vars move with it.** The
+  executor's connection string lives on Railway (editable from anywhere, including by an agent);
+  the Vercel app's lives on Vercel (no env-var API on the MCP, and not realistically editable from
+  a phone). Moving the executor alone just splits the system in two — the site reads one database
+  while the game writes another. The fix was to unpause Supabase and bring the executor back.
+  **Two roles, one ledger.** The tables are owned by `climb`, which is what the web app connects
+  as. The executor now connects as `ropes_exec`, created fresh and granted `GRANT climb TO
+  ropes_exec` so it inherits ownership rights. That exists because the executor's old Supabase
+  password was overwritten and could not be read back from Railway — and minting a second role is
+  the move that does NOT disturb the credentials the web app is still using. `ALTER ROLE climb
+  PASSWORD ...` would have fixed the executor and broken the site in the same statement.
+  Grants alone are not enough: `GRANT ALL ON ALL TABLES` run by `postgres` silently grants nothing
+  on tables `postgres` does not own, and the first boot died on `permission denied for table
+  CashFlow`. Membership in the owning role is what works.
+  **The schema provisions itself.** `start-prod.sh` runs `prisma db push` before the loop, because
+  the fix for an empty database otherwise needs a laptop that can reach it, and needing a laptop is
+  exactly what turns an inconvenience into an outage. Idempotent ("already in sync" on a healthy
+  database) and deliberately non-fatal.
+  **Still unsolved: the free plan still allows only two active projects.** Pausing another project
+  is what bought this one back. The permanent fixes are Supabase Pro or moving BOTH the executor
+  and the web app off Vercel; until then this recurs the next time a third project is created, and
+  a free project also auto-pauses after 7 days idle.
 
 ➠ **local `next dev` against the production Supabase pooler can take 4-80s per `/api/state`** from
   this machine, so the page barely updates and mock harnesses appear not to work. Production is
