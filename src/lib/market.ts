@@ -122,6 +122,10 @@ export async function currentMarket(minSecondsLeft = 5): Promise<LiveMarket | nu
     }
   }
   reportCadence(heldBy);
+  reportCensus(
+    heldBy,
+    CADENCES.map((sec) => ({ sec, listed: forCadence(sec).length, live: liveFor(sec).length })),
+  );
 
   const rejected: string[] = [];
   for (const row of candidates) {
@@ -223,6 +227,45 @@ function reportDark(heldBy: number, rowCount: number, candidateCount: number, re
  * automatic and takes one tick, so the log is the only place it shows up.
  */
 let lastCadence = 0;
+
+/**
+ * While the game is NOT on the fast cadence, say what the venue is actually
+ * offering — on a schedule, not just on change.
+ *
+ * "Why is the one-minute game still not running?" is a question the log could
+ * not answer. `cadence: FELL BACK to 300s` says we moved and when, but a week
+ * later it is off the end of the retention window and all anyone can see is
+ * five-minute rounds, which is indistinguishable from us failing to pick up 1m
+ * windows that are sitting right there. The difference matters: one is the
+ * venue's to fix and one is ours.
+ *
+ * So every half hour on a slow cadence, the loop states the case:
+ *
+ *   no rows listed   the venue is not publishing that cadence at all — theirs
+ *   all expired      it is listing corpses, which is a venue bug worth reporting
+ *   N live           they exist and we are not using them — OURS, go and look
+ *
+ * Silent on the preferred cadence: a healthy 1m game explains itself.
+ */
+const CENSUS_EVERY_MS = 30 * 60_000;
+let censusLoggedAt = 0;
+
+function reportCensus(heldBy: number, census: { sec: number; listed: number; live: number }[]) {
+  if (!heldBy || heldBy === CADENCES[0]) return;
+  const now = Date.now();
+  if (censusLoggedAt && now - censusLoggedAt < CENSUS_EVERY_MS) return;
+  censusLoggedAt = now;
+  const detail = census
+    .map((c) =>
+      !c.listed ? `${c.sec}s: no rows listed`
+        : !c.live ? `${c.sec}s: ${c.listed} listed, ALL EXPIRED`
+        : `${c.sec}s: ${c.live} live`,
+    )
+    .join("  ·  ");
+  console.log(
+    `${new Date().toISOString().slice(11, 19)} cadence census — on ${heldBy}s windows.  ${detail}`,
+  );
+}
 
 function reportCadence(heldBy: number) {
   // 0 means nothing is live at all; that is the dark path's story to tell,
