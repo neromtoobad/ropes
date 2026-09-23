@@ -172,7 +172,7 @@ export async function currentMarket(minSecondsLeft = 5): Promise<LiveMarket | nu
       oracleQuestionId: row.oracleQuestionId ? String(row.oracleQuestionId) : null,
     };
   }
-  reportDark(heldBy, rows.length, candidates.length, rejected);
+  reportDark(heldBy, rows, candidates.length, rejected);
   return null;
 }
 
@@ -196,7 +196,7 @@ const DARK_AFTER_MS = 45_000;
 let darkSince = 0;
 let darkLoggedAt = 0;
 
-function reportDark(heldBy: number, rowCount: number, candidateCount: number, rejected: string[]) {
+function reportDark(heldBy: number, rows: any[], candidateCount: number, rejected: string[]) {
   const now = Date.now();
   if (!darkSince) darkSince = now;
   if (now - darkSince < DARK_AFTER_MS) return;
@@ -209,7 +209,55 @@ function reportDark(heldBy: number, rowCount: number, candidateCount: number, re
     : `every ${heldBy}s window was refused: ${rejected.slice(0, 4).join(", ")}`;
   console.log(
     `${new Date().toISOString().slice(11, 19)} NO MARKET TO OPEN — the clock is dark for ` +
-    `${Math.round((now - darkSince) / 1000)}s. ${why}. ${rowCount} live rows listed.`,
+    `${Math.round((now - darkSince) / 1000)}s. ${why}. ${rows.length} live rows listed.`,
+  );
+  reportInventory(rows, now);
+}
+
+/**
+ * What the venue is ACTUALLY offering, printed raw.
+ *
+ * "17 live rows listed, none at 60/300s" has two completely different causes
+ * and reads the same either way: the venue stopped publishing the cadences we
+ * play, or it changed the shape of a field and our parsing silently drops
+ * every row. `Number(row.expiry) * 1000 > now` yields false for a string date
+ * or a millisecond timestamp just as surely as it does for a window that has
+ * genuinely passed, and `Number(row.intervalSec) === 60` misses a value
+ * expressed in minutes. In both cases every row vanishes from the filters and
+ * the loop reports an empty sky.
+ *
+ * So the census is taken on the RAW rows, before any of our assumptions: a
+ * count per (asset, intervalSec) exactly as the venue labels them, and one
+ * sample row's expiry printed both raw and as we parse it. If the parse is
+ * wrong, the mismatch is right there on the line. Every 10 minutes while dark
+ * — this only ever prints when the game is already stopped.
+ */
+const INVENTORY_EVERY_MS = 10 * 60_000;
+let inventoryLoggedAt = 0;
+
+function reportInventory(rows: any[], now: number) {
+  if (inventoryLoggedAt && now - inventoryLoggedAt < INVENTORY_EVERY_MS) return;
+  inventoryLoggedAt = now;
+  const stamp = new Date().toISOString().slice(11, 19);
+  if (!rows.length) {
+    console.log(`${stamp}   inventory: the venue listed NOTHING at all`);
+    return;
+  }
+  const byKind = new Map<string, number>();
+  for (const r of rows) {
+    const key = `${r.asset ?? "?"}@${r.intervalSec ?? "?"}s`;
+    byKind.set(key, (byKind.get(key) ?? 0) + 1);
+  }
+  const kinds = [...byKind.entries()].map(([k, n]) => `${k} x${n}`).join("  ");
+  console.log(`${stamp}   inventory: ${kinds}`);
+  // One row, unparsed and parsed side by side, so a changed field format shows
+  // up as a mismatch instead of as an empty filter.
+  const r = rows[0];
+  const parsed = Number(r.expiry) * 1000;
+  console.log(
+    `${stamp}   sample: asset=${JSON.stringify(r.asset)} intervalSec=${JSON.stringify(r.intervalSec)} ` +
+    `expiry=${JSON.stringify(r.expiry)} -> ${Number.isFinite(parsed) ? new Date(parsed).toISOString() : "UNPARSEABLE"} ` +
+    `(we want ASSET=${JSON.stringify(ASSET)}, intervalSec in ${CADENCES.join("/")}, expiry in the future)`,
   );
 }
 
