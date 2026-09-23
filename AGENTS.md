@@ -799,6 +799,31 @@ lonely side pays a lot. show the crowd's split on screen — that is the strateg
   until a gap outlives that (`DARK_AFTER_MS`). A loop that stops the game must never do it without
   a word — and when it is quiet, go and make it talk before you go and fix something.
 
+➠ **the venue dropped the 5m BTC series too (22 sep ~16:15 UTC), after dropping 1m on 12 sep.**
+  The game went fully dark — no fallback left inside `CADENCES`. What Somnia listed on 23 sep:
+
+      inventory: BTC@14400s x1  ETH@14400s x1  BOTNAV@14400s x11  BTC@86400s x1  ETH@86400s x1
+                 BTC@3888000s x1  ETH@3888000s x1
+      sample: asset="BTC" intervalSec="14400" expiry="1790150400" -> 2026-09-23T08:00:00.000Z
+
+  The shortest BTC window in existence was FOUR HOURS. The owner chose to wait rather than widen
+  `CADENCES` to 14400: a round with one bell every four hours is not this game.
+  **The inventory line is what made that a decision instead of a guess.** "17 live rows, none at
+  60/300s" reads identically whether the venue stopped publishing or changed a field format and our
+  filters silently dropped every row — an ISO-string or millisecond `expiry` fails
+  `Number(expiry) * 1000 > now` exactly like a passed window does. So while dark the loop prints a
+  census of the RAW rows per (asset, intervalSec), plus one row's expiry shown raw AND as parsed.
+  Here the parse was plainly right (future timestamp, correct asset), which settled it as the
+  venue's in one line. Read that line before touching `currentMarket` in any future outage.
+➠ **a dark game does not burn gas, and that hides how empty the wallet is.** The house wallet read
+  0.0270 STT on 23 sep (11.13 on 13 sep, 5.66 on 17 sep — ~1-1.5 STT per day of live play).
+  Preflight only refuses to start at exactly 0, so a near-empty wallet boots cleanly and looks
+  healthy for as long as the venue stays dark — then the first handful of orders after the venue
+  returns drain it, and the next restart dies on `no STT for gas`. Check the preflight `gas` line
+  during ANY outage, not just when trades fail. STT comes from Somnia's Google Cloud Web3 faucet or
+  their DevRel (Discord #dev-chat / Telegram, @emreyeth); getting above 32 STT is also what lets
+  `scripts/resubscribe.ts --send` bring back the on-chain reactivity subscription.
+
 ➠ **the clock is a 1m clock, and the 5m fallback made it print "0:287".** Every readout was written
   as a literal `0:${pad(secs)}` with the minute hard-coded — fine for a 60-second game, nonsense the
   moment the venue dropped to 5m windows (all day, 12-13 sep): the 7xl numeral on the wall read
